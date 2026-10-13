@@ -8,7 +8,7 @@ than at the vendor goes to your bank alt. The rest stays in your bags to vendor.
   turns disenchant value on by default.
 - **Preview first:** it shows the recipient, what goes and why, what stays and
   why, and a **Settings** button to fix anything before you press Send.
-- **Controller first:** every window works with a gamepad alone.
+- **Controller first:** every window works with a gamepad alone, using Forever's own controller UI (Triangle on the mailbox opens Mailworthy).
 - **Lock bag slots** you never want mailed.
 
 **Status: Phase 0 (discovery).** Nothing in game yet beyond `/mw`. The full
@@ -17,7 +17,7 @@ design, phases and open questions are in [docs/PLAN.md](docs/PLAN.md).
 ## Discovery (Phase 0)
 
 The first in-game checks run through LedgerLink's `/rl probe` (the `S5 …`
-lines, sjdodge123/ledger-link PR #28). With Auctionator and Disenchantry
+lines from v1.3.0, plus the `S6 …` lines from PR #29). With Auctionator and Disenchantry
 installed and an Auctionator scan done: open a mailbox, click the **Send Mail**
 tab, run `/rl probe`, and paste the report back. Its answers go into the table
 below.
@@ -34,7 +34,8 @@ the full list.
 | Auctionator `API.v1` price + disenchant calls on Forever | S5 `item` lines show `ah=` / `de=` values | open |
 | `SendMail` to a two-part "First Surname" name | first test mail | open |
 | Several mails in a row from one press | Phase 3 test | open (ForeverMail's queue suggests yes) |
-| Pad-key override bindings while a window is open | S5 gamepad lines, Phase 2 test | open |
+| Joining Forever's built-in controller UI (footer action on Triangle, L2/R2 window cycle) | S6 lines | open |
+| Pad-key override bindings while a window is open (fallback) | S5 gamepad lines, Phase 2 test | open |
 | SavedVariables survive `/reload` and relog | bank alt still set after a relog | open (LedgerLink saw a reload bug on the beta) |
 
 ## Development
