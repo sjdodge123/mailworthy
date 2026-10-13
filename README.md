@@ -61,6 +61,11 @@ the full list.
 | Postage / AH deposit | alpha1 self-test, LedgerLink S8 | **30c per item**; deposit floor(vendor x 5%) x 1 / 4 / 12 (12h / 24h / 48h) |
 | SavedVariables survive `/reload` and relog | bank alt still set after a relog | open (LedgerLink saw a reload bug on the beta) |
 
+## Picking up the work
+
+Start with [docs/HANDOFF.md](docs/HANDOFF.md): state, decisions, pitfalls (taint!)
+and what's left. Agent rules: [AGENTS.md](AGENTS.md).
+
 ## Release
 
 CurseForge setup, assets and the first-release checklist: [docs/CURSEFORGE.md](docs/CURSEFORGE.md).
