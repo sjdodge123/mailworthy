@@ -12,6 +12,8 @@ Blocked.lua
 Characters.lua
 Gamepad.lua
 Locks.lua
+Border.lua
 MailButton.lua
+PadKey.lua
 SelfTest.lua
 SelfTestUI.lua

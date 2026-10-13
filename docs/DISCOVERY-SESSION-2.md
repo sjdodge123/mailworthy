@@ -21,7 +21,49 @@ runtime, and measures what no source can tell us.
 | U12 | **Open.** Cross stopped using items, but the footer taint was already active, so the lock menu isn't proven guilty or clean |
 | U2, U3 | **Open.** No AH sale mail yet; no green item in bags |
 
-## Rerun with alpha2 (about 10 minutes)
+## Results of the alpha2 run (2026-10-13)
+
+| # | Result |
+|---|---|
+| U5 | **Settled.** Attaching works on a press and **from a timer** |
+| U6 | **Settled.** `ClearSendMail()` puts both items back |
+| U7 | **Settled.** `SendMail` to "First Surname" works |
+| U8 | **Settled.** Mail 2 sent automatically after `MAIL_SEND_SUCCESS`, no press |
+| U9 | **Settled.** `MAIL_SEND_SUCCESS` per mail; `IsCommandPending` false before each |
+| U10 | **Settled.** Both mails were in the bank alt's inbox 89 s after sending |
+| U11-U12 | **Replaced.** The More-menu entry works but taints controller input, even unclicked (blocks began within seconds of opening the menu; none on the bank alt, which never opened it). Removed in alpha3 |
+| U13-U14 | **Open.** The alpha2 button and window were children of `MailFrame`, outside the mail window's navigation groups, so the D-pad couldn't reach them. alpha3 puts them under `SendMailFrame` |
+| new | Keyboard/mouse locking and a visible lock marker requested; alpha3 adds Alt+click and a blue border |
+| new | AH duration index 2 is labelled "8 Hours" (deposit x4); alpha3's report reads the three labels |
+
+## Rerun with alpha3 (about 10 minutes)
+
+Everything that wrote into Blizzard's controller UI is gone. Each remaining
+piece has a switch (`/mw feature <name> off`, then `/reload`), and the log
+records which switches were on at login.
+
+1. Install `Mailworthy v0.1.0-alpha3`, log in on your main.
+2. **Play for a minute** (move, jump, target, loot, talk to an NPC): any "The game
+   blocked" message? If yes, note it and see "If something is blocked" below.
+3. **Mouse:** Alt+click a bag item: it should lock (chat line) and get a **blue
+   border**; Alt+click again unlocks. Nothing else should happen to the item.
+4. **Mailbox, with the controller:**
+   - Inbox: Triangle should print "switch to the Send Mail tab (R1)".
+   - **R1** to Send Mail, then **Triangle**: the Mailworthy window opens to the right.
+   - Triangle again closes it.
+   - Also reach the **Mailworthy** button under the mail window with the D-pad and press Cross.
+5. **In the window, with the D-pad:**
+   - Go to **Bag locks**, lock a slot with Cross, and check its blue border in your bags.
+   - Answer the **Questions** page.
+6. **L2/R2 to your bags while the mailbox is open:** Triangle on a bag item should still
+   open its More menu. Use or equip an item with Cross.
+7. `/mw selftest report`, paste it back.
+
+**If something is blocked:** run `/mw feature padTriangle off`, then `/reload`, and repeat
+step 2. If it still happens, do the same with `slotBorder`, then `altClickLock`, then
+`mailButton`, and note which switch made it stop.
+
+## Rerun with alpha2 (superseded)
 
 alpha2 removes everything that wrote into the controller UI and fixes the crash.
 Each piece that touches Blizzard UI has a kill switch, so if anything is still

@@ -26,7 +26,14 @@ end
 
 -- Kill switches for each piece that touches Blizzard UI, so a problem in game
 -- can be isolated with /mw feature <name> off + /reload instead of a new build.
-ns.Features = { DEFAULTS = { lockMenu = true, mailButton = true } }
+ns.Features = { DEFAULTS = { mailButton = true, padTriangle = true, altClickLock = true, slotBorder = true } }
+
+function ns.Features.Describe()
+    local list = {}
+    for key in pairs(ns.Features.DEFAULTS) do list[#list + 1] = key .. "=" .. (ns.Features.On(key) and "on" or "off") end
+    table.sort(list)
+    return table.concat(list, ", ")
+end
 
 function ns.Features.On(name)
     local saved = MailworthyDB and MailworthyDB.features and MailworthyDB.features[name]
@@ -41,10 +48,7 @@ local function featureCommand(rest)
         if name and key:lower() == name:lower() then known = key end
     end
     if not known or (value ~= "on" and value ~= "off") then
-        local list = {}
-        for key in pairs(ns.Features.DEFAULTS) do list[#list + 1] = key .. "=" .. (ns.Features.On(key) and "on" or "off") end
-        table.sort(list)
-        ns.Print("Usage: /mw feature <name> on|off (then /reload). Now: " .. table.concat(list, ", "))
+        ns.Print("Usage: /mw feature <name> on|off (then /reload). Now: " .. ns.Features.Describe())
         return
     end
     MailworthyDB.features[known] = value == "on"
@@ -78,13 +82,19 @@ ns.On("ADDON_LOADED", function(name)
     if name == addonName then ns.Init() end
 end)
 
+-- First handler for PLAYER_LOGIN (Core loads first): record which pieces are on,
+-- so a blocked action in the log can be matched to the switches.
+ns.On("PLAYER_LOGIN", function()
+    if ns.Log then ns.Log.Add("feature", "at login: %s", ns.Features.Describe()) end
+end)
+
 local HELP = {
-    "At a mailbox: the Mailworthy button on the mail window opens the self-test (mouse, or D-pad + Cross).",
-    "Triangle (Y) on a bag item: Mailworthy: Lock slot / Unlock slot.",
+    "At a mailbox, on the Send Mail tab: Triangle (Y), or the Mailworthy button under the mail window.",
+    "Lock a bag slot: Alt+click it (mouse), or the window's Bag locks page (controller). Locked slots get a blue border.",
     "/mw selftest - open the self-test window",
     "/mw selftest report - the copyable report (paste it to the addon developer)",
     "/mw locks - list this character's locked slots",
-    "/mw feature <lockMenu|mailButton> on|off - switch a piece off to isolate a problem (then /reload)",
+    "/mw feature <mailButton|padTriangle|altClickLock|slotBorder> on|off - isolate a problem (then /reload)",
 }
 
 local function showHelp()

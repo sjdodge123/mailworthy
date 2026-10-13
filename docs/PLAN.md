@@ -27,26 +27,27 @@ the mail footer and registered its own window with the FrameControlsManager;
 that tainted gamepad input game-wide (jumping, targeting and item use were
 blocked from login). Details in [FOREVER-UI-NOTES.md](FOREVER-UI-NOTES.md).
 
-What works (alpha2 tests it):
-- **Plain buttons inside a panel the game already focuses.** The mail window's
-  **Mailworthy** button is a child `Button` of `MailFrame`: a mouse click works,
-  and smart navigation reaches it with the D-pad like any mail-window button
-  (Cross presses). Our preview and settings windows open as children of the
-  mail window at the mailbox, for the same reason.
-- **Menu entries through `Menu.ModifyMenu`** (Blizzard's extension point, run
-  under `securecallfunction`): the bag item Triangle menu gets
-  **Mailworthy: Lock slot**. alpha2 checks it on its own (alpha1's footer
-  taint hid whether it's clean).
-- **Button symbols** as texture markup only (`CreateAtlasMarkup`), drawn in our
-  own text: "Cross select, Circle back".
+What works (from Blizzard's source; alpha3 checks each in game):
+- **Plain buttons in the focused panel's active group.** The mail window only
+  navigates the active tab's group, so Mailworthy's button and window are
+  children of **SendMailFrame** ("Send Mail"), created at login. D-pad + Cross
+  reach them; the mouse clicks them.
+- **Our own Triangle binding** while the mail window has controller focus
+  (an override binding on our own frame, re-applied if Blizzard replaces it,
+  cleared on focus loss / mailbox close / combat). No Blizzard footer is touched,
+  so Blizzard's footer won't show "Triangle: Mailworthy"; our button shows the
+  Triangle symbol instead.
+- **No entries in the gamepad More menu** (taints by design, see FOREVER-UI-NOTES).
+- **Button symbols** as texture markup only (`CreateAtlasMarkup`).
 
 Per input:
 
 | Task | Controller | Keyboard / mouse |
 |---|---|---|
-| Start at the mailbox | D-pad to the **Mailworthy** button, Cross | click **Mailworthy** |
-| Preview: send / settings / close | D-pad + Cross on its buttons | click |
-| Lock a slot | Triangle on the item -> **Mailworthy: Lock slot** | the lock grid in settings (the Triangle menu doesn't exist with keyboard/mouse); a modifier-click on bag items is a later option if it can be done without taint |
+| Start at the mailbox | Send Mail tab (R1), then **Triangle**, or D-pad to the **Mailworthy** button + Cross | click **Mailworthy** (Send Mail tab) |
+| Preview: send / settings / close | D-pad + Cross on its buttons; Triangle closes | click |
+| Lock a slot | the **Bag locks** grid in the Mailworthy window (Cross) | **Alt+click** the bag item |
+| See locked slots | blue border on the slot in your bags | same |
 | Settings | the Mailworthy button (when not set up), the preview's Settings button | same, plus `/mw` and the minimap button |
 
 Notes:
@@ -213,13 +214,12 @@ preview shows which source priced each line.
 ## Slot locks
 
 - Saved per character as `lockedSlots["bag:slot"] = true`.
-- **In the game's own item menu (the main way):** on a bag item, Triangle opens
-  the game's "More" menu. Mailworthy adds **Mailworthy: Lock slot** (or
-  **Unlock slot** when it's locked) to it. No extra window, fully native on the
-  controller. How to add the entry is a beta unknown: LedgerLink `/rl probe`
-  S7 (ledger-link PR #30) names the menu and its tag. If it's a Blizzard
-  `Menu` menu, `Menu.ModifyMenu(tag, …)` adds the entry; if it's the gamepad
-  context-action system, we hook that instead.
+- **Keyboard/mouse:** Alt+click a bag item (post-hook of `HandleModifiedItemClick`;
+  Alt alone matches none of Blizzard's modified-click cases for bag items).
+- **Controller:** the **Bag locks** grid in the Mailworthy window (Cross toggles).
+  Not the gamepad Triangle "More" menu: adding entries there taints controller
+  input (alpha1/alpha2, 2026-10-13).
+- **Visible:** locked slots get a blue border in the bags.
 - **Settings grid (overview):** one row per bag, one button per slot showing
   the item that's in it now and a lock overlay; press to toggle. Also "Unlock
   all". Works with the controller like every other window.
