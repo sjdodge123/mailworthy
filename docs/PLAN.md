@@ -52,9 +52,12 @@ A footer under the focused window shows each action's glyph and label
   - settings: L1/R1 switch sections, Circle back to the preview if it came from there.
 - Glyphs and labels come from the game (whatever S6 finds), so they match the
   player's controller (PlayStation or Xbox).
-- How to join it is unknown: LedgerLink `/rl probe` S6 (ledger-link PR #29)
-  lists the globals, mixins, footer frames, mail-frame fields and CVars behind
-  it. Phase 2 starts from that report.
+- How to join it is now known from Blizzard's source (see
+  [FOREVER-UI-NOTES.md](FOREVER-UI-NOTES.md)): footer bindings via
+  `GamepadSharedUtility.CreatePromptedBinding` + `Finalize()`, the Lock-slot entry
+  via `Menu.ModifyMenu("MORE_CONTEXT_ACTIONS")`, our windows via
+  `FrameControlsManager:FrameShown`. Discovery session 2
+  ([DISCOVERY-SESSION-2.md](DISCOVERY-SESSION-2.md)) checks each at runtime.
 
 ### Fallback: our own navigation (`Nav.lua`)
 
@@ -163,8 +166,9 @@ disenchant value `d` per item):
 
 ```
 vendor = v * n
-ahNet  = a * n * (1 - cut) - deposit(v, n, duration) * relistFactor - postage
-deNet  = d * n - postage                 -- only when disenchant is enabled and the item can be disenchanted
+ahNet  = a * n * (1 - cut) - deposit(item, n, duration) * relistFactor - postageShare
+deNet  = d * n - postageShare            -- only when disenchant is enabled and the item can be disenchanted
+postageShare = postage of the mail it rides in / items in that mail
 best   = max(ahNet, deNet)
 mail   = best - vendor >= max(minGain, vendor * minGainPct)
 ```
@@ -313,15 +317,11 @@ realm+faction, name history, settings, never-mail list, blocked actions) and
 - The controller UI is Blizzard's "smart navigation" (`gamepadFooter` tables,
   `…FooterinputLegend` frames, `smartNavigationFocusKey`, gamepad mixins,
   `C_Navigation`); pad buttons have no normal key bindings.
+- The bag item "More" menu is a `Menu` with tag `MORE_CONTEXT_ACTIONS`
+  (LedgerLink v1.3.2, 2026-10-13); Auctionator 341 returns prices (age 0, exact).
 
-**Still open** (the next report, ledger-link PR #30, answers the first three):
-- Real AH prices after an Auctionator scan, price age, commodity status per item
-- How to add a footer action (Triangle) to the mail window and join the window cycle (S6)
-- How the bag item "More" menu is built, to add "Lock slot" (S7)
-- Postage with attachments; whether mails can chain without a new button press
-- `SendMail` with a two-part "First Surname" recipient
-- AH deposit rates (learned at the AH, see Decision rule)
-- ForeverMail's window (not installed in the first report)
+**Still open:** every remaining question, and how one session answers all of
+it, is in [DISCOVERY-SESSION-2.md](DISCOVERY-SESSION-2.md) (U1-U20).
 
 ## Related addons (checked 2026-10-13)
 
