@@ -16,6 +16,9 @@ Characters.lua
 Gamepad.lua
 Locks.lua
 Border.lua
+Prices.lua
+Valuation.lua
+Bags.lua
 MailButton.lua
 Nav.lua
 PadKey.lua

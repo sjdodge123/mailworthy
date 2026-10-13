@@ -135,15 +135,16 @@ throughout. Registered with `Settings.RegisterCanvasLayoutCategory` (the old
 
 ## Decision rule
 
-For each bag stack (count `n`, vendor `v` per unit, AH price `a` per unit,
-disenchant value `d` per item):
+For each item, i.e. every stack of one item link in the bags together (count `n`,
+vendor `v` per unit, AH price `a` per unit, disenchant value `d` per item), so one
+item never splits into "mail 20, keep 3" (`Valuation.lua`):
 
 ```
 vendor  = v * n
 deposit = floor(v * n * 0.05) * 12      -- 24h listing (x1 / x4 for 2h / 8h)
 ahNet   = a * n * (1 - cut) - deposit * relistFactor - postage
 deNet   = d * n - postage               -- only when disenchant is enabled and the item can be disenchanted
-postage = 30c                           -- per attached stack (flat per item, so no batching needed)
+postage = 30c x stacks                  -- 30c per attached stack, so no batching needed
 best    = max(ahNet, deNet)
 mail    = best - vendor >= max(minGain, vendor * minGainPct)
 ```
@@ -302,7 +303,7 @@ realm+faction, name history, settings, never-mail list, blocked actions) and
 | Phase | Delivers | Done when |
 |---|---|---|
 | **0 - Discovery** | LedgerLink `/rl probe` S5 (ledger-link PR #28, released in v1.3.0) and S6 (PR #29); repo, CI, packaging | the S5 + S6 report is back and its answers are in README "Beta unknowns" |
-| **1 - Prices + valuation** | `Prices`, `Valuation`, `Bags`; `/mw scan` prints what would be mailed and why (sends nothing) | `/mw scan` agrees with a hand calculation on real bags |
+| **1 - Prices + valuation** | `Prices`, `Valuation`, `Bags`; `/mw scan` shows what would be mailed and why, with the numbers (sends nothing). **Built**, in-game check pending | `/mw scan` agrees with a hand calculation on real bags |
 | **2 - Settings + characters** | settings panel, minimap button, bank alt picker with history and auto-complete, disenchant checkbox default, thresholds, fees | bank alt survives `/reload` and relog (the beta's SavedVariables bug), and every settings control works with the gamepad alone |
 | **3 - Mailbox + mailing** | mailbox button (opens settings when not set up), preview with recipient + Settings button, one press sends every batch (chained) | 30+ items reach the bank alt in under 3 presses, with nothing locked, bound or unpriced sent; works with ForeverMail installed |
 | **4 - Item locks** | mostly done in alpha5 (Alt+click, L3, Bag locks page, blue glow); left: never-mail list from the preview | locked items never appear in the preview's mail list |

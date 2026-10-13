@@ -56,9 +56,12 @@ must never break the game.
 | `MailButton.lua` | "Mailworthy" button under the mail window on both tabs (children of InboxFrame / SendMailFrame, created at login); `Activate` toggles the window; controller on the Inbox gets an "R1 first" hint (we never switch tabs) |
 | `Nav.lua` | Mailworthy's **own** controller navigation for its window: nearest button within 45 degrees, top-left start, gold highlight |
 | `PadKey.lua` | Mailworthy's **own override bindings** (watcher every 0.1 s, re-apply when replaced, clear on focus loss and at `PLAYER_REGEN_DISABLED`): set `mail` (Triangle), `window` (Triangle, D-pad, Cross, Circle), `bags` (L3 lock) |
+| `Prices.lua` | Auctionator adapter (`Lookup`: AH price per unit, age in days, exact, disenchant; nil without Auctionator), vendor price (`GetItemInfo` 11th return), class ID, `DisenchantryInstalled` |
+| `Valuation.lua` | **pure** decision rule: settings (defaults + saved, disenchant follows Disenchantry), deposit, thresholds, keep reasons, no-Auctionator rule, `Money` formatting |
+| `Bags.lua` | scan bags 0-4 -> slots -> items (grouped per link + bound + in-use), locks, prices, verdicts, totals; `/mw scan` report in the copy box (sends nothing) |
 | `SelfTest.lua` / `SelfTestUI.lua` | **discovery build only**: window with pages Questions / Bag locks / Tests, attach + chained send tests, inbox checks, `/mw selftest report`. To be replaced by the real window (Phase 3) and removed before v1.0 |
 
-Tests: `spec/` (busted on LuaJIT, 53 specs) with a WoW stub in
+Tests: `spec/` (busted on LuaJIT, 79 specs) with a WoW stub in
 `spec/support/wow_stub.lua` (bags, mail send tab, postage, timers with delays,
 override bindings, focused frame, item buttons that **error on any field write**).
 Guard spec `no_gamepad_taint_spec.lua`: Mailworthy may only *read*
@@ -169,13 +172,15 @@ revisiting; showing it needs `/run`, which the operator shouldn't be asked to do
 - Latest tag `v0.1.0-alpha5` (first CurseForge upload, alpha file). Its in-game
   check passed (DISCOVERY-SESSION-2.md "Results of the alpha5 run"); the one bug it
   showed (`PadKey.Check` erroring while idle) is fixed on main after it.
+- Phase 1 built (`Prices`, `Valuation`, `Bags`, `/mw scan`); in-game check pending
+  (DISCOVERY-SESSION-2.md "Phase 1 check").
 - Still open: AH cut (needs a sale mail), disenchant prices for green items,
   ForeverMail compatibility (replaces the mailbox window).
 
 ## 8. What's left (in order)
 
 1. ~~Process the alpha5 report~~ **Done** (all checks passed; idle `PadKey` error fixed).
-2. **Phase 1 - prices + valuation:** `Prices.lua` (Auctionator adapter: price, age,
+2. **Phase 1 - prices + valuation** (built; finish with the in-game `/mw scan` check): `Prices.lua` (Auctionator adapter: price, age,
    exact, disenchant; vendor from `GetItemInfo`), `Valuation.lua` (pure decision rule
    incl. deposit formula, postage share, thresholds, no-Auctionator common-items rule,
    disenchant eligibility), `Bags.lua` (scan -> facts, locks, filters); `/mw scan`

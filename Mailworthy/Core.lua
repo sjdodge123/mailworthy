@@ -97,6 +97,7 @@ local HELP = {
     "/mw selftest - open the self-test window",
     "/mw selftest report - the copyable report (paste it to the addon developer)",
     "/mw locks - list this character's locked items",
+    "/mw scan - what Mailworthy would mail and why (sends nothing)",
     "/mw feature <mailButton|padTriangle|padNav|padLock|altClickLock|slotBorder> on|off - isolate a problem (then /reload)",
 }
 
@@ -116,6 +117,8 @@ function ns.HandleSlash(msg)
         featureCommand(rest)
     elseif cmd == "locks" then
         ns.Locks.PrintList()
+    elseif cmd == "scan" then
+        ns.Bags.Scan()
     else
         showHelp()
     end
