@@ -1,0 +1,10 @@
+## Interface: 16001
+## Title: Mailworthy
+## Notes: At a mailbox, one button mails every bag item worth more on the auction house (or disenchanted) to your bank alt.
+## Author: sjdodge123
+## Version: @project-version@
+## SavedVariables: MailworthyDB
+## SavedVariablesPerCharacter: MailworthyCharDB
+
+Core.lua
+Blocked.lua

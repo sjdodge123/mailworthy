@@ -1,0 +1,36 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  lua:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Tests run on LuaJIT = Lua 5.1 semantics, like the WoW client.
+      # luarocks itself runs on PUC Lua 5.1 (it can't load the luarocks.org
+      # manifest under LuaJIT); rocks built for 5.1 load fine in LuaJIT.
+      - name: Install LuaJIT + luarocks
+        run: sudo apt-get update && sudo apt-get install -y luajit lua5.1 liblua5.1-0-dev luarocks
+      - name: Install rocks
+        run: |
+          for rock in luacheck busted; do sudo luarocks --lua-version=5.1 install "$rock"; done
+      - name: luacheck
+        run: luacheck .
+      - name: busted (LuaJIT)
+        run: busted --lua=luajit
+
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # Dry run: build the zip exactly as release.yml would, but upload nothing.
+      - uses: BigWigsMods/packager@v2
+        with:
+          args: -d
+      - name: Check zip layout
+        run: tools/check-package-layout.sh .release/Mailworthy-*.zip

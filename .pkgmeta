@@ -1,0 +1,14 @@
+package-as: Mailworthy
+
+# The addon lives in Mailworthy/; ship only that folder (plus LICENSE, which the
+# packager copies in). tools/check-package-layout.sh enforces this in CI.
+move-folders:
+  Mailworthy/Mailworthy: Mailworthy
+
+ignore:
+  - spec
+  - tools
+  - docs
+  - AGENTS.md
+  - CLAUDE.md
+  - README.md
