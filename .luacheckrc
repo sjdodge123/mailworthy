@@ -12,12 +12,26 @@ globals = {
 read_globals = {
     -- Lua extensions the client provides
     "date", "time",
+    -- character
+    "GetUnitName", "UnitName", "GetRealmName", "UnitFactionGroup", "UnitClass", "UnitLevel", "GetServerTime",
+    "GetBuildInfo", "GetProfessions", "GetProfessionInfo", "InCombatLockdown",
+    -- bags and items
+    "C_Container", "C_Item", "GetItemInfo", "GetItemInfoInstant", "NUM_BAG_SLOTS", "CursorHasItem", "ClearCursor",
+    -- mail
+    "SendMailFrame", "InboxFrame", "SendMail", "ClearSendMail", "ClickSendMailItemButton", "GetSendMailItem",
+    "GetSendMailPrice", "ATTACHMENTS_MAX_SEND", "C_Mail", "GetInboxNumItems", "GetInboxHeaderInfo",
+    "GetInboxInvoiceInfo",
+    -- price sources
+    "Auctionator",
+    -- menus, controller UI, timers
+    "Menu", "hooksecurefunc", "CreateAtlasMarkup", "C_Timer",
     -- UI
-    "CreateFrame",
+    "CreateFrame", "UIParent", "UISpecialFrames", "ChatFontNormal",
 }
 
 files["spec/**"] = {
     std = "+busted",
-    globals = { "WowStub", "print", "unpack", "time", "date", "CreateFrame" },
+    globals = { "WowStub", "print", "unpack", "time", "date", "CreateFrame", "InboxFrame", "SendMailFrame",
+        "C_Container", "Auctionator", "Menu", "MailworthySelfTestYes1", "MailworthySelfTestNo3" },
     allow_defined_top = true,
 }

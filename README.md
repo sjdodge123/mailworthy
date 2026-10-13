@@ -11,8 +11,23 @@ than at the vendor goes to your bank alt. The rest stays in your bags to vendor.
 - **Controller first:** every window works with a gamepad alone, using Forever's own controller UI (Triangle on the mailbox opens Mailworthy).
 - **Lock bag slots** you never want mailed, straight from the game's own item menu (Triangle on a bag item).
 
-**Status: Phase 0 (discovery).** Nothing in game yet beyond `/mw`. The full
-design, phases and open questions are in [docs/PLAN.md](docs/PLAN.md).
+**Status: Phase 0 (discovery).** The current build is a **discovery build**:
+the Lock-slot menu entry, the mail-footer Triangle button, the known-character
+list and a controller-driven self-test (`/mw selftest`) for
+[discovery session 2](docs/DISCOVERY-SESSION-2.md). It doesn't value or mail
+your bags yet; the only mail it sends is the opt-in send test (two cheap
+stacks to your bank alt, after a second press). The full design, phases and
+open questions are in [docs/PLAN.md](docs/PLAN.md).
+
+## Discovery build commands
+
+```
+/mw selftest          the self-test window (also: Triangle in the mail window footer)
+/mw selftest report   the copyable report (paste it to the addon developer)
+/mw locks             this character's locked slots
+```
+
+Triangle (Y) on a bag item: **Mailworthy: Lock slot / Unlock slot**.
 
 ## Discovery (Phase 0)
 

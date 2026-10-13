@@ -1,5 +1,6 @@
--- Mailworthy: namespace, saved variables and slash commands.
--- The design (entry points, decision rule, phases) is in docs/PLAN.md.
+-- Mailworthy: namespace, saved variables, events and slash commands.
+-- The design (entry points, decision rule, phases) is in docs/PLAN.md; this
+-- discovery build carries the pieces docs/DISCOVERY-SESSION-2.md tests.
 local addonName, ns = ...
 
 ns.NAME = addonName
@@ -13,32 +14,68 @@ function ns.Init()
     MailworthyDB = type(MailworthyDB) == "table" and MailworthyDB or {}
     MailworthyCharDB = type(MailworthyCharDB) == "table" and MailworthyCharDB or {}
     MailworthyDB.blocked = MailworthyDB.blocked or {}
+    MailworthyDB.characters = MailworthyDB.characters or {}
+    MailworthyDB.selftest = MailworthyDB.selftest or {}
+    local st = MailworthyDB.selftest
+    st.log = st.log or {}
+    st.answers = st.answers or {}
+    st.loads = st.loads or {}
+    MailworthyCharDB.lockedSlots = MailworthyCharDB.lockedSlots or {}
 end
 
+-- Event dispatch: modules register handlers with ns.On(event, fn).
+local handlers = {}
+local events = CreateFrame("Frame")
+ns.eventFrame = events
+
+function ns.On(event, fn)
+    if not handlers[event] then
+        handlers[event] = {}
+        pcall(events.RegisterEvent, events, event)
+    end
+    table.insert(handlers[event], fn)
+end
+
+function ns.Fire(event, ...)
+    for _, fn in ipairs(handlers[event] or {}) do
+        local ok, err = pcall(fn, ...)
+        if not ok and ns.Log then ns.Log.Add("error", "%s handler: %s", event, tostring(err)) end
+    end
+end
+
+events:SetScript("OnEvent", function(_, event, ...) ns.Fire(event, ...) end)
+
+ns.On("ADDON_LOADED", function(name)
+    if name == addonName then ns.Init() end
+end)
+
 local HELP = {
-    "Open a mailbox and press the Mailworthy button (coming in Phase 3).",
-    "/mw - this help (settings panel coming in Phase 2)",
+    "Open a mailbox with the controller: Triangle (Y) in the mail window's footer opens the self-test.",
+    "Triangle (Y) on a bag item: Mailworthy: Lock slot / Unlock slot.",
+    "/mw selftest - open the self-test window",
+    "/mw selftest report - the copyable report (paste it to the addon developer)",
+    "/mw locks - list this character's locked slots",
 }
 
 local function showHelp()
-    ns.Print("v" .. ns.VERSION .. " - commands (/mw or /mailworthy):")
+    ns.Print("v" .. ns.VERSION .. " (discovery build) - commands (/mw or /mailworthy):")
     for _, line in ipairs(HELP) do print("  " .. line) end
 end
 
 function ns.HandleSlash(msg)
     ns.lastCommand = "/mw " .. tostring(msg or "")
-    showHelp()
+    local cmd, rest = string.match(string.lower(msg or ""), "^%s*(%S*)%s*(.-)%s*$")
+    if cmd == "selftest" and rest == "report" then
+        ns.SelfTest.ShowReport()
+    elseif cmd == "selftest" then
+        ns.SelfTest.Open("slash")
+    elseif cmd == "locks" then
+        ns.Locks.PrintList()
+    else
+        showHelp()
+    end
 end
 
 SLASH_MAILWORTHY1 = "/mw"
 SLASH_MAILWORTHY2 = "/mailworthy"
 SlashCmdList.MAILWORTHY = function(msg) ns.HandleSlash(msg) end
-
-local events = CreateFrame("Frame")
-events:RegisterEvent("ADDON_LOADED")
-events:SetScript("OnEvent", function(self, event, name)
-    if event == "ADDON_LOADED" and name == addonName then
-        ns.Init()
-        self:UnregisterEvent("ADDON_LOADED")
-    end
-end)
