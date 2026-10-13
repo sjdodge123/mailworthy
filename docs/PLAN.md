@@ -127,7 +127,7 @@ throughout. Registered with `Settings.RegisterCanvasLayoutCategory` (the old
 |---|---|---|
 | Bank alt (mail recipient) | none; the mailbox button opens settings until it's set | account, per realm + faction |
 | Include disenchant value | **on if Disenchantry is installed**, otherwise off. The default applies only until the player touches the checkbox; after that their choice persists | account |
-| Minimum gain over vendor | 50s and 25% (both must hold) | account |
+| Minimum gain over vendor | **5s and 25%** (both must hold); two steppers in the settings window (gold/silver amount, percent), changeable any time, including from the preview's Settings button | account |
 | Max price age | 7 days (Auctionator `GetAuctionAgeByItemLink`, confirmed on Forever) | account |
 | AH cut | 5% | account |
 | Deposit rate, listing length, relist factor | learned at the AH (see below); until then a default | account |
