@@ -120,6 +120,15 @@ local function createLocks()
             local slot = lockSlots[self]
             if slot then ns.Locks.Toggle(slot.bag, slot.slot, "lock grid") end
         end)
+        -- Mouse: the item's tooltip on hover.
+        b:SetScript("OnEnter", function(self)
+            local slot = lockSlots[self]
+            if not slot or type(GameTooltip) ~= "table" then return end
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            pcall(GameTooltip.SetBagItem, GameTooltip, slot.bag, slot.slot)
+            GameTooltip:Show()
+        end)
+        b:SetScript("OnLeave", function() if type(GameTooltip) == "table" then GameTooltip:Hide() end end)
         b:Hide()
         lockButtons[i] = { button = b, icon = icon, count = count, edges = lockEdges(b) }
     end
@@ -230,16 +239,21 @@ function UI.Refresh()
     if current == "locks" then UI.RefreshLocks() end
 end
 
---- Beside the mail window on the Send Mail tab (D-pad reachable); elsewhere
---- (/mw selftest away from a mailbox) a normal window in the middle.
-function UI.Show()
+--- Beside the mail window, as a child of the showing tab: on Send Mail (the
+--- controller's D-pad reaches it there) or, for mouse / keyboard, the Inbox.
+--- Away from a mailbox (/mw selftest) a normal window in the middle.
+function UI.Show(tab)
     if not frame then UI.Create() end
-    local send = rawget(_G, "SendMailFrame")
-    local mail = rawget(_G, "MailFrame")
-    local onSendTab = type(send) == "table" and send:IsShown()
+    local send, inbox, mail = rawget(_G, "SendMailFrame"), rawget(_G, "InboxFrame"), rawget(_G, "MailFrame")
+    local parent
+    if tab == "send" or (tab == nil and type(send) == "table" and send:IsShown()) then
+        parent = send
+    elseif tab == "inbox" or (tab == nil and type(inbox) == "table" and inbox:IsShown()) then
+        parent = inbox
+    end
     frame:ClearAllPoints()
-    if onSendTab then
-        if frame:GetParent() ~= send then frame:SetParent(send) end
+    if type(parent) == "table" then
+        if frame:GetParent() ~= parent then frame:SetParent(parent) end
         frame:SetPoint("TOPLEFT", mail, "TOPRIGHT", 8, 0)
     else
         frame:SetParent(UIParent)
@@ -247,15 +261,16 @@ function UI.Show()
     end
     UI.Refresh()
     frame:Show()
-    ns.Log.Add("ui", "window shown (%s)", onSendTab and "Send Mail tab" or "on its own")
+    ns.Log.Add("ui", "window shown (%s)", parent == send and "Send Mail tab" or parent == inbox and "Inbox tab"
+        or "on its own")
 end
 
-function UI.Toggle()
+function UI.Toggle(tab)
     if frame and frame:IsShown() then
         frame:Hide()
         ns.Log.Add("ui", "window hidden")
     else
-        UI.Show()
+        UI.Show(tab)
     end
 end
 

@@ -27,6 +27,8 @@ read_globals = {
     "IsAltKeyDown", "IsShiftKeyDown", "IsControlKeyDown", "HandleModifiedItemClick",
     -- Triangle at the mailbox: our own override binding; FrameControlsManager is read only
     "GamepadMode", "SetOverrideBindingClick", "ClearOverrideBindings", "GetBindingAction", "GetTime",
+    -- mouse: item tooltips on the lock grid
+    "GameTooltip",
     -- menus (Menu is read only for the API report), controller UI, timers
     "Menu", "hooksecurefunc", "CreateAtlasMarkup", "C_Timer",
     -- UI
@@ -38,6 +40,6 @@ files["spec/**"] = {
     globals = { "WowStub", "print", "unpack", "time", "date", "CreateFrame", "InboxFrame", "SendMailFrame",
         "C_Container", "Auctionator", "Menu", "MailworthySelfTestYes1", "MailworthySelfTestNo3", "MailFrame",
         "MailworthyMailButton", "GamepadSharedUtility", "GamepadMode", "ContainerFrameCombinedBags", "ContainerFrameContainer",
-        "HandleModifiedItemClick", "MailworthyPadWatcher" },
+        "HandleModifiedItemClick", "MailworthyPadWatcher", "MailworthyInboxButton", "GameTooltip" },
     allow_defined_top = true,
 }

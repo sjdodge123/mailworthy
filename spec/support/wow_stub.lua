@@ -29,7 +29,7 @@ local function defaultState()
         bags = { [0] = {}, [1] = {}, [2] = {} },
         attached = {}, cursor = nil, used = {}, sent = {}, postage = 30,
         inbox = {}, invoices = {},
-        mods = {}, bindings = {}, bindingOwners = {}, activeFrame = nil, now = 1000,
+        mods = {}, bindings = {}, bindingOwners = {}, activeFrame = nil, now = 1000, gamepadUI = false,
     }
 end
 
@@ -311,6 +311,11 @@ _G.GamepadMode = { FrameControlsManager = {
     FrameHidden = function(_, f) table.insert(WowStub.managerCalls, { "hidden", f.name }) end,
     GetActiveFrame = function() return s().activeFrame end,
 } }
+_G.InputUtil = {
+    IsGamepadUIEnabled = function() return s().gamepadUI end,
+    IsMKBUIEnabled = function() return not s().gamepadUI end,
+}
+_G.GameTooltip = newWidget("GameTooltip", "GameTooltip")
 _G.C_GamePad = {
     GetActiveDeviceID = function() return 5 end,
     GetDeviceMappedState = function() return { labelStyle = "Shapes" } end,

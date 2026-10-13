@@ -89,7 +89,7 @@ ns.On("PLAYER_LOGIN", function()
 end)
 
 local HELP = {
-    "At a mailbox, on the Send Mail tab: Triangle (Y), or the Mailworthy button under the mail window.",
+    "At a mailbox: click the Mailworthy button under the mail window. Controller: Send Mail tab (R1), then Triangle (Y).",
     "Lock a bag slot: Alt+click it (mouse), or the window's Bag locks page (controller). Locked slots get a blue border.",
     "/mw selftest - open the self-test window",
     "/mw selftest report - the copyable report (paste it to the addon developer)",

@@ -8,7 +8,7 @@ than at the vendor goes to your bank alt. The rest stays in your bags to vendor.
   turns disenchant value on by default.
 - **Preview first:** it shows the recipient, what goes and why, what stays and
   why, and a **Settings** button to fix anything before you press Send.
-- **Controller and keyboard/mouse:** every window works with a gamepad alone or with keyboard and mouse.
+- **Keyboard/mouse first, controller too:** everything works with keyboard and mouse, and with a gamepad alone.
 - **Lock bag slots** you never want mailed: Triangle on a bag item with a controller, or the lock grid in settings with keyboard and mouse.
 
 **Status: Phase 0 (discovery).** The current build is a **discovery build**:
@@ -29,7 +29,7 @@ open questions are in [docs/PLAN.md](docs/PLAN.md).
 /mw feature <name> on|off   mailButton, padTriangle, altClickLock, slotBorder (then /reload)
 ```
 
-At a mailbox: Send Mail tab (R1), then Triangle (Y), or the **Mailworthy** button under the mail window.
+At a mailbox: click the **Mailworthy** button under the mail window (either tab). Controller: Send Mail tab (R1), then Triangle (Y).
 Lock a slot: **Alt+click** it, or the window's **Bag locks** page. Locked slots get a blue border.
 
 ## Discovery (Phase 0)

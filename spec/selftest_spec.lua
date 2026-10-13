@@ -198,6 +198,8 @@ describe("self-test", function()
             assert.equal(7, filled) -- stockBags(): 6 items in bag 0, 1 in bag 1
             _G.MailworthyLockSlot3:Click()
             assert.is_true(ns.Locks.IsLocked(0, 3))
+            _G.MailworthyLockSlot3.scripts.OnEnter(_G.MailworthyLockSlot3)
+            assert.is_true(GameTooltip:IsShown(), "mouse users get the item tooltip")
         end)
 
         it("reports switches, Triangle binding, AH durations, characters, answers and the log", function()

@@ -24,11 +24,32 @@ describe("mail button", function()
         assert.is_false(ns.SelfTestUI.Frame():IsShown())
     end)
 
-    it("on the Inbox, says to switch to Send Mail instead", function()
+    it("mouse / keyboard: the Inbox has its own button, and the window opens right there", function()
+        assert.equal(InboxFrame, _G.MailworthyInboxButton.parent)
         MailFrame:Show()
+        InboxFrame:Show()
+        _G.MailworthyInboxButton:Click()
+        assert.is_true(ns.SelfTestUI.Frame():IsShown())
+        assert.equal(InboxFrame, ns.SelfTestUI.Frame().parent)
+        assert.falsy(table.concat(WowStub.printed, "\n"):find("R1", 1, true))
+    end)
+
+    it("controller on the Inbox: a hint to press R1 instead (the D-pad only reaches the window on Send Mail)", function()
+        WowStub.state.gamepadUI = true
+        MailFrame:Show()
+        InboxFrame:Show()
+        ns.Fire("MAIL_SHOW")
         ns.MailButton.Activate("Triangle")
         assert.is_false(ns.SelfTestUI.Frame():IsShown())
         assert.truthy(WowStub.printed[#WowStub.printed]:find("Send Mail tab (R1)", 1, true))
+    end)
+
+    it("shows the Triangle symbol only with the controller UI", function()
+        ns.Fire("MAIL_SHOW")
+        assert.equal("Mailworthy", _G.MailworthyMailButton.text)
+        WowStub.state.gamepadUI = true
+        ns.Fire("MAIL_SHOW")
+        assert.equal("Mailworthy [Triangle/Y]", _G.MailworthyMailButton.text)
     end)
 
     it("can be switched off", function()

@@ -19,8 +19,10 @@ LedgerLink are listed at the end.
 
 ## Input: controller and keyboard/mouse (every window)
 
-Every feature works with **both** a gamepad alone and keyboard + mouse
-(operator, 2026-10-13: "the addon should still support kb/mouse as well").
+Every feature works with **both** keyboard + mouse and a gamepad alone.
+**Keyboard and mouse are the priority** (operator, 2026-10-13: "if mouse/kb
+doesn't work for our addon no one will use it"); the controller is a bonus
+that must never break the game.
 
 **Never write into Blizzard's controller UI.** alpha1 added a Triangle binding to
 the mail footer and registered its own window with the FrameControlsManager;
@@ -44,7 +46,7 @@ Per input:
 
 | Task | Controller | Keyboard / mouse |
 |---|---|---|
-| Start at the mailbox | Send Mail tab (R1), then **Triangle**, or D-pad to the **Mailworthy** button + Cross | click **Mailworthy** (Send Mail tab) |
+| Start at the mailbox | Send Mail tab (R1), then **Triangle**, or D-pad to the **Mailworthy** button + Cross | click **Mailworthy** under the mail window (either tab) |
 | Preview: send / settings / close | D-pad + Cross on its buttons; Triangle closes | click |
 | Lock a slot | the **Bag locks** grid in the Mailworthy window (Cross) | **Alt+click** the bag item |
 | See locked slots | blue border on the slot in your bags | same |
