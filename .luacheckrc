@@ -32,6 +32,7 @@ read_globals = {
 files["spec/**"] = {
     std = "+busted",
     globals = { "WowStub", "print", "unpack", "time", "date", "CreateFrame", "InboxFrame", "SendMailFrame",
-        "C_Container", "Auctionator", "Menu", "MailworthySelfTestYes1", "MailworthySelfTestNo3" },
+        "C_Container", "Auctionator", "Menu", "MailworthySelfTestYes1", "MailworthySelfTestNo3", "MailFrame",
+        "MailworthyMailButton", "GamepadSharedUtility", "GamepadMode" },
     allow_defined_top = true,
 }

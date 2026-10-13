@@ -40,7 +40,19 @@ Runtime checks for each of these are in [DISCOVERY-SESSION-2.md](DISCOVERY-SESSI
   a local inside Blizzard code and writing into it risks taint on a footer that uses
   and equips items **(inferred)**. Don't.
 
-## Mail window footer -> "Triangle: Mailworthy"
+## Mail window footer: DO NOT add bindings (tested 2026-10-13)
+
+**Result in game (alpha1):** adding a prompted binding to `InboxFrame.gamepadFooter` /
+`SendMailFrame.gamepadFooter` (`AddPromptedBinding` + `Finalize`) at login, and
+registering our own window with `FrameControlsManager:FrameShown` plus our own
+`CreatePromptedBindingFooter`, **tainted the whole gamepad input stack**. From login
+on the game blocked `SetPreferredGamepadInteractTarget()` constantly, plus
+`DescendStop()` / `RunBinding()` (jumping), `InteractUnit()`, `SpellStopCasting()`,
+`ClearTarget()` and bag item use. Mailworthy must never write into these systems.
+What works instead: a plain child `Button` of `MailFrame` (smart navigation picks up
+descendant buttons of the focused panel by itself, see "Mailworthy windows" below).
+
+What the source says (kept for reference):
 
 - Inbox footer (`Blizzard_MailFrame/MailFrame.lua:272-283`): Select, Square Open All, Back.
   Send Mail (`1194-1208`): Square Send. Open mail (`598-608`): **Triangle = Options (taken)**.
@@ -62,6 +74,10 @@ Runtime checks for each of these are in [DISCOVERY-SESSION-2.md](DISCOVERY-SESSI
   `InputFunctionBindingButton_PAD4` **(inferred)**; fine for mail, which isn't protected.
 
 ## Mailworthy windows in smart navigation
+
+**Don't register** (tainted gamepad input in alpha1, see above). Use plain buttons
+inside a Blizzard panel the game already focuses (alpha2: our window is a child of
+`MailFrame` at the mailbox). The recipe below is Blizzard's own, for reference only.
 
 `Blizzard_GamepadSharedUtility/FrameControlsManager.lua`, `Blizzard_GamepadSmartNavigation/`
 
@@ -99,6 +115,12 @@ items (bags) is open, especially entering combat.
   or `InputPromptOneIconWithTextTemplate` + `:SetPromptInputIconKey(1, key)` / `:SetPromptText(label)`.
 
 ## Mail and auction house
+
+**Measured 2026-10-13:** postage is a flat **30c per attached item** (5 items = 1s 50c;
+30c with none). Deposit = **floor(vendor value of the stack x 5%) x 1 / 4 / 12** for
+12h / 24h / 48h, the same for commodities and items (Linen Bandage x20, vendor 200c:
+10 / 40 / 120c), and `CalculateCommodityDeposit` / `CalculateItemDeposit` answer even
+with the AH closed (0 for items the client hasn't cached yet).
 
 - Send button runs `SendMail(name, subject, body)` (`MailFrame.lua:1271-1273`);
   attachment buttons call `ClickSendMailItemButton(id)`. `ATTACHMENTS_MAX_SEND = 12`.

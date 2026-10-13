@@ -17,21 +17,18 @@ SelfTest.TIMEOUT = 10
 SelfTest.SUBJECT = "Mailworthy test %d/2"
 
 SelfTest.QUESTIONS = {
+    { id = "no_blocks", text = 'Moved, jumped, targeted, looted for a minute: no "The game blocked" messages' },
     { id = "lock_entry", text = 'Triangle on a bag item showed "Mailworthy: Lock slot"' },
     { id = "unlock_entry", text = 'On a locked slot it said "Unlock slot"' },
     { id = "lock_only_bags", text = "It was NOT in other Triangle menus (spellbook, character)" },
-    { id = "cross_still_works", text = "Afterwards Cross still used / equipped bag items" },
-    { id = "footer_inbox", text = '"Mailworthy" was on Triangle in the Inbox footer' },
-    { id = "footer_send", text = "It was on the Send Mail tab, and Square still said Send" },
-    { id = "nav_dpad", text = "D-pad moves between this window's buttons; Cross presses" },
-    { id = "nav_circle", text = "Circle closes this window (answer after reopening)" },
-    { id = "nav_cycle", text = "L2 / R2 switch between this window and the mail window" },
+    { id = "cross_still_works", text = "After locking, Cross still uses / equips bag items" },
+    { id = "mail_button_mouse", text = 'The "Mailworthy" button is on the mail window; a click opens this' },
+    { id = "mail_button_pad", text = "The D-pad reaches that button, and Cross opens this window" },
+    { id = "nav_dpad", text = "The D-pad reaches every button here (Attach test too); Cross presses" },
     { id = "glyphs", text = "The button symbols here match your controller" },
-    { id = "minimap", text = "LedgerLink's minimap button works with the controller" },
     { id = "mail_arrived", text = "(bank alt) Both test mails arrived" },
     { id = "mail_instant", text = "(bank alt) They were there right away, no delay" },
 }
-
 local state = { busy = false, armed = false, phase = 0, attach = nil, send = nil, status = "" }
 SelfTest.state = state
 
@@ -86,7 +83,7 @@ end
 local function auctionPrice(link)
     local api = Auctionator and Auctionator.API and Auctionator.API.v1
     if type(api) ~= "table" then return nil end
-    return tonumber(call(api.GetAuctionPriceByItemLink, SelfTest.CALLER, link))
+    return tonumber((call(api.GetAuctionPriceByItemLink, SelfTest.CALLER, link)))
 end
 
 local function itemInfo(bag, slot)
@@ -101,7 +98,7 @@ function SelfTest.Candidates()
     local list = {}
     local numSlots = C_Container and C_Container.GetContainerNumSlots
     for bag = 0, tonumber(NUM_BAG_SLOTS) or 4 do
-        for slot = 1, tonumber(call(numSlots, bag)) or 0 do
+        for slot = 1, tonumber((call(numSlots, bag))) or 0 do
             local info = itemInfo(bag, slot)
             if info and not info.isBound and not info.isLocked and not info.hasNoValue
                 and not ns.Locks.IsLocked(bag, slot) then

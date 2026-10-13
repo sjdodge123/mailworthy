@@ -21,6 +21,35 @@ function ns.Init()
     st.answers = st.answers or {}
     st.loads = st.loads or {}
     MailworthyCharDB.lockedSlots = MailworthyCharDB.lockedSlots or {}
+    MailworthyDB.features = MailworthyDB.features or {}
+end
+
+-- Kill switches for each piece that touches Blizzard UI, so a problem in game
+-- can be isolated with /mw feature <name> off + /reload instead of a new build.
+ns.Features = { DEFAULTS = { lockMenu = true, mailButton = true } }
+
+function ns.Features.On(name)
+    local saved = MailworthyDB and MailworthyDB.features and MailworthyDB.features[name]
+    if saved == nil then return ns.Features.DEFAULTS[name] == true end
+    return saved
+end
+
+local function featureCommand(rest)
+    local name, value = rest:match("^(%S+)%s+(%S+)$")
+    local known
+    for key in pairs(ns.Features.DEFAULTS) do
+        if name and key:lower() == name:lower() then known = key end
+    end
+    if not known or (value ~= "on" and value ~= "off") then
+        local list = {}
+        for key in pairs(ns.Features.DEFAULTS) do list[#list + 1] = key .. "=" .. (ns.Features.On(key) and "on" or "off") end
+        table.sort(list)
+        ns.Print("Usage: /mw feature <name> on|off (then /reload). Now: " .. table.concat(list, ", "))
+        return
+    end
+    MailworthyDB.features[known] = value == "on"
+    ns.Log.Add("feature", "%s %s", known, value)
+    ns.Print(known .. " " .. value .. ". /reload to apply.")
 end
 
 -- Event dispatch: modules register handlers with ns.On(event, fn).
@@ -50,11 +79,12 @@ ns.On("ADDON_LOADED", function(name)
 end)
 
 local HELP = {
-    "Open a mailbox with the controller: Triangle (Y) in the mail window's footer opens the self-test.",
+    "At a mailbox: the Mailworthy button on the mail window opens the self-test (mouse, or D-pad + Cross).",
     "Triangle (Y) on a bag item: Mailworthy: Lock slot / Unlock slot.",
     "/mw selftest - open the self-test window",
     "/mw selftest report - the copyable report (paste it to the addon developer)",
     "/mw locks - list this character's locked slots",
+    "/mw feature <lockMenu|mailButton> on|off - switch a piece off to isolate a problem (then /reload)",
 }
 
 local function showHelp()
@@ -69,6 +99,8 @@ function ns.HandleSlash(msg)
         ns.SelfTest.ShowReport()
     elseif cmd == "selftest" then
         ns.SelfTest.Open("slash")
+    elseif cmd == "feature" then
+        featureCommand(rest)
     elseif cmd == "locks" then
         ns.Locks.PrintList()
     else

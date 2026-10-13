@@ -1,7 +1,13 @@
--- Forever's controller UI ("smart navigation"), from Blizzard's source
--- (docs/FOREVER-UI-NOTES.md): button symbols, prompted-binding footers and
--- joining the L2/R2 window cycle. Every call is guarded and logged, since the
--- self-test exists to see which of these work at runtime.
+-- Controller helpers that only read: button symbols and API presence.
+--
+-- Mailworthy must NOT write into Blizzard's controller UI. alpha1 added a
+-- Triangle binding to the mail footer (GamepadSharedUtility prompted bindings +
+-- Finalize) and registered its own window with FrameControlsManager: on the
+-- beta that tainted the whole gamepad input stack from login on, and the game
+-- then blocked jumping (DescendStop, RunBinding), targeting
+-- (SetPreferredGamepadInteractTarget), InteractUnit, ClearTarget and item use
+-- (2026-10-13 self-test). Controller access now comes from plain buttons that
+-- smart navigation reaches on its own. See docs/FOREVER-UI-NOTES.md.
 local _, ns = ...
 
 local Gamepad = {}
@@ -34,7 +40,8 @@ function Gamepad.LabelStyle()
     return ok2 and type(state) == "table" and state.labelStyle or nil
 end
 
---- The controller's symbol for a key as inline text, or "[Triangle/Y]" if the game can't draw it.
+--- The controller's symbol for a key as inline text (a texture markup string;
+--- nothing is registered), or "[Triangle/Y]" if the game can't draw it.
 function Gamepad.Glyph(key, size)
     size = size or 16
     local atlasFor = get("InputIconTextureSetUtility.GetNormalActiveInputIconButtonTexture")
@@ -49,10 +56,10 @@ function Gamepad.Glyph(key, size)
 end
 
 Gamepad.API = {
-    "Menu.ModifyMenu", "GamepadSharedUtility.CreatePromptedBinding", "GamepadSharedUtility.CreatePromptedBindingFooter",
-    "GamepadMode.FrameControlsManager", "SmartNavigation", "InputIconTextureSetUtility", "CreateAtlasMarkup",
+    "Menu.ModifyMenu", "SmartNavigation", "InputIconTextureSetUtility", "CreateAtlasMarkup",
     "C_GamePad.GetDeviceMappedState", "C_InputInterfaceStyle.GetCurrentStyle", "ItemLocation", "C_Mail.IsCommandPending",
-    "SetSendMailShowing", "C_Container.UseContainerItem", "ClearSendMail", "GetInboxInvoiceInfo", "GetProfessionInfo",
+    "C_Container.UseContainerItem", "ClearSendMail", "GetInboxInvoiceInfo", "GetProfessionInfo",
+    "C_AuctionHouse.CalculateItemDeposit", "C_AuctionHouse.CalculateCommodityDeposit",
 }
 
 function Gamepad.Presence()
@@ -62,68 +69,4 @@ function Gamepad.Presence()
         parts[#parts + 1] = path .. "=" .. (v == nil and "missing" or type(v))
     end
     return table.concat(parts, ", ")
-end
-
---- A prompted binding (footer button). `fn(isDown)` runs on button-down.
-function Gamepad.Binding(key, fn, label)
-    local create = get("GamepadSharedUtility.CreatePromptedBinding")
-    if type(create) ~= "function" then return nil, "CreatePromptedBinding missing" end
-    local ok, binding = pcall(create, key, fn, label)
-    if not ok then return nil, tostring(binding) end
-    return binding
-end
-
---- Give `frame` a footer (Cross select, extra bindings, L2/R2 hints, Circle back) and
---- register it with the FrameControlsManager so the game focuses it like its own windows.
-function Gamepad.Join(frame, footerName, bindings)
-    local manager = get("GamepadMode.FrameControlsManager")
-    local createFooter = get("GamepadSharedUtility.CreatePromptedBindingFooter")
-    frame.useFooterJumpHints = true
-    frame.GetJumpHintLabel = frame.GetJumpHintLabel or function() return "Mailworthy" end
-    local function ensureFooter()
-        if type(frame.gamepadFooter) == "table" or type(createFooter) ~= "function" then return frame.gamepadFooter end
-        local ok, footer = pcall(createFooter, frame, footerName)
-        if not ok or not footer then
-            ns.Log.Add("nav", "%s: CreatePromptedBindingFooter failed: %s", footerName, tostring(footer))
-            return nil
-        end
-        local steps = {}
-        local function step(name, ...)
-            local fn = footer[name]
-            local okStep, err = pcall(fn, footer, ...)
-            steps[#steps + 1] = name .. (okStep and "" or (" (error: " .. tostring(err) .. ")"))
-        end
-        step("AddStandardSelectPrompt")
-        for _, b in ipairs(bindings or {}) do
-            local binding, err = Gamepad.Binding(b.key, b.fn, b.label)
-            if binding then step("AddPromptedBinding", binding) else steps[#steps + 1] = b.label .. " (" .. err .. ")" end
-        end
-        step("AddStandardFrameControlManagerBindings", frame)
-        step("AddStandardBackPrompt")
-        step("Finalize")
-        frame.gamepadFooter = footer
-        ns.Log.Add("nav", "%s footer: %s", footerName, table.concat(steps, ", "))
-        return footer
-    end
-    frame.FocusGamepad = function()
-        local footer = ensureFooter()
-        local ok, err = pcall(footer and footer.ShowAndActivateBindings or error, footer)
-        ns.Log.Add("nav", "%s focused (footer %s)", footerName, ok and "shown" or tostring(err))
-    end
-    frame.UnfocusGamepad = function()
-        local footer = frame.gamepadFooter
-        if footer then pcall(footer.HideAndDeactivateBindings, footer) end
-        ns.Log.Add("nav", "%s unfocused", footerName)
-    end
-    frame:HookScript("OnShow", function()
-        if not manager or type(manager.FrameShown) ~= "function" then
-            ns.Log.Add("nav", "%s shown: FrameControlsManager missing", footerName)
-            return
-        end
-        local ok, err = pcall(manager.FrameShown, manager, frame)
-        ns.Log.Add("nav", "%s shown: FrameControlsManager:FrameShown %s", footerName, ok and "ok" or tostring(err))
-    end)
-    frame:HookScript("OnHide", function()
-        if manager and type(manager.FrameHidden) == "function" then pcall(manager.FrameHidden, manager, frame) end
-    end)
 end
