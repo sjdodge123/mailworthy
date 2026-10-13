@@ -13,8 +13,8 @@ the repo has an API token.
 | Project avatar (400x400) | `media/logo-400.png` (512x512: `media/logo-512.png`) | CurseForge project avatar |
 | In-game icon (AddOns list) | `Mailworthy/Textures/Icon.tga` (64x64, uncompressed 32-bit) | shipped; `## IconTexture` in the `.toc` |
 | Description | `media/curseforge-description.html` | project description (paste into the editor's HTML/source view) |
-| Screenshot | `media/ui-prototype.png` (the planned release UI) | project images / gallery |
-| Icon source | `media/logo.svg` | `tools/build-icons.sh` rebuilds the PNGs, the TGA and the screenshot |
+| Screenshots | `media/ui-prototype.png` (the mailbox window) and `media/bank-alt-prototype.png` (bank alt tags + tooltip), both the planned release UI | project images / gallery |
+| Icon source | `media/logo.svg` | `tools/build-icons.sh` rebuilds the PNGs, the TGA and the screenshots |
 
 Short summary for the project card: **"One click at the mailbox sends everything
 worth selling to your bank alt. Vendor the rest."**
