@@ -49,9 +49,9 @@ runtime, and measures what no source can tell us.
 | AH durations | 2 / 8 / 24 hours |
 | Requests | lock the item not the slot; quest-style glow; controller locking without a menu entry |
 
-## Rerun with alpha5 (about 10 minutes)
+## Rerun with v0.2.0 (alpha5 changes, about 10 minutes)
 
-1. Install `Mailworthy v0.1.0-alpha5`. Old slot locks become item locks at login.
+1. Install `Mailworthy v0.2.0` (CurseForge or the GitHub release). Old slot locks become item locks at login.
 2. **AddOns list:** is the envelope icon there?
 3. **Mouse/keyboard (controller off):**
    - Alt+click an item: it **glows blue** like a quest item.
