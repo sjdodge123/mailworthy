@@ -7,4 +7,11 @@
 ## SavedVariablesPerCharacter: MailworthyCharDB
 
 Core.lua
+Log.lua
 Blocked.lua
+Characters.lua
+Gamepad.lua
+Locks.lua
+MailFooter.lua
+SelfTest.lua
+SelfTestUI.lua

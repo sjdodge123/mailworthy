@@ -17,6 +17,7 @@ function Blocked.OnEvent(event, blockedAddon, fn)
         event = event, fn = tostring(fn), at = time(), after = ns.lastCommand or "(no command yet)",
     }
     while #list > Blocked.MAX do table.remove(list, 1) end
+    if ns.Log then ns.Log.Add("blocked", "%s %s after %s", event, tostring(fn), list[#list].after) end
     ns.Print(string.format("The game blocked %s (after %s). Please report this to the addon developer.",
         tostring(fn), list[#list].after))
 end
