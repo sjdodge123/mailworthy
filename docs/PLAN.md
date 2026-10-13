@@ -146,11 +146,17 @@ best   = max(ahNet, deNet)
 mail   = best - vendor >= max(minGain, vendor * minGainPct)
 ```
 
+**Without Auctionator** (no price source) there's nothing to compare, so the rule
+is simple: mail every tradeable **white (common, quality 1)** item that isn't in
+a locked slot; grey junk and everything uncommon or better stay in the bags
+(operator, 2026-10-13). The preview says "no price data: mailing common items".
+
 The item stays in your bags (listed in the preview's kept list with the
 reason) when any of these hold:
 - it's in a locked slot, or on the never-mail list;
 - it's soulbound, a quest item, or currently locked by the game;
-- it has no price (missing data never means "mail it");
+- it has no price while Auctionator is installed (missing data for one item never
+  means "mail it"; without Auctionator at all, the common-items rule above applies);
 - its price is older than the age limit;
 - the player is the bank alt, or no bank alt is set.
 
@@ -235,6 +241,38 @@ preview shows which source priced each line.
   (`C_Container.SortBags` exists) and looting move items, so the never-mail
   item list covers "always keep this item".
 
+## Bank alt view (operator, 2026-10-13)
+
+On the bank alt, Mailworthy shows what each item is for, **recomputed with the
+bank alt's own, fresh Auctionator data** ([media/bank-alt-prototype.png](../media/bank-alt-prototype.png)):
+
+- **Tags on bag slots:** a small corner badge, **AH** (Auction, blue), **DE**
+  (Disenchant, purple) or **V** (Vendor now, grey/gold), the same colours as the
+  preview's chips. Drawn like the lock border: textures and a font string on the
+  game's bag buttons, refreshed by the `UpdateItems` post-hooks and on
+  `AUCTIONATOR` price updates (`Auctionator.API.v1.RegisterForDBUpdate`).
+- **Tooltip lines:** the fresh verdict with today's price and its age, and the
+  original reason: "Mailed for: Auction +8s 21c, Oct 13, from <main>". If the
+  market moved (e.g. now better at a vendor), both are visible.
+- **Summary** (the Mailworthy window when opened on the bank alt): items to list
+  with the expected gain, items to disenchant, items now better at a vendor.
+- **Data:** when mail is sent, Mailworthy records per item ID the reason, the gain
+  at send time, the date and the sender in `MailworthyDB.mailed` (account-wide,
+  capped and expired after 30 days). The verdict itself is always recomputed with
+  the same decision rule on the bank alt; without Auctionator there it shows
+  only the original reason.
+- **Where tags show:** on the bank alt by default (any character that is someone's
+  configured bank alt); a setting shows them on every character.
+- **Taint:** textures / font strings on bag buttons and tooltip lines only (tooltip
+  lines are what Auctionator itself adds; no blocks were ever blamed on it).
+  Nothing is written into Blizzard tables.
+
+## Release and CurseForge
+
+How to publish, the assets (icon, description, screenshot) and the checklist for
+the first public file: [CURSEFORGE.md](CURSEFORGE.md). Auctionator and
+Disenchantry are optional dependencies (`.pkgmeta`, `## OptionalDeps`).
+
 ## Modules
 
 | File | Role | Tested how |
@@ -265,6 +303,7 @@ realm+faction, name history, settings, never-mail list, blocked actions) and
 | **2 - Settings + characters** | settings panel, minimap button, bank alt picker with history and auto-complete, disenchant checkbox default, thresholds, fees | bank alt survives `/reload` and relog (the beta's SavedVariables bug), and every settings control works with the gamepad alone |
 | **3 - Mailbox + mailing** | mailbox button (opens settings when not set up), preview with recipient + Settings button, one mail per press, gamepad binding, then chaining if allowed | 30+ items reach the bank alt in under 3 presses, with nothing locked, bound or unpriced sent; works with ForeverMail installed |
 | **4 - Slot locks** | lock grid in settings, never-mail list from the preview, bag overlay | locked slots never appear in the preview's mail list |
+| **4c - Bank alt view** | tags on the bank alt's bag slots (recomputed with fresh prices), tooltip lines with the original reason, summary window | tags match a hand calculation with fresh prices; a changed verdict shows both |
 | **5 - Polish** | tooltip line ("Mailworthy: AH +2g 10s vs vendor"), release on GitHub + CurseForge (Forever flavor) | tagged release installs cleanly |
 
 ## Beta unknowns
