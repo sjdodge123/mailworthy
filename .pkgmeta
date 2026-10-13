@@ -5,10 +5,17 @@ package-as: Mailworthy
 move-folders:
   Mailworthy/Mailworthy: Mailworthy
 
+# CurseForge relations (slugs), set by the packager on upload: Auctionator
+# provides prices, Disenchantry switches on the disenchant comparison.
+optional-dependencies:
+  - auctionator
+  - disenchantry
+
 ignore:
   - spec
   - tools
   - docs
+  - media
   - AGENTS.md
   - CLAUDE.md
   - README.md

@@ -146,11 +146,17 @@ best   = max(ahNet, deNet)
 mail   = best - vendor >= max(minGain, vendor * minGainPct)
 ```
 
+**Without Auctionator** (no price source) there's nothing to compare, so the rule
+is simple: mail every tradeable **white (common, quality 1)** item that isn't in
+a locked slot; grey junk and everything uncommon or better stay in the bags
+(operator, 2026-10-13). The preview says "no price data: mailing common items".
+
 The item stays in your bags (listed in the preview's kept list with the
 reason) when any of these hold:
 - it's in a locked slot, or on the never-mail list;
 - it's soulbound, a quest item, or currently locked by the game;
-- it has no price (missing data never means "mail it");
+- it has no price while Auctionator is installed (missing data for one item never
+  means "mail it"; without Auctionator at all, the common-items rule above applies);
 - its price is older than the age limit;
 - the player is the bank alt, or no bank alt is set.
 
@@ -234,6 +240,12 @@ preview shows which source priced each line.
 - Locks belong to the slot, not the item, as requested. Bag sorting
   (`C_Container.SortBags` exists) and looting move items, so the never-mail
   item list covers "always keep this item".
+
+## Release and CurseForge
+
+How to publish, the assets (icon, description, screenshot) and the checklist for
+the first public file: [CURSEFORGE.md](CURSEFORGE.md). Auctionator and
+Disenchantry are optional dependencies (`.pkgmeta`, `## OptionalDeps`).
 
 ## Modules
 

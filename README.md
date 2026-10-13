@@ -4,8 +4,9 @@ A WoW Forever addon. Open a mailbox, press the **Mailworthy** button, and
 every bag item worth more on the auction house (after fees) or disenchanted
 than at the vendor goes to your bank alt. The rest stays in your bags to vendor.
 
-- **Prices** come from Auctionator (and its disenchant values); Disenchantry
-  turns disenchant value on by default.
+- **Prices** come from Auctionator (optional, recommended); Disenchantry
+  (optional) switches on the disenchant comparison. Without Auctionator,
+  Mailworthy mails every unlocked, tradeable white (common) item.
 - **Preview first:** it shows the recipient, what goes and why, what stays and
   why, and a **Settings** button to fix anything before you press Send.
 - **Keyboard/mouse first, controller too:** everything works with keyboard and mouse, and with a gamepad alone.
@@ -59,6 +60,11 @@ the full list.
 | Writing into Forever's controller UI (footer bindings, FrameControlsManager) | alpha1 self-test | **never do it**: tainted gamepad input game-wide (2026-10-13) |
 | Postage / AH deposit | alpha1 self-test, LedgerLink S8 | **30c per item**; deposit floor(vendor x 5%) x 1 / 4 / 12 (12h / 24h / 48h) |
 | SavedVariables survive `/reload` and relog | bank alt still set after a relog | open (LedgerLink saw a reload bug on the beta) |
+
+## Release
+
+CurseForge setup, assets and the first-release checklist: [docs/CURSEFORGE.md](docs/CURSEFORGE.md).
+Icon and screenshot sources are in `media/`; `tools/build-icons.sh` rebuilds them.
 
 ## Development
 
