@@ -14,7 +14,7 @@ function Blocked.OnEvent(event, blockedAddon, fn)
     MailworthyDB.blocked = MailworthyDB.blocked or {}
     local list = MailworthyDB.blocked
     list[#list + 1] = {
-        event = event, fn = tostring(fn), at = time(), after = ns.lastCommand or "(no command yet)",
+        event = event, fn = tostring(fn), at = time(), after = ns.lastCommand or "(no command yet)", version = ns.VERSION,
     }
     while #list > Blocked.MAX do table.remove(list, 1) end
     if ns.Log then ns.Log.Add("blocked", "%s %s after %s", event, tostring(fn), list[#list].after) end
@@ -26,8 +26,8 @@ end
 function Blocked.Lines()
     local lines = {}
     for _, b in ipairs(MailworthyDB and MailworthyDB.blocked or {}) do
-        lines[#lines + 1] = string.format("blocked: %s %s after %s at %s",
-            b.event, b.fn, b.after, date("%Y-%m-%d %H:%M:%S", b.at))
+        lines[#lines + 1] = string.format("blocked: %s %s after %s at %s (%s)",
+            b.event, b.fn, b.after, date("%Y-%m-%d %H:%M:%S", b.at), b.version or "older build")
     end
     return lines
 end

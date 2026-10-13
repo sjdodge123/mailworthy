@@ -89,8 +89,12 @@ Guard spec `no_gamepad_taint_spec.lua`: Mailworthy may only *read*
 - SavedVariables persist across login, character switch and `/reload`.
 - `labelStyle` "Shapes" (PlayStation); atlas markup works. Minimap buttons are not
   reachable with the controller.
-- **alpha3/alpha4: zero blocked actions** with controller and mouse/keyboard.
+- **alpha3/alpha4/alpha5: zero blocked actions** with controller and mouse/keyboard.
   Own Triangle binding: 9 presses, Blizzard replaced it twice in 2 minutes.
+- **alpha5 (all 11 questions yes):** envelope icon, Alt+click and L3 locks, locks
+  follow the item through sorting, blue glow, Triangle toggles the window, D-pad
+  highlight reaches every button, Cross presses, Circle closes only our window,
+  bags keep their Triangle, Cross still uses items.
 
 ## 5. Pitfalls (each cost a test round)
 
@@ -124,6 +128,10 @@ revisiting; showing it needs `/run`, which the operator shouldn't be asked to do
   on `gh pr view N --json state --jq .state` == OPEN (a printed check in the same
   script is not enough: PR #6 lost two commits that way, recovered in PR #7).
 - zsh doesn't word-split `$(...)` in `for` loops; pass commit lists explicitly.
+- Code run from `OnUpdate` / events is wrapped in `pcall` and only *logs* errors, so a
+  spec passes while the code errors every tick (alpha5: `PadKey.Check` on `pairs(nil)`
+  ten times a second flooded the 400-line log). Specs for such code assert the log
+  has no error lines (`spec/padkey_spec.lua` `after_each`).
 - The stub's `GetCenter`, `IsVisible` and parent tracking matter for `Nav` specs.
 - Reports come back as one .txt with several reports (main + bank alt); read them all.
 - Ask for in-game tests only when the source research says the fix is real; the
@@ -138,8 +146,9 @@ revisiting; showing it needs `/run`, which the operator shouldn't be asked to do
 - Mailbox entry: "Mailworthy" button under the mail window (both tabs); controller:
   R1 then Triangle; Mailworthy's own D-pad / Cross / Circle while its window is
   open; no L2/R2 cycling into it; no More-menu entry.
-- Decision rule (PLAN): AH net = price x count x 0.95 - deposit - postage share vs
-  vendor; mail when gain >= **5s and 25%** (defaults, steppers in settings);
+- Decision rule (PLAN): AH net = price x count x 0.95 - deposit - 30c postage vs
+  vendor; deposit for the **24h listing** (operator, 2026-10-13) = floor(vendor x
+  count x 5%) x 12, counted as a full cost; mail when gain >= **5s and 25%** (defaults, steppers in settings);
   disenchant compared when enabled (default on if Disenchantry is installed).
   **Without Auctionator: mail every unlocked, tradeable white (common) item**;
   greys and uncommon+ stay. Soulbound / quest items can't be mailed (don't list them).
@@ -157,18 +166,15 @@ revisiting; showing it needs `/run`, which the operator shouldn't be asked to do
 
 ## 7. State right now
 
-- `main` = PR #7 merge (`95fcae4`); latest tag `v0.1.0-alpha5` (first CurseForge
-  upload, alpha file, pending review).
-- Pending in-game check (alpha5, steps in DISCOVERY-SESSION-2.md "Rerun with v0.2.0"):
-  envelope icon in the AddOns list; no blocks; L3 lock in bags; item lock survives
-  sorting; quest-style glow; Triangle opens the window with the gold highlight; D-pad /
-  Cross / Circle navigation; Cross still uses bag items.
+- Latest tag `v0.1.0-alpha5` (first CurseForge upload, alpha file). Its in-game
+  check passed (DISCOVERY-SESSION-2.md "Results of the alpha5 run"); the one bug it
+  showed (`PadKey.Check` erroring while idle) is fixed on main after it.
 - Still open: AH cut (needs a sale mail), disenchant prices for green items,
   ForeverMail compatibility (replaces the mailbox window).
 
 ## 8. What's left (in order)
 
-1. **Process the alpha5 report** when it arrives; fix what fails (switches help isolate).
+1. ~~Process the alpha5 report~~ **Done** (all checks passed; idle `PadKey` error fixed).
 2. **Phase 1 - prices + valuation:** `Prices.lua` (Auctionator adapter: price, age,
    exact, disenchant; vendor from `GetItemInfo`), `Valuation.lua` (pure decision rule
    incl. deposit formula, postage share, thresholds, no-Auctionator common-items rule,

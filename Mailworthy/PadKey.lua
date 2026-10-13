@@ -96,6 +96,7 @@ function PadKey.Check()
         ns.Log.Add("pad", "%s bindings on", want)
         if want == "window" then ns.Nav.Reset() end
     end
+    if not active then return end -- nothing wanted and nothing bound (most of the time)
     for key, buttonName in pairs(PadKey.SETS[active]) do
         local expected = "CLICK " .. buttonName .. ":LeftButton"
         local okAction, action = pcall(GetBindingAction, key, true)

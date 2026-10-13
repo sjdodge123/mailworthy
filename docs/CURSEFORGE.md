@@ -32,7 +32,7 @@ them load first when installed.
 1. ~~Create the project~~ **Done:** project ID **1743661** (2026-10-13).
 2. ~~Add the ID to the `.toc`~~ **Done:** `## X-Curse-Project-ID: 1743661` in
    `Mailworthy/Mailworthy.toc`.
-3. **Add the API token** (operator, 2026-10-13: every release goes to CurseForge).
+3. ~~Add the API token~~ **Done:** `CF_API_KEY` is set (operator, 2026-10-13: every release goes to CurseForge).
    CurseForge: your account's API tokens page -> create a token, then:
    ```bash
    gh secret set CF_API_KEY --repo sjdodge123/mailworthy
@@ -57,7 +57,7 @@ feature switches, logging). Before v1.0:
       `/mw selftest`; keep slot locks (Alt+click, Bag locks), the border, the mail
       buttons and the Triangle binding.
 - [ ] Keep the blocked-action recorder, but quiet: no chat spam for players.
-- [ ] Discovery session 2 (alpha3) passes: no blocked actions with mouse/keyboard or
-      the controller.
+- [x] Discovery session 2 passes: no blocked actions with mouse/keyboard or the
+      controller (alpha4 and alpha5).
 - [ ] The description matches what shipped (update `media/curseforge-description.html`).
 - [ ] Tag `v1.0.0`.
