@@ -34,11 +34,15 @@ What works (from Blizzard's source; alpha3 checks each in game):
   navigates the active tab's group, so Mailworthy's button and window are
   children of **SendMailFrame** ("Send Mail"), created at login. D-pad + Cross
   reach them; the mouse clicks them.
-- **Our own Triangle binding** while the mail window has controller focus
-  (an override binding on our own frame, re-applied if Blizzard replaces it,
-  cleared on focus loss / mailbox close / combat). No Blizzard footer is touched,
-  so Blizzard's footer won't show "Triangle: Mailworthy"; our button shows the
-  Triangle symbol instead.
+- **Our own bindings** (override bindings on our own frame, re-applied if
+  Blizzard replaces them, cleared on focus loss and combat; proven in game with
+  Triangle, zero blocks): Triangle at a focused mail window; while the
+  Mailworthy window is open, the D-pad moves Mailworthy's own highlight over
+  every button, Cross presses, Circle closes; L3 locks in the bags. Blizzard's
+  smart navigation didn't reach our window (alpha3/alpha4) and joining it
+  taints, so we don't use it. L2/R2 window cycling into Mailworthy stays out
+  (it needs FrameControlsManager registration, which taints; GatherLite reports
+  the same).
 - **No entries in the gamepad More menu** (taints by design, see FOREVER-UI-NOTES).
 - **Button symbols** as texture markup only (`CreateAtlasMarkup`).
 
@@ -48,8 +52,8 @@ Per input:
 |---|---|---|
 | Start at the mailbox | Send Mail tab (R1), then **Triangle**, or D-pad to the **Mailworthy** button + Cross | click **Mailworthy** under the mail window (either tab) |
 | Preview: send / settings / close | D-pad + Cross on its buttons; Triangle closes | click |
-| Lock a slot | the **Bag locks** grid in the Mailworthy window (Cross) | **Alt+click** the bag item |
-| See locked slots | blue border on the slot in your bags | same |
+| Lock an item | **L3** on the item in your bags, or the **Bag locks** page | **Alt+click** the bag item |
+| See locked items | blue quest-style glow in your bags | same |
 | Settings | the Mailworthy button (when not set up), the preview's Settings button | same, plus `/mw` and the minimap button |
 
 Notes:
@@ -219,27 +223,22 @@ preview shows which source priced each line.
   found via the probe) and fall back to a free-floating button near the
   mailbox UI.
 
-## Slot locks
+## Item locks
 
-- Saved per character as `lockedSlots["bag:slot"] = true`.
+- A lock belongs to the **item** (its item ID), not a bag slot: it follows the
+  item when you move it or sort your bags, and covers every stack of it
+  (operator, 2026-10-13). Saved per character; alpha3/alpha4 slot locks are
+  converted at login. A non-stackable item locks every copy of it.
 - **Keyboard/mouse:** Alt+click a bag item (post-hook of `HandleModifiedItemClick`;
   Alt alone matches none of Blizzard's modified-click cases for bag items).
-- **Controller:** the **Bag locks** grid in the Mailworthy window (Cross toggles).
-  Not the gamepad Triangle "More" menu: adding entries there taints controller
-  input (alpha1/alpha2, 2026-10-13).
-- **Visible:** locked slots get a blue border in the bags.
-- **Settings grid (overview):** one row per bag, one button per slot showing
-  the item that's in it now and a lock overlay; press to toggle. Also "Unlock
-  all". Works with the controller like every other window.
-- **Preview:** locked items show in the kept list as "locked slot".
-- **Bag overlay (Phase 4b):** a small lock icon on the game's bag buttons. On
-  Forever they have no global names (`ContainerFrame1Item1` is missing) and
-  combined bags exist (`ContainerFrameCombinedBags`), so the overlay walks the
-  open container frames' item buttons instead. Bag addons (Bagnon, Baganator)
-  come later, if at all.
-- Locks belong to the slot, not the item, as requested. Bag sorting
-  (`C_Container.SortBags` exists) and looting move items, so the never-mail
-  item list covers "always keep this item".
+- **Controller:** **L3** while the bags have focus: Mailworthy's own override
+  binding (only while the bags are the focused window; L3 is auto-run in the
+  world, untouched), reading the selected slot from
+  `SmartNavigation:GetCurrentButton()` (read-only); a hint under the bags says so.
+  Also the **Bag locks** page of the Mailworthy window. Not the gamepad Triangle
+  "More" menu: entries there taint controller input (alpha1/alpha2).
+- **Visible:** locked items glow blue: Blizzard's quest-item border
+  (`UI-Icon-QuestBorder`) desaturated and tinted blue, plus an additive copy.
 
 ## Bank alt view (operator, 2026-10-13)
 

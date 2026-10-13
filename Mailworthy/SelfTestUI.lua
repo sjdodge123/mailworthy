@@ -1,11 +1,11 @@
 -- The Mailworthy window (self-test build) and the report box.
 --
--- Controller: the window is a child of SendMailFrame, the mail window's
--- "Send Mail" navigation group, anchored to the right of the mail window. Its
--- buttons are plain buttons created at login (never while a gamepad panel is
--- open), so smart navigation picks them up with the rest of the tab: D-pad to
--- move, Cross to press. It registers nothing with Blizzard's controller UI and
--- sets no smart-navigation keys (both tainted gamepad input in alpha1/alpha2).
+-- Controller: while the window is open at a focused mail window, Mailworthy's
+-- own bindings (PadKey) drive its own navigation (Nav): D-pad moves a gold
+-- highlight over every button, Cross presses, Circle closes. Blizzard's smart
+-- navigation didn't reach the window in game, and joining it taints. The window
+-- registers nothing with Blizzard's controller UI and sets no smart-navigation
+-- keys. Created at login (never while a gamepad panel is open).
 -- Mouse and keyboard work as usual. Keyboard focus never moves (SetFocus
 -- crashed the gamepad UI in LedgerLink).
 --
@@ -86,27 +86,11 @@ local function createQuestions()
     end
 end
 
-local function lockEdges(b)
-    local edges = {}
-    local specs = { { "TOPLEFT", "TOPRIGHT", nil, 2 }, { "BOTTOMLEFT", "BOTTOMRIGHT", nil, 2 },
-        { "TOPLEFT", "BOTTOMLEFT", 2, nil }, { "TOPRIGHT", "BOTTOMRIGHT", 2, nil } }
-    for i, spec in ipairs(specs) do
-        local tex = b:CreateTexture(nil, "OVERLAY", nil, 7)
-        tex:SetColorTexture(unpack(ns.Border.COLOR))
-        tex:SetPoint(spec[1])
-        tex:SetPoint(spec[2])
-        if spec[3] then tex:SetWidth(spec[3]) end
-        if spec[4] then tex:SetHeight(spec[4]) end
-        edges[i] = tex
-    end
-    return edges
-end
-
 local function createLocks()
     local p = page("locks")
     local hint = label(p, "GameFontHighlightSmall")
     hint:SetPoint("TOPLEFT", 4, 0)
-    hint:SetText("Press a slot to lock or unlock it. Locked slots are never mailed (blue border).")
+    hint:SetText("Press an item to lock or unlock it. Locked items are never mailed (blue glow).")
     for i = 1, UI.MAX_LOCK_BUTTONS do
         local b = CreateFrame("Button", "MailworthyLockSlot" .. i, p)
         b:SetSize(CELL - 2, CELL - 2)
@@ -130,7 +114,7 @@ local function createLocks()
         end)
         b:SetScript("OnLeave", function() if type(GameTooltip) == "table" then GameTooltip:Hide() end end)
         b:Hide()
-        lockButtons[i] = { button = b, icon = icon, count = count, edges = lockEdges(b) }
+        lockButtons[i] = { button = b, icon = icon, count = count }
     end
 end
 
@@ -187,6 +171,7 @@ function UI.Create()
         -- Opened with /mw selftest away from a mailbox: give it back to the Send Mail tab.
         if type(send) == "table" and self:GetParent() ~= send then self:SetParent(send) end
     end)
+    ns.Nav.Attach(frame)
     UI.ShowPage("questions")
     ns.Log.Add("ui", "window created%s", type(send) == "table" and " under SendMailFrame" or " (no SendMailFrame)")
     return frame
@@ -206,10 +191,7 @@ function UI.RefreshLocks()
                 lockSlots[entry.button] = { bag = bag, slot = slot }
                 entry.icon:SetTexture(info.iconFileID)
                 entry.count:SetText((tonumber(info.stackCount) or 1) > 1 and info.stackCount or "")
-                local locked = ns.Locks.IsLocked(bag, slot)
-                for _, tex in ipairs(entry.edges) do
-                    if locked then tex:Show() else tex:Hide() end
-                end
+                ns.Border.Show(entry.button, ns.Locks.IsItemLocked(info.itemID))
                 entry.button:Show()
             end
         end
@@ -223,7 +205,7 @@ end
 function UI.Refresh()
     if not frame then return end
     title:SetText("Mailworthy  " .. ns.Gamepad.Glyph(ns.Gamepad.FACE_TOP))
-    legend:SetText(string.format("%s select    %s back    D-pad move    %s open / close",
+    legend:SetText(string.format("%s press    %s close    D-pad move    %s open / close",
         ns.Gamepad.Glyph(ns.Gamepad.FACE_BOTTOM), ns.Gamepad.Glyph(ns.Gamepad.FACE_RIGHT),
         ns.Gamepad.Glyph(ns.Gamepad.FACE_TOP)))
     status:SetText(ns.SelfTest.state.status ~= "" and ns.SelfTest.state.status

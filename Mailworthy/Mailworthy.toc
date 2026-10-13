@@ -16,6 +16,7 @@ Gamepad.lua
 Locks.lua
 Border.lua
 MailButton.lua
+Nav.lua
 PadKey.lua
 SelfTest.lua
 SelfTestUI.lua

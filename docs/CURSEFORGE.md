@@ -1,6 +1,7 @@
 # Putting Mailworthy on CurseForge
 
-Releases already work the way LedgerLink's do: pushing a `v*` tag runs
+All paths below are in the **mailworthy** repo (LedgerLink has files with the
+same names in its own `media/`). Releases already work the way LedgerLink's do: pushing a `v*` tag runs
 `.github/workflows/release.yml`, and the BigWigs packager builds
 `Mailworthy-<tag>-forever.zip` and attaches it to a GitHub release. The upload
 to CurseForge starts as soon as the project exists, the `.toc` names its ID and
@@ -10,11 +11,11 @@ the repo has an API token.
 
 | What | File | Where it goes |
 |---|---|---|
-| Project avatar (400x400) | `media/logo-400.png` (512x512: `media/logo-512.png`) | CurseForge project avatar |
-| In-game icon (AddOns list) | `Mailworthy/Textures/Icon.tga` (64x64, uncompressed 32-bit) | shipped; `## IconTexture` in the `.toc` |
-| Description | `media/curseforge-description.html` | project description (paste into the editor's HTML/source view) |
-| Screenshots | `media/ui-prototype.png` (the mailbox window) and `media/bank-alt-prototype.png` (bank alt tags + tooltip), both the planned release UI | project images / gallery |
-| Icon source | `media/logo.svg` | `tools/build-icons.sh` rebuilds the PNGs, the TGA and the screenshots |
+| Project avatar (400x400) | [media/logo-400.png](../media/logo-400.png) (512x512: [media/logo-512.png](../media/logo-512.png)) | CurseForge project avatar |
+| In-game icon (AddOns list) | [Mailworthy/Textures/Icon.tga](../Mailworthy/Textures/Icon.tga) (64x64, uncompressed 32-bit) | shipped; `## IconTexture` in the `.toc` |
+| Description | [media/curseforge-description.html](../media/curseforge-description.html) | project description (paste into the editor's HTML/source view) |
+| Screenshots | [media/ui-prototype.png](../media/ui-prototype.png) (the mailbox window) and [media/bank-alt-prototype.png](../media/bank-alt-prototype.png) (bank alt tags + tooltip), both the planned release UI | project images / gallery |
+| Icon source | [media/logo.svg](../media/logo.svg) | [tools/build-icons.sh](../tools/build-icons.sh) rebuilds the PNGs, the TGA and the screenshots |
 
 Short summary for the project card: **"One click at the mailbox sends everything
 worth selling to your bank alt. Vendor the rest."**

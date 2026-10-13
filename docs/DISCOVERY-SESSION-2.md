@@ -36,7 +36,38 @@ runtime, and measures what no source can tell us.
 | new | Keyboard/mouse locking and a visible lock marker requested; alpha3 adds Alt+click and a blue border |
 | new | AH duration index 2 is labelled "8 Hours" (deposit x4); alpha3's report reads the three labels |
 
-## Rerun with alpha3 (about 15 minutes)
+## Results of the alpha4 run (2026-10-13)
+
+| Check | Result |
+|---|---|
+| Blocked actions | **none**, with the controller or mouse/keyboard (all logged blocks predate alpha3) |
+| Triangle at the mailbox (own binding) | **works**: 9 presses, Blizzard replaced it only twice in two minutes |
+| Inbox hint, bags' own Triangle | **work** |
+| Alt+click lock, blue border, mouse button on the Inbox | **work** |
+| D-pad to the Mailworthy button / window (smart navigation, children of SendMailFrame) | **no**, although the source says they're in the "Send Mail" group; replaced by our own navigation in alpha5 |
+| Cross using items afterwards | answered "no" with no blocked action logged; recheck in alpha5 |
+| AH durations | 2 / 8 / 24 hours |
+| Requests | lock the item not the slot; quest-style glow; controller locking without a menu entry |
+
+## Rerun with alpha5 (about 10 minutes)
+
+1. Install `Mailworthy v0.1.0-alpha5`. Old slot locks become item locks at login.
+2. **AddOns list:** is the envelope icon there?
+3. **Mouse/keyboard (controller off):**
+   - Alt+click an item: it **glows blue** like a quest item.
+   - Sort your bags or move the item: it's **still locked**. Alt+click again unlocks it.
+   - Open a mailbox and click the **Mailworthy** button.
+4. **Controller (on, `/reload`):**
+   - **Play a minute:** any "The game blocked" message?
+   - **Bags:** select an item, press **L3**: it locks and glows; L3 again unlocks. Triangle still opens the More menu; Cross still uses items.
+   - **Mailbox:** R1 to Send Mail, then Triangle opens the window with a **gold highlight** on the first button.
+   - **In the window:** the D-pad moves the highlight to every button, Cross presses, Circle closes only the Mailworthy window, and Triangle toggles it.
+5. Answer the Questions page, then `/mw selftest report` and paste it back.
+
+If anything is blocked, run `/mw feature padNav off` (then `padLock`, `padTriangle`), then
+`/reload` after each, and note which one made it stop.
+
+## Rerun with alpha3 (superseded)
 
 **Mouse and keyboard come first** (most players will use Mailworthy that way);
 the controller is checked second. Everything that wrote into Blizzard's

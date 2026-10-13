@@ -1,0 +1,139 @@
+-- Mailworthy's own controller navigation for its window.
+--
+-- Blizzard's smart navigation didn't reach our window or button in game
+-- (alpha3/alpha4), and joining it (FrameControlsManager, footers, menus) taints
+-- gamepad input. So while the Mailworthy window is open at a focused mail
+-- window, PadKey binds the D-pad, Cross and Circle to Mailworthy (its own
+-- override bindings, the mechanism Triangle has used without a single blocked
+-- action) and this module moves a highlight Mailworthy draws itself: every
+-- visible button in the window is reachable, the first one included.
+--
+-- The direction search mirrors Blizzard's: the nearest button whose direction
+-- is within 45 degrees of the pressed one (SmartNavigation.lua,
+-- DEFAULT_DIRECTION_BUFFER), ties broken by the smaller angle.
+local _, ns = ...
+
+local Nav = {}
+ns.Nav = Nav
+
+Nav.CONE = 45
+Nav.DIRECTIONS = { up = { 0, 1 }, down = { 0, -1 }, left = { -1, 0 }, right = { 1, 0 } }
+
+local root, highlight, current
+
+--- Pure: the candidate nearest to `from` in `dir` within the cone, or nil.
+--- `from` and each candidate are { x = , y = , ... }.
+function Nav.Pick(from, candidates, dir)
+    local d = Nav.DIRECTIONS[dir]
+    if not d or not from then return nil end
+    local best, bestDistance, bestAngle
+    for _, c in ipairs(candidates) do
+        local vx, vy = c.x - from.x, c.y - from.y
+        local distance = math.sqrt(vx * vx + vy * vy)
+        if c ~= from and distance > 0 then
+            local cos = (vx * d[1] + vy * d[2]) / distance
+            local angle = math.deg(math.acos(math.max(-1, math.min(1, cos))))
+            if angle <= Nav.CONE + 1e-9 then
+                if not best or distance < bestDistance - 0.5
+                    or (math.abs(distance - bestDistance) <= 0.5 and angle < bestAngle) then
+                    best, bestDistance, bestAngle = c, distance, angle
+                end
+            end
+        end
+    end
+    return best
+end
+
+--- Pure: the top-left candidate (highest row first, then leftmost).
+function Nav.TopLeft(candidates)
+    local best
+    for _, c in ipairs(candidates) do
+        if not best or c.y > best.y + 2 or (math.abs(c.y - best.y) <= 2 and c.x < best.x) then best = c end
+    end
+    return best
+end
+
+--- Visible buttons under the window, with their centres.
+function Nav.Candidates()
+    local list = {}
+    local function walk(frame)
+        for _, child in ipairs({ frame:GetChildren() }) do
+            if child:IsVisible() then
+                if child:IsObjectType("Button") then
+                    local x, y = child:GetCenter()
+                    if x and y then list[#list + 1] = { button = child, x = x, y = y } end
+                end
+                walk(child)
+            end
+        end
+    end
+    if root and root:IsVisible() then walk(root) end
+    return list
+end
+
+local function entryFor(button, candidates)
+    for _, c in ipairs(candidates) do
+        if c.button == button then return c end
+    end
+    return nil
+end
+
+function Nav.Select(button)
+    current = button
+    if not highlight then return end
+    if button then
+        highlight:ClearAllPoints()
+        highlight:SetPoint("TOPLEFT", button, "TOPLEFT", -4, 4)
+        highlight:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 4, -4)
+        highlight:Show()
+    else
+        highlight:Hide()
+    end
+end
+
+function Nav.Current() return current end
+
+--- Start (or restart) controller navigation at the top-left button.
+function Nav.Reset()
+    local first = Nav.TopLeft(Nav.Candidates())
+    Nav.Select(first and first.button or nil)
+end
+
+function Nav.Move(dir)
+    local candidates = Nav.Candidates()
+    local from = current and entryFor(current, candidates)
+    if not from then return Nav.Reset() end
+    local nextEntry = Nav.Pick(from, candidates, dir)
+    if nextEntry then Nav.Select(nextEntry.button) end
+end
+
+function Nav.Press()
+    if current and current:IsVisible() then
+        ns.Log.Add("nav", "Cross on %s", tostring(current:GetName() or "a button"))
+        current:Click()
+    else
+        Nav.Reset()
+    end
+end
+
+function Nav.Stop()
+    Nav.Select(nil)
+end
+
+--- The window to navigate; the highlight is ours, a gold frame drawn around the selected button.
+function Nav.Attach(frame)
+    root = frame
+    highlight = CreateFrame("Frame", "MailworthyNavHighlight", frame)
+    highlight:SetFrameLevel(frame:GetFrameLevel() + 20)
+    local specs = { { "TOPLEFT", "TOPRIGHT", nil, 2 }, { "BOTTOMLEFT", "BOTTOMRIGHT", nil, 2 },
+        { "TOPLEFT", "BOTTOMLEFT", 2, nil }, { "TOPRIGHT", "BOTTOMRIGHT", 2, nil } }
+    for _, spec in ipairs(specs) do
+        local tex = highlight:CreateTexture(nil, "OVERLAY")
+        tex:SetColorTexture(1, 0.82, 0, 1)
+        tex:SetPoint(spec[1])
+        tex:SetPoint(spec[2])
+        if spec[3] then tex:SetWidth(spec[3]) end
+        if spec[4] then tex:SetHeight(spec[4]) end
+    end
+    highlight:Hide()
+end

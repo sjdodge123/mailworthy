@@ -20,13 +20,15 @@ function ns.Init()
     st.log = st.log or {}
     st.answers = st.answers or {}
     st.loads = st.loads or {}
-    MailworthyCharDB.lockedSlots = MailworthyCharDB.lockedSlots or {}
+    MailworthyCharDB.lockedItems = MailworthyCharDB.lockedItems or {} -- itemID -> { link, at }
     MailworthyDB.features = MailworthyDB.features or {}
 end
 
 -- Kill switches for each piece that touches Blizzard UI, so a problem in game
 -- can be isolated with /mw feature <name> off + /reload instead of a new build.
-ns.Features = { DEFAULTS = { mailButton = true, padTriangle = true, altClickLock = true, slotBorder = true } }
+ns.Features = { DEFAULTS = {
+    mailButton = true, padTriangle = true, padNav = true, padLock = true, altClickLock = true, slotBorder = true,
+} }
 
 function ns.Features.Describe()
     local list = {}
@@ -90,11 +92,12 @@ end)
 
 local HELP = {
     "At a mailbox: click the Mailworthy button under the mail window. Controller: Send Mail tab (R1), then Triangle (Y).",
-    "Lock a bag slot: Alt+click it (mouse), or the window's Bag locks page (controller). Locked slots get a blue border.",
+    "Lock an item (it stays locked wherever it moves): Alt+click it, or L3 in your bags (controller).",
+    "Locked items glow blue. The window's Bag locks page works with both.",
     "/mw selftest - open the self-test window",
     "/mw selftest report - the copyable report (paste it to the addon developer)",
-    "/mw locks - list this character's locked slots",
-    "/mw feature <mailButton|padTriangle|altClickLock|slotBorder> on|off - isolate a problem (then /reload)",
+    "/mw locks - list this character's locked items",
+    "/mw feature <mailButton|padTriangle|padNav|padLock|altClickLock|slotBorder> on|off - isolate a problem (then /reload)",
 }
 
 local function showHelp()
