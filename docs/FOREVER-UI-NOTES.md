@@ -46,7 +46,15 @@ item use blocked):**
   touching no Blizzard table; re-applied when `GetBindingAction(key, true)` shows
   Blizzard replaced it; cleared on focus loss, mailbox close and combat. Gamepad
   modules don't listen to `UPDATE_BINDINGS`, so no loop.
-- Read-only `GamepadMode.FrameControlsManager:GetActiveFrame()`.
+- Read-only `GamepadMode.FrameControlsManager:GetActiveFrame()` and
+  `SmartNavigation:GetCurrentButton()`.
+- **Verified in game (alpha3/alpha4):** our own PAD4 override binding at the mail
+  window: 9 presses, zero blocked actions, Blizzard replaced it twice in two
+  minutes. alpha5 extends the same mechanism to the D-pad / Cross / Circle while
+  our window is open (our own highlight and direction search) and to L3 in the bags.
+- **Not reachable in game:** plain buttons under `SendMailFrame` with the D-pad
+  (alpha3/alpha4), although `FindButtonGroups` should include them; cause unknown,
+  so we don't rely on smart navigation for our frames.
 - `hooksecurefunc` post-hooks (`HandleModifiedItemClick`, each container frame's
   `UpdateItems`) and textures created on Blizzard buttons (not hooked, not children
   for SmartNavigation), kept in our own weak tables.

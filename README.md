@@ -10,12 +10,12 @@ than at the vendor goes to your bank alt. The rest stays in your bags to vendor.
 - **Preview first:** it shows the recipient, what goes and why, what stays and
   why, and a **Settings** button to fix anything before you press Send.
 - **Keyboard/mouse first, controller too:** everything works with keyboard and mouse, and with a gamepad alone.
-- **Lock bag slots** you never want mailed: Triangle on a bag item with a controller, or the lock grid in settings with keyboard and mouse.
+- **Lock items** you never want mailed: Alt+click (mouse) or L3 in your bags (controller); the lock follows the item.
 
 **Status: Phase 0 (discovery).** The current build is a **discovery build**:
-a Mailworthy button and window on the Send Mail tab (mouse; D-pad + Cross;
-Triangle), slot locks (Alt+click, or the window's Bag locks grid) with a blue
-border, the known-character list and a self-test (`/mw selftest`) for
+a Mailworthy button and window at the mailbox (mouse; controller: Triangle,
+then the D-pad / Cross / Circle), item locks (Alt+click, or L3 in the bags) with a
+blue glow, the known-character list and a self-test (`/mw selftest`) for
 [discovery session 2](docs/DISCOVERY-SESSION-2.md). It doesn't value or mail
 your bags yet; the only mail it sends is the opt-in send test (two cheap
 stacks to your bank alt, after a second press). The full design, phases and
@@ -27,11 +27,11 @@ open questions are in [docs/PLAN.md](docs/PLAN.md).
 /mw selftest          the self-test window (also: the Mailworthy button on the mail window)
 /mw selftest report   the copyable report (paste it to the addon developer)
 /mw locks             this character's locked slots
-/mw feature <name> on|off   mailButton, padTriangle, altClickLock, slotBorder (then /reload)
+/mw feature <name> on|off   mailButton, padTriangle, padNav, padLock, altClickLock, slotBorder (then /reload)
 ```
 
 At a mailbox: click the **Mailworthy** button under the mail window (either tab). Controller: Send Mail tab (R1), then Triangle (Y).
-Lock a slot: **Alt+click** it, or the window's **Bag locks** page. Locked slots get a blue border.
+Lock an item (it stays locked wherever it moves): **Alt+click** it, or **L3** in your bags. Locked items glow blue.
 
 ## Discovery (Phase 0)
 

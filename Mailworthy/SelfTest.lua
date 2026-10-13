@@ -19,16 +19,17 @@ SelfTest.SUBJECT = "Mailworthy test %d/2"
 SelfTest.QUESTIONS = {
     { id = "no_blocks", text = 'Played a minute (move, jump, target, loot, NPC): no "The game blocked" messages' },
     { id = "pad_triangle", text = "On the Send Mail tab, Triangle opens and closes this window" },
-    { id = "pad_inbox_hint", text = "On the Inbox, Triangle says to switch to Send Mail (R1)" },
-    { id = "bags_triangle_ok", text = "With the mailbox open, Triangle on a bag item still opens its More menu" },
-    { id = "mail_button_pad", text = "The D-pad reaches the Mailworthy button under the mail window" },
-    { id = "nav_dpad", text = "The D-pad reaches this window's buttons (pages, Yes / No, slots)" },
-    { id = "lock_grid", text = "Bag locks: Cross on a slot locks / unlocks it" },
+    { id = "pad_nav", text = "Window open: the D-pad moves a gold highlight to every button, the first too" },
+    { id = "pad_cross_circle", text = "Cross presses the highlighted button; Circle closes only this window" },
+    { id = "bags_l3", text = "In your bags, L3 locks / unlocks the selected item" },
+    { id = "bags_triangle_ok", text = "In your bags, Triangle still opens the item's More menu" },
     { id = "alt_click", text = "Mouse: Alt+click on a bag item locks / unlocks it, and nothing else happens" },
-    { id = "border", text = "Locked slots show a blue border in your bags" },
-    { id = "cross_still_works", text = "Afterwards, Cross still uses / equips bag items" },
-    { id = "glyphs", text = "The button symbols match your controller" },
+    { id = "lock_follows", text = "A locked item stays locked after moving it or sorting your bags" },
+    { id = "glow", text = "Locked items glow blue, like quest items" },
+    { id = "cross_still_works", text = "Cross still uses / equips bag items normally" },
+    { id = "icon", text = "Mailworthy shows its envelope icon in the AddOns list" },
 }
+
 
 local state = { busy = false, armed = false, phase = 0, attach = nil, send = nil, status = "" }
 SelfTest.state = state
@@ -357,10 +358,7 @@ function SelfTest.Report()
     for _, l in ipairs(st().loads) do
         lines[#lines + 1] = string.format("load: %s %s at %s", tostring(l.char), tostring(l.kind), date("%Y-%m-%d %H:%M:%S", l.at))
     end
-    local keys = {}
-    for key in pairs(MailworthyCharDB.lockedSlots) do keys[#keys + 1] = key end
-    table.sort(keys)
-    lines[#lines + 1] = "locked slots (this character): " .. (#keys > 0 and table.concat(keys, ", ") or "none")
+    lines[#lines + 1] = "locked items (this character): " .. ns.Locks.Describe()
     local a = st().results and st().results.attach
     if a then
         lines[#lines + 1] = string.format("attach result: postage 0/1/2 items = %s/%s/%s, attached %s then %s",

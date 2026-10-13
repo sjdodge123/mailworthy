@@ -1,75 +1,143 @@
--- Triangle (Y) at the mailbox, without touching Blizzard's controller UI.
+-- Mailworthy's own controller bindings. They never touch Blizzard's controller UI.
 --
--- alpha1 added Triangle to the mail window's footer; that wrote into Blizzard's
--- binding stack and tainted gamepad input game-wide. Instead, while the mail
--- window is the controller's focused window, Mailworthy sets its OWN override
--- binding: SetOverrideBindingClick(our frame, true, "PAD4", our button). That
--- touches no Blizzard Lua table. Blizzard binds unused face buttons to nothing
--- while a window is focused (FrameControlsManager's fallthrough catcher) and
--- re-applies its bindings on many refreshes, so a watcher checks every 0.1 s
--- (GetBindingAction("PAD4", true)) and re-applies ours when it was replaced -
--- the pattern wow-forever-tweaks uses. The binding is cleared as soon as the
--- mail window loses focus (e.g. L2/R2 to the bags, where Triangle is the bags'
--- More menu), when the mailbox closes and when combat starts.
--- Reads FrameControlsManager:GetActiveFrame() only.
+-- Each binding is SetOverrideBindingClick(our frame, true, key, our button):
+-- it writes no Blizzard Lua table. alpha1 wrote Triangle into the mail
+-- window's footer and tainted gamepad input game-wide; this mechanism carried
+-- Triangle through alpha3/alpha4 without one blocked action. A watcher checks
+-- every 0.1 s which set is wanted, from read-only state
+-- (FrameControlsManager:GetActiveFrame(), InputUtil.IsGamepadUIEnabled()):
+--
+--   mail    mail window focused, Mailworthy window closed:  Triangle opens it
+--   window  mail window focused, Mailworthy window open:    Triangle closes,
+--           D-pad moves Mailworthy's highlight (Nav), Cross presses, Circle closes
+--   bags    bags focused:  L3 locks / unlocks the selected item (Locks)
+--
+-- Blizzard binds unused face buttons to nothing while a window is focused and
+-- re-applies its bindings on its own refreshes, so ours are re-applied when
+-- GetBindingAction(key, true) shows they were replaced (the pattern
+-- wow-forever-tweaks uses). Everything is cleared when no set is wanted, and
+-- at the start of combat (bindings can't change in combat).
 local _, ns = ...
 
 local PadKey = {}
 ns.PadKey = PadKey
 
-PadKey.KEY = "PAD4"
-PadKey.BUTTON = "MailworthyPadButton"
-PadKey.ACTION = "CLICK MailworthyPadButton:LeftButton"
 PadKey.INTERVAL = 0.1
+PadKey.SETS = {
+    mail = { PAD4 = "MailworthyPadTriangle" },
+    window = {
+        PAD4 = "MailworthyPadTriangle", PAD1 = "MailworthyPadCross", PAD2 = "MailworthyPadCircle",
+        PADDUP = "MailworthyPadUp", PADDDOWN = "MailworthyPadDown",
+        PADDLEFT = "MailworthyPadLeft", PADDRIGHT = "MailworthyPadRight",
+    },
+    bags = { PADLSTICK = "MailworthyPadLock" },
+}
 
-local watcher, bound, elapsed = nil, false, 0
-PadKey.stats = { applies = 0, clears = 0, presses = 0 }
+local watcher, active, elapsed = nil, nil, 0
+PadKey.stats = { applies = 0, clears = 0, presses = 0, sets = {} }
+
+local function call(fn, ...)
+    if type(fn) ~= "function" then return nil end
+    local ok, result = pcall(fn, ...)
+    return ok and result or nil
+end
 
 local function activeFrame()
     local manager = GamepadMode and GamepadMode.FrameControlsManager
-    if type(manager) ~= "table" or type(manager.GetActiveFrame) ~= "function" then return nil end
-    local ok, frame = pcall(manager.GetActiveFrame, manager)
-    return ok and frame or nil
+    if type(manager) ~= "table" then return nil end
+    return call(manager.GetActiveFrame, manager)
 end
 
+local function isBagFrame(frame)
+    if frame == nil then return false end
+    if frame == rawget(_G, "ContainerFrameCombinedBags") then return true end
+    local container = rawget(_G, "ContainerFrameContainer")
+    for _, f in ipairs(type(container) == "table" and type(container.ContainerFrames) == "table"
+        and container.ContainerFrames or {}) do
+        if f == frame then return true end
+    end
+    return false
+end
+
+--- Which binding set is wanted right now (nil = none).
 function PadKey.Wanted()
-    if InCombatLockdown() then return false end
+    if InCombatLockdown() or not ns.MailButton.GamepadUI() then return nil end
+    local focused = activeFrame()
     local mail = rawget(_G, "MailFrame")
-    if type(mail) ~= "table" or not mail:IsShown() then return false end
-    return activeFrame() == mail
+    if focused ~= nil and focused == mail and mail:IsShown() then
+        local window = ns.SelfTestUI.Frame()
+        if window and window:IsShown() and ns.Features.On("padNav") then return "window" end
+        if ns.Features.On("padTriangle") then return "mail" end
+    elseif isBagFrame(focused) and ns.Features.On("padLock") then
+        return "bags"
+    end
+    return nil
 end
 
-local function clear(reason)
-    if not bound then return end
-    if InCombatLockdown() then return end
+-- `entering` = PLAYER_REGEN_DISABLED, whose handlers run before combat lockdown
+-- starts: clear then even though InCombatLockdown() may already say true.
+local function clear(reason, entering)
+    if not active then return end
+    if InCombatLockdown() and not entering then return end
     pcall(ClearOverrideBindings, watcher)
-    bound = false
+    ns.Log.Add("pad", "%s bindings cleared (%s)", active, reason)
     PadKey.stats.clears = PadKey.stats.clears + 1
-    ns.Log.Add("pad", "Triangle binding cleared (%s)", reason)
+    if active == "window" then ns.Nav.Stop() end
+    active = nil
 end
 
 function PadKey.Check()
-    if not PadKey.Wanted() then return clear("mail window not focused") end
-    local okAction, action = pcall(GetBindingAction, PadKey.KEY, true)
-    if okAction and action == PadKey.ACTION then return end
-    local ok, err = pcall(SetOverrideBindingClick, watcher, true, PadKey.KEY, PadKey.BUTTON)
-    PadKey.stats.applies = PadKey.stats.applies + 1
-    PadKey.stats.lastReplaced = okAction and tostring(action) or "?"
-    if not bound or PadKey.stats.applies <= 3 or PadKey.stats.applies % 25 == 0 then
-        ns.Log.Add("pad", "Triangle binding %s (apply #%d, PAD4 was %q)%s", bound and "re-applied" or "set",
-            PadKey.stats.applies, PadKey.stats.lastReplaced, ok and "" or (": " .. tostring(err)))
+    local want = PadKey.Wanted()
+    if want ~= active then
+        clear(want and ("now " .. want) or "nothing focused for Mailworthy")
+        if want == nil then return end
+        active = want
+        PadKey.stats.sets[want] = (PadKey.stats.sets[want] or 0) + 1
+        ns.Log.Add("pad", "%s bindings on", want)
+        if want == "window" then ns.Nav.Reset() end
     end
-    bound = ok
+    for key, buttonName in pairs(PadKey.SETS[active]) do
+        local expected = "CLICK " .. buttonName .. ":LeftButton"
+        local okAction, action = pcall(GetBindingAction, key, true)
+        if not okAction or action ~= expected then
+            local ok, err = pcall(SetOverrideBindingClick, watcher, true, key, buttonName)
+            PadKey.stats.applies = PadKey.stats.applies + 1
+            if PadKey.stats.applies <= 12 or PadKey.stats.applies % 50 == 0 then
+                ns.Log.Add("pad", "%s -> %s (apply #%d, was %q)%s", key, buttonName, PadKey.stats.applies,
+                    tostring(action), ok and "" or (": " .. tostring(err)))
+            end
+        end
+    end
+end
+
+-- A hidden click target per action. A CLICK binding may deliver a press as
+-- down, up or both depending on settings: act on the down, ignore the matching
+-- up, and debounce when the state isn't given.
+local function padButton(name, fn)
+    local b = CreateFrame("Button", name, UIParent)
+    b:Hide()
+    b:RegisterForClicks("AnyDown", "AnyUp")
+    local lastDown, last = -10, -10
+    b:SetScript("OnClick", function(_, _, down)
+        local now = GetTime()
+        if down == false then
+            if now - lastDown < 1 then return end
+        elseif down == true then
+            lastDown = now
+        elseif now - last < 0.25 then
+            return
+        end
+        last = now
+        PadKey.stats.presses = PadKey.stats.presses + 1
+        local ok, err = pcall(fn)
+        if not ok then ns.Log.Add("pad", "%s error: %s", name, tostring(err)) end
+    end)
+    return b
 end
 
 function PadKey.Create()
     if watcher then return end
-    if not ns.Features.On("padTriangle") then
-        ns.Log.Add("pad", "Triangle at the mailbox off (/mw feature padTriangle on, then /reload)")
-        return
-    end
     watcher = CreateFrame("Frame", "MailworthyPadWatcher", UIParent)
-    watcher:Hide()
     watcher:SetScript("OnUpdate", function(_, delta)
         elapsed = elapsed + delta
         if elapsed < PadKey.INTERVAL then return end
@@ -77,33 +145,43 @@ function PadKey.Create()
         local ok, err = pcall(PadKey.Check)
         if not ok then ns.Log.Add("pad", "check error: %s", tostring(err)) end
     end)
-    -- Hidden click target for the binding. A CLICK binding may deliver the press as
-    -- down, up or both depending on settings, so take either and debounce.
-    local pad = CreateFrame("Button", PadKey.BUTTON, UIParent)
-    pad:Hide()
-    pad:RegisterForClicks("AnyDown", "AnyUp")
-    local last = 0
-    pad:SetScript("OnClick", function()
-        local now = GetTime()
-        if now - last < 0.3 then return end
-        last = now
-        PadKey.stats.presses = PadKey.stats.presses + 1
-        ns.MailButton.Activate("Triangle")
+    padButton("MailworthyPadTriangle", function() ns.MailButton.Activate("Triangle") end)
+    padButton("MailworthyPadCross", function() ns.Nav.Press() end)
+    padButton("MailworthyPadCircle", function()
+        local window = ns.SelfTestUI.Frame()
+        if window then window:Hide() end
+        ns.Log.Add("pad", "Circle closed the window")
     end)
-    ns.Log.Add("pad", "Triangle watcher ready")
+    for _, dir in ipairs({ "Up", "Down", "Left", "Right" }) do
+        padButton("MailworthyPad" .. dir, function() ns.Nav.Move(dir:lower()) end)
+    end
+    padButton("MailworthyPadLock", function() ns.Locks.ToggleSelectedBagSlot() end)
+    -- Hint under the combined bags (a font string: not a frame, not seen by smart navigation).
+    local bags = rawget(_G, "ContainerFrameCombinedBags")
+    if type(bags) == "table" and ns.Features.On("padLock") then
+        PadKey.bagHint = bags:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        PadKey.bagHint:SetPoint("TOPLEFT", bags, "BOTTOMLEFT", 10, -4)
+        PadKey.RefreshHint()
+    end
+    ns.Log.Add("pad", "controller watcher ready")
+end
+
+function PadKey.RefreshHint()
+    if not PadKey.bagHint then return end
+    PadKey.bagHint:SetText(ns.MailButton.GamepadUI()
+        and (ns.Gamepad.Glyph("PADLSTICK", 14) .. " Mailworthy: lock / unlock item") or "")
 end
 
 function PadKey.Report()
-    return string.format("Triangle binding: applies %d, clears %d, presses %d, last replaced %s, PAD4 now %s",
-        PadKey.stats.applies, PadKey.stats.clears, PadKey.stats.presses, tostring(PadKey.stats.lastReplaced),
-        tostring(select(2, pcall(GetBindingAction, PadKey.KEY, true))))
+    local sets = {}
+    for name, n in pairs(PadKey.stats.sets) do sets[#sets + 1] = name .. " x" .. n end
+    table.sort(sets)
+    return string.format("controller bindings: sets %s, applies %d, clears %d, presses %d, PAD4 now %s, PADDUP now %s",
+        #sets > 0 and table.concat(sets, ", ") or "none", PadKey.stats.applies, PadKey.stats.clears,
+        PadKey.stats.presses, tostring(select(2, pcall(GetBindingAction, "PAD4", true))),
+        tostring(select(2, pcall(GetBindingAction, "PADDUP", true))))
 end
 
 ns.On("PLAYER_LOGIN", function() PadKey.Create() end)
-ns.On("MAIL_SHOW", function()
-    if watcher then elapsed = PadKey.INTERVAL; watcher:Show() end
-end)
-ns.On("MAIL_CLOSED", function()
-    if watcher then watcher:Hide(); clear("mailbox closed") end
-end)
-ns.On("PLAYER_REGEN_DISABLED", function() clear("combat") end)
+ns.On("INPUT_DEVICE_INTERFACE_TRANSITION", function() PadKey.RefreshHint() end)
+ns.On("PLAYER_REGEN_DISABLED", function() clear("combat", true) end)

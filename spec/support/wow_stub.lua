@@ -30,6 +30,7 @@ local function defaultState()
         attached = {}, cursor = nil, used = {}, sent = {}, postage = 30,
         inbox = {}, invoices = {},
         mods = {}, bindings = {}, bindingOwners = {}, activeFrame = nil, now = 1000, gamepadUI = false,
+        navButton = nil,
     }
 end
 
@@ -78,7 +79,7 @@ end
 --- A bag item button like Blizzard's (pooled): GetBagID / GetID, textures may be
 --- created on it, but writing any Lua field on it is an error (taint guard).
 function WowStub.itemButton(bag, slot)
-    local b = { bag = bag, slot = slot, textures = {} }
+    local b = { bag = bag, slot = slot, textures = {}, buttonContext = "ButtonContext_ContainerFrameItemButton" }
     function b.GetBagID() return b.bag end
     function b.GetID() return b.slot end
     function b.CreateTexture()
@@ -115,7 +116,7 @@ end
 -- Widget stubs: any method call is accepted; the ones tests read are recorded.
 -- SetFocus is counted so specs can prove the addon never calls it (gamepad crash).
 local function newWidget(kind, name)
-    local w = { kind = kind, name = name, scripts = {}, hooks = {}, shown = false, events = {} }
+    local w = { kind = kind, name = name, scripts = {}, hooks = {}, shown = false, events = {}, children = {} }
     local function runHooks(ev)
         if w.scripts[ev] then w.scripts[ev](w) end
         for _, fn in ipairs(w.hooks[ev] or {}) do fn(w) end
@@ -135,8 +136,29 @@ local function newWidget(kind, name)
         if key == "SetText" then return function(_, t) self.text = t end end
         if key == "GetText" then return function() return self.text end end
         if key == "GetName" then return function() return self.name end end
-        if key == "SetParent" then return function(_, p) self.parent = p end end
+        if key == "SetParent" then
+            return function(_, p)
+                local old = rawget(self, "parent")
+                if type(old) == "table" and old.children then
+                    for i, c in ipairs(old.children) do if c == self then table.remove(old.children, i) break end end
+                end
+                self.parent = p
+                if type(p) == "table" and p.children then table.insert(p.children, self) end
+            end
+        end
         if key == "GetParent" then return function() return self.parent end end
+        if key == "GetChildren" then return function() return unpack(self.children) end end
+        if key == "IsObjectType" then return function(_, t) return self.kind == t end end
+        if key == "GetCenter" then return function() return self.cx or 1, self.cy or 1 end end
+        if key == "GetFrameLevel" then return function() return 1 end end
+        if key == "IsVisible" then
+            return function()
+                if not self.shown then return false end
+                local p = rawget(self, "parent")
+                if type(p) ~= "table" or p == _G.UIParent or type(p.IsVisible) ~= "function" then return true end
+                return p:IsVisible()
+            end
+        end
         if key == "Click" then return function() if self.scripts.OnClick then self.scripts.OnClick(self) end end end
         if key == "CreateFontString" or key == "CreateTexture" then
             return function() return newWidget(key == "CreateTexture" and "Texture" or "FontString") end
@@ -151,10 +173,13 @@ WowStub.frames = {}
 _G.CreateFrame = function(kind, name, parent)
     local w = newWidget(kind, name)
     w.parent = parent
+    if type(parent) == "table" and parent.children then table.insert(parent.children, w) end
+    if kind == "Frame" or kind == "Button" or kind == "EditBox" or kind == "ScrollFrame" then w.shown = true end
     if name then WowStub.frames[name] = w; _G[name] = w end
     return w
 end
 _G.UIParent = newWidget("Frame", "UIParent")
+_G.UIParent.shown = true
 _G.UISpecialFrames = {}
 _G.ChatFontNormal = {}
 _G.SlashCmdList = {}
@@ -316,6 +341,7 @@ _G.InputUtil = {
     IsMKBUIEnabled = function() return not s().gamepadUI end,
 }
 _G.GameTooltip = newWidget("GameTooltip", "GameTooltip")
+_G.SmartNavigation = { GetCurrentButton = function() return s().navButton end }
 _G.C_GamePad = {
     GetActiveDeviceID = function() return 5 end,
     GetDeviceMappedState = function() return { labelStyle = "Shapes" } end,

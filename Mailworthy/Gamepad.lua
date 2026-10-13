@@ -18,7 +18,7 @@ Gamepad.FACE_RIGHT = "PAD2" -- Circle / B
 Gamepad.FACE_LEFT = "PAD3" -- Square / X
 Gamepad.FACE_TOP = "PAD4" -- Triangle / Y
 
-local NAMES = { PAD1 = "Cross/A", PAD2 = "Circle/B", PAD3 = "Square/X", PAD4 = "Triangle/Y" }
+local NAMES = { PAD1 = "Cross/A", PAD2 = "Circle/B", PAD3 = "Square/X", PAD4 = "Triangle/Y", PADLSTICK = "L3" }
 
 local function get(path)
     local v = _G

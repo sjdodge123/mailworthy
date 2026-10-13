@@ -1,5 +1,6 @@
--- Blue border on locked slots in the bags. Textures are created on the game's
--- bag item buttons (CreateTexture isn't hooked by smart navigation and
+-- Blue glow on locked items in the bags: the quest-item border, tinted blue.
+-- Textures are created on the game's bag item buttons (CreateTexture isn't
+-- hooked by smart navigation and
 -- textures aren't returned by GetChildren, so its button scan never sees them)
 -- and kept in our own weak table: no field is ever written on a Blizzard frame.
 -- Buttons are pooled, so every refresh recomputes from GetBagID / GetID.
@@ -10,37 +11,39 @@ local _, ns = ...
 local Border = {}
 ns.Border = Border
 
-Border.COLOR = { 0.25, 0.6, 1, 1 }
-Border.THICKNESS = 2
+-- The quest-item border Blizzard draws on bag slots (TEXTURE_ITEM_QUEST_BORDER),
+-- desaturated and tinted blue, plus an additive copy for the glow.
+Border.TEXTURE = "Interface\\ContainerFrame\\UI-Icon-QuestBorder"
+Border.COLOR = { 0.3, 0.65, 1 }
+Border.GLOW_ALPHA = 0.7
 
-local borders = setmetatable({}, { __mode = "k" }) -- item button -> { textures }
+local borders = setmetatable({}, { __mode = "k" }) -- button -> { textures }
 local frames = {}
 
-local function edges(button)
+--- The lock glow for any button (ours or the game's bag buttons), created once,
+--- kept in our own weak table.
+function Border.Glow(button)
     local set = borders[button]
     if set then return set end
     set = {}
-    local t = Border.THICKNESS
-    local specs = {
-        { "TOPLEFT", "TOPRIGHT", nil, t }, { "BOTTOMLEFT", "BOTTOMRIGHT", nil, t },
-        { "TOPLEFT", "BOTTOMLEFT", t, nil }, { "TOPRIGHT", "BOTTOMRIGHT", t, nil },
-    }
-    for i, spec in ipairs(specs) do
-        local tex = button:CreateTexture(nil, "OVERLAY", nil, 7)
-        tex:SetColorTexture(unpack(Border.COLOR))
-        tex:SetPoint(spec[1])
-        tex:SetPoint(spec[2])
-        if spec[3] then tex:SetWidth(spec[3]) end
-        if spec[4] then tex:SetHeight(spec[4]) end
+    for i, blend in ipairs({ "BLEND", "ADD" }) do
+        local tex = button:CreateTexture(nil, "OVERLAY", nil, 6 + i - 1)
+        tex:SetTexture(Border.TEXTURE)
+        tex:SetAllPoints()
+        tex:SetDesaturated(true)
+        tex:SetVertexColor(unpack(Border.COLOR))
+        tex:SetBlendMode(blend)
+        if blend == "ADD" then tex:SetAlpha(Border.GLOW_ALPHA) end
+        tex:Hide()
         set[i] = tex
     end
     borders[button] = set
     return set
 end
 
-local function show(button, shown)
+function Border.Show(button, shown)
     if not shown and not borders[button] then return end
-    for _, tex in ipairs(edges(button)) do
+    for _, tex in ipairs(Border.Glow(button)) do
         if shown then tex:Show() else tex:Hide() end
     end
 end
@@ -52,7 +55,7 @@ function Border.RefreshFrame(frame)
     for _, button in iter, state, start do
         local okBag, bag = pcall(button.GetBagID, button)
         local okSlot, slot = pcall(button.GetID, button)
-        show(button, okBag and okSlot and ns.Locks.IsLocked(bag, slot))
+        Border.Show(button, okBag and okSlot and ns.Locks.IsLocked(bag, slot))
     end
 end
 
