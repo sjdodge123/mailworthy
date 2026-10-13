@@ -29,31 +29,27 @@ them load first when installed.
 
 ## Steps
 
-1. **Create the project** at authors.curseforge.com: Create Project → World of
-   Warcraft → name **Mailworthy**, the summary above, the avatar, the description,
-   license **MIT**. Leave the source link empty while the GitHub repo is private
-   (or make it public first).
-2. **Copy the project ID** from the project's page and add it to
-   `Mailworthy/Mailworthy.toc`:
-   ```
-   ## X-Curse-Project-ID: <id>
-   ```
-3. **Add the API token** as a repo secret (CurseForge: your account's API tokens
-   page → create a token), then:
+1. ~~Create the project~~ **Done:** project ID **1743661** (2026-10-13).
+2. ~~Add the ID to the `.toc`~~ **Done:** `## X-Curse-Project-ID: 1743661` in
+   `Mailworthy/Mailworthy.toc`.
+3. **Add the API token** (operator, 2026-10-13: every release goes to CurseForge).
+   CurseForge: your account's API tokens page -> create a token, then:
    ```bash
    gh secret set CF_API_KEY --repo sjdodge123/mailworthy
    ```
-4. **Tag a release.** Tags with `alpha` / `beta` upload as alpha / beta files; a
-   plain `v1.0.0` uploads as a release. The packager picks the game version from
-   `## Interface: 16001` (WoW Forever 1.60.1).
-5. CurseForge reviews new projects and new files before they show publicly
+   From then on every `v*` tag uploads there.
+4. **Release tags:** plain `vX.Y.Z` (e.g. `v0.2.0`) upload as **release** files;
+   `-alpha` / `-beta` tags would upload as alpha / beta files (not used any more).
+   The packager picks the game version from `## Interface: 16001` (WoW Forever
+   1.60.1) and the changelog from the commits since the previous tag.
+5. CurseForge reviews new files before they show publicly
    (LedgerLink's took from minutes to a few hours).
 
-## Before the first public upload
+## Toward v1.0
 
-The current builds are **discovery builds** (self-test window, Yes/No questions,
-attach / send tests, feature switches, logging). The first CurseForge file should
-be the release build only:
+Releases go to CurseForge from v0.2.0 on, while Mailworthy still carries its
+discovery tools (self-test window, Yes/No questions, attach / send tests,
+feature switches, logging). Before v1.0:
 
 - [ ] Phases 1-3 of `docs/PLAN.md`: prices + valuation, settings + bank alt picker,
       the real Mailworthy window (as in `media/ui-prototype.png`) and sending.
@@ -64,4 +60,4 @@ be the release build only:
 - [ ] Discovery session 2 (alpha3) passes: no blocked actions with mouse/keyboard or
       the controller.
 - [ ] The description matches what shipped (update `media/curseforge-description.html`).
-- [ ] Steps 1-3 above, then tag `v1.0.0` (or `v1.0.0-beta1` to start as a beta).
+- [ ] Tag `v1.0.0`.
