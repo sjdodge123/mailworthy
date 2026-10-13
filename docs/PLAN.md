@@ -17,78 +17,48 @@ LedgerLink are listed at the end.
 | **Minimap button** | Opens the settings panel anywhere. Works with the controller. Same pattern as LedgerLink's minimap button. |
 | Slash commands (`/mailworthy`, `/mw`) | Backup for both, plus `/mw probe` and `/mw scan`. Not the main way in. |
 
-## Controller support (every window)
+## Input: controller and keyboard/mouse (every window)
 
-Every window Mailworthy shows (mailbox button, preview, settings, bank alt
-picker, lock grid, confirmations) is fully usable with a gamepad alone.
+Every feature works with **both** a gamepad alone and keyboard + mouse
+(operator, 2026-10-13: "the addon should still support kb/mouse as well").
 
-### Forever's built-in controller UI (join it, don't fight it)
+**Never write into Blizzard's controller UI.** alpha1 added a Triangle binding to
+the mail footer and registered its own window with the FrameControlsManager;
+that tainted gamepad input game-wide (jumping, targeting and item use were
+blocked from login). Details in [FOREVER-UI-NOTES.md](FOREVER-UI-NOTES.md).
 
-Forever ships its own console-style UI navigation
-([screenshot, 2026-10-13](img/forever-mailbox-gamepad.webp), PlayStation glyphs):
+What works (alpha2 tests it):
+- **Plain buttons inside a panel the game already focuses.** The mail window's
+  **Mailworthy** button is a child `Button` of `MailFrame`: a mouse click works,
+  and smart navigation reaches it with the D-pad like any mail-window button
+  (Cross presses). Our preview and settings windows open as children of the
+  mail window at the mailbox, for the same reason.
+- **Menu entries through `Menu.ModifyMenu`** (Blizzard's extension point, run
+  under `securecallfunction`): the bag item Triangle menu gets
+  **Mailworthy: Lock slot**. alpha2 checks it on its own (alpha1's footer
+  taint hid whether it's clean).
+- **Button symbols** as texture markup only (`CreateAtlasMarkup`), drawn in our
+  own text: "Cross select, Circle back".
 
-| Pad | What the game does on the mailbox |
-|---|---|
-| Focus/Unfocus Interface | moves control between the world and the windows |
-| L2 / R2 | previous / next window ("Frame") |
-| L1 / R1 | switch tabs (Inbox / Send Mail) |
-| Cross | Select (press the highlighted control) |
-| Square | Open All (a per-window action, shown in the footer) |
-| Circle | Back |
-| D-pad down (listed as "Toggle Tooltips") | show/hide tooltips |
-| **Triangle** | **unused on the mail window** |
+Per input:
 
-A footer under the focused window shows each action's glyph and label
-("Cross Select / Square Open All / Circle Back").
+| Task | Controller | Keyboard / mouse |
+|---|---|---|
+| Start at the mailbox | D-pad to the **Mailworthy** button, Cross | click **Mailworthy** |
+| Preview: send / settings / close | D-pad + Cross on its buttons | click |
+| Lock a slot | Triangle on the item -> **Mailworthy: Lock slot** | the lock grid in settings (the Triangle menu doesn't exist with keyboard/mouse); a modifier-click on bag items is a later option if it can be done without taint |
+| Settings | the Mailworthy button (when not set up), the preview's Settings button | same, plus `/mw` and the minimap button |
 
-**Plan: Mailworthy windows join this system.**
-- The mailbox gets a **Triangle: Mailworthy** action in the game's footer, next to
-  Square Open All. Pressing it does what the mailbox button does (settings
-  if not set up, otherwise the preview).
-- The preview, settings panel, picker and lock grid take part in the L2/R2
-  window cycle, use Cross / Circle the way the game does, and put their own
-  actions in the footer:
-  - preview: **Square Send**, **Triangle Settings**, Circle Close;
-  - settings: L1/R1 switch sections, Circle back to the preview if it came from there.
-- Glyphs and labels come from the game (whatever S6 finds), so they match the
-  player's controller (PlayStation or Xbox).
-- How to join it is now known from Blizzard's source (see
-  [FOREVER-UI-NOTES.md](FOREVER-UI-NOTES.md)): footer bindings via
-  `GamepadSharedUtility.CreatePromptedBinding` + `Finalize()`, the Lock-slot entry
-  via `Menu.ModifyMenu("MORE_CONTEXT_ACTIONS")`, our windows via
-  `FrameControlsManager:FrameShown`. Discovery session 2
-  ([DISCOVERY-SESSION-2.md](DISCOVERY-SESSION-2.md)) checks each at runtime.
-
-### Fallback: our own navigation (`Nav.lua`)
-
-Used only if the native system can't take addon windows. The same layout as the
-game, so it feels the same:
-
-| Pad | Action |
-|---|---|
-| D-pad | move the highlight between the window's buttons (each window declares its buttons as a grid) |
-| Cross | press the highlighted button |
-| Circle | back / close |
-| Square / Triangle | the window's main actions (Send / Settings), shown in our own footer with glyphs |
-| L1 / R1 | switch settings sections or pages |
-| D-pad left/right on a number | step the value down/up |
-
-Pad keys are bound with `SetOverrideBindingClick` only while a Mailworthy
-window is open and out of combat, and cleared when it closes or combat starts.
-Beta unknown: whether override bindings beat the native navigation while a
-window is focused.
-
-### Rules (both paths)
-
-- Never move keyboard focus (`SetFocus` crashed the gamepad UI in LedgerLink).
-  The highlight is drawn, not focused.
-- No action needs a mouse-only gesture: no right-click, modifier-click, drag or
-  hover-only information. What a tooltip shows also shows for the highlighted
-  row.
+Notes:
+- The minimap button is keyboard/mouse only: the controller can't reach
+  minimap buttons (LedgerLink's, tested 2026-10-13).
+- No action needs a mouse-only gesture: no right-click, drag or hover-only
+  information; what a tooltip shows also shows for the highlighted row.
 - No action needs typing: names are picked from a list, numbers use steppers.
   Edit boxes exist only as an optional fallback.
-- Controls are plain `Button`s, large enough for the gamepad cursor, so
-  ConsolePort can reach them too.
+- Never move keyboard focus (`SetFocus` crashed the gamepad UI in LedgerLink).
+- Every piece that touches Blizzard UI has a kill switch:
+  `/mw feature <name> off` + `/reload`.
 
 ## Player flow
 
@@ -130,8 +100,8 @@ throughout. Registered with `Settings.RegisterCanvasLayoutCategory` (the old
 | Minimum gain over vendor | **5s and 25%** (both must hold); two steppers in the settings window (gold/silver amount, percent), changeable any time, including from the preview's Settings button | account |
 | Max price age | 7 days (Auctionator `GetAuctionAgeByItemLink`, confirmed on Forever) | account |
 | AH cut | 5% | account |
-| Deposit rate, listing length, relist factor | learned at the AH (see below); until then a default | account |
-| Postage | 30c per mail with nothing attached (confirmed); cost per attachment measured in Phase 3 | account |
+| Listing length, relist factor | 24h, 1.0 (deposit = floor(vendor x 5%) x 1 / 4 / 12 for 12h / 24h / 48h, measured) | account |
+| Postage | **30c per attached item** (measured 2026-10-13) | account |
 | Gamepad button for the mailbox button | a pad button the probe shows as free | account |
 | Locked bag slots | none | **per character** |
 | Never-mail items | none (add from the preview) | account |
@@ -225,15 +195,13 @@ preview shows which source priced each line.
   that retries after errors, which suggests chaining works. Build for one
   press = one mail, then switch on chaining once the in-game test confirms it.
 
-### Mailbox button + controller
+### Mailbox button
 
-- On `MAIL_SHOW`: show the **Mailworthy** button anchored to the mail window,
-  and (out of combat) `SetOverrideBindingClick(owner, true, padKey, "MailworthyMailButton")`
-  so the chosen pad button presses it. On `MAIL_CLOSED`:
-  `ClearOverrideBindings(owner)` and close the preview.
-- While the preview is open the same pad button presses **Send**.
-- The buttons stay reachable with the gamepad cursor too, and also with
-  ConsolePort if it's installed.
+- On `MAIL_SHOW`: the **Mailworthy** button, a plain child `Button` of
+  `MailFrame` (mouse click; the controller reaches it with the D-pad, Cross
+  presses). No override bindings: binding pad keys from addon code is the kind
+  of write into the controller UI that tainted gamepad input in alpha1.
+- On `MAIL_CLOSED`: close the preview.
 - Anything the game blocks is recorded (`ADDON_ACTION_FORBIDDEN/BLOCKED`, as
   in LedgerLink) and shown by `/mw probe`.
 - **ForeverMail compatibility:** ForeverMail replaces the standard mailbox
@@ -276,9 +244,8 @@ preview shows which source priced each line.
 | `Valuation.lua` | the decision rule: item facts + prices + settings -> mail-AH / mail-DE / keep + reason + gain | busted (pure, most tests live here) |
 | `Bags.lua` | bag scan -> item facts, applies locks and filters | busted with stubbed `C_Container` |
 | `Mailer.lua` | batch queue and state machine (attach, send, wait, next, stop) | busted with stubbed mail events |
-| `MailButton.lua` | the mailbox button and gamepad override binding | busted (widget stubs) + in game |
 | `Preview.lua` | recipient, mail / kept lists, totals, Send / Settings / Close | busted (rows + totals) + in game |
-| `Nav.lua` | joins Forever's built-in controller UI (footer actions, window cycle); fallback: our own button grid, highlight and pad bindings while open | busted (pure grid moves + bind/unbind) + in game |
+| `MailButton.lua` | the Mailworthy button on the mail window (mouse + D-pad/Cross through smart navigation; writes nothing into the controller UI) | busted + in game |
 | `Settings.lua` | settings panel: bank alt picker, toggles, numbers, lock grid | in game |
 | `Minimap.lua` | minimap button that opens settings (from LedgerLink) | busted |
 | `Probe.lua` | `/mw probe`, one copyable report | busted |
@@ -293,7 +260,7 @@ realm+faction, name history, settings, never-mail list, blocked actions) and
 |---|---|---|
 | **0 - Discovery** | LedgerLink `/rl probe` S5 (ledger-link PR #28, released in v1.3.0) and S6 (PR #29); repo, CI, packaging | the S5 + S6 report is back and its answers are in README "Beta unknowns" |
 | **1 - Prices + valuation** | `Prices`, `Valuation`, `Bags`; `/mw scan` prints what would be mailed and why (sends nothing) | `/mw scan` agrees with a hand calculation on real bags |
-| **2 - Settings + characters** | `Nav` (join the native controller UI, using the S6 report), settings panel, minimap button, bank alt picker with history and auto-complete, disenchant checkbox default, thresholds, fees | bank alt survives `/reload` and relog (the beta's SavedVariables bug), and every settings control works with the gamepad alone |
+| **2 - Settings + characters** | settings panel, minimap button, bank alt picker with history and auto-complete, disenchant checkbox default, thresholds, fees | bank alt survives `/reload` and relog (the beta's SavedVariables bug), and every settings control works with the gamepad alone |
 | **3 - Mailbox + mailing** | mailbox button (opens settings when not set up), preview with recipient + Settings button, one mail per press, gamepad binding, then chaining if allowed | 30+ items reach the bank alt in under 3 presses, with nothing locked, bound or unpriced sent; works with ForeverMail installed |
 | **4 - Slot locks** | lock grid in settings, never-mail list from the preview, bag overlay | locked slots never appear in the preview's mail list |
 | **5 - Polish** | tooltip line ("Mailworthy: AH +2g 10s vs vendor"), release on GitHub + CurseForge (Forever flavor) | tagged release installs cleanly |

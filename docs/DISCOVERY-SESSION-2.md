@@ -5,6 +5,48 @@ builds on facts instead of more probe rounds. Source-backed answers are in
 [FOREVER-UI-NOTES.md](FOREVER-UI-NOTES.md); this session checks that they hold at
 runtime, and measures what no source can tell us.
 
+## Results of the first run (alpha1, 2026-10-13)
+
+| # | Result |
+|---|---|
+| U1 | **Settled.** Deposit = floor(vendor value of the stack x 5%) x 1 / 4 / 12 for 12h / 24h / 48h, commodities and items alike; calculable with the AH closed |
+| U4 | **Settled.** Postage is a flat 30c per attached item |
+| U11 | **Settled.** The Lock slot entry appears on bag items only (character slots got none), with the right bag and slot |
+| U13, U14 | **Replaced.** The footer Triangle and our window's controller registration worked visually, but **tainted gamepad input from login on** (jumping, targeting, interacting and item use were blocked). Never write into Blizzard's controller UI; alpha2 uses a plain Mailworthy button on the mail window instead |
+| U15 | **Settled.** `labelStyle` "Shapes" (PlayStation); atlas markup draws the right symbols |
+| U16 | **Settled.** SavedVariables survived login, character switch and `/reload` |
+| U17, U18 | **Settled.** Both characters recorded with realm, faction, class, level and professions (no Enchanting on either yet) |
+| U20 | **Settled: no.** The controller can't reach minimap buttons; the minimap button is keyboard/mouse only |
+| U5-U10 | **Open.** The attach and send tests crashed (`tonumber` on an empty Auctionator answer); fixed in alpha2 |
+| U12 | **Open.** Cross stopped using items, but the footer taint was already active, so the lock menu isn't proven guilty or clean |
+| U2, U3 | **Open.** No AH sale mail yet; no green item in bags |
+
+## Rerun with alpha2 (about 10 minutes)
+
+alpha2 removes everything that wrote into the controller UI and fixes the crash.
+Each piece that touches Blizzard UI has a kill switch, so if anything is still
+blocked we can isolate it without a new build.
+
+1. **Install `Mailworthy v0.1.0-alpha2`** (GitHub release), log in on your main.
+2. **Play for a minute:** move, jump, target, loot, talk to an NPC. Any "The game
+   blocked ..." message? (If yes: `/mw feature lockMenu off`, `/reload`, try again,
+   and note whether it stopped.)
+3. **Bags:** Triangle on an item -> Lock slot, then Triangle -> Unlock slot; then use or
+   equip a bag item with Cross.
+4. **Mailbox:**
+   - Click the **Mailworthy** button with the mouse.
+   - Then reach the same button with the D-pad and press Cross. The self-test opens beside the mail window.
+   - Check the D-pad reaches its buttons too.
+5. **Send Mail tab:**
+   - **Attach test**, then **Clear attachments**.
+   - Choose the **Recipient** (your bank alt).
+   - Press **Send test** twice.
+6. Answer the questions in the window (with the controller or the mouse).
+7. **Bank alt:** log in, check the mails arrived, answer the last two questions, then
+   `/mw selftest report`, and paste it back.
+8. Optional: have a green item in your bags for `/rl probe` (U3), and list something
+   cheap on the AH for a sale mail (U2).
+
 ## Why a read-only probe isn't enough this time
 
 Three kinds of questions remain:

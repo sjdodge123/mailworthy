@@ -74,6 +74,10 @@ function Locks.OnMenu(owner, rootDescription)
 end
 
 function Locks.Install()
+    if not ns.Features.On("lockMenu") then
+        ns.Log.Add("lock", "lock menu off (/mw feature lockMenu on, then /reload)")
+        return false
+    end
     local modify = Menu and Menu.ModifyMenu
     if type(modify) ~= "function" then
         ns.Log.Add("lock", "Menu.ModifyMenu missing: no Lock slot entry")

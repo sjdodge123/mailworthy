@@ -69,6 +69,7 @@ function WowStub.reset()
     _G.Auctionator = nil
     _G.SendMailFrame = WowStub.newWidget("Frame", "SendMailFrame")
     _G.InboxFrame = WowStub.newWidget("Frame", "InboxFrame")
+    _G.MailFrame = WowStub.newWidget("Frame", "MailFrame")
 end
 
 _G.unpack = _G.unpack or table.unpack -- luacheck: ignore 143
@@ -100,6 +101,8 @@ local function newWidget(kind, name)
         if key == "SetText" then return function(_, t) self.text = t end end
         if key == "GetText" then return function() return self.text end end
         if key == "GetName" then return function() return self.name end end
+        if key == "SetParent" then return function(_, p) self.parent = p end end
+        if key == "GetParent" then return function() return self.parent end end
         if key == "Click" then return function() if self.scripts.OnClick then self.scripts.OnClick(self) end end end
         if key == "CreateFontString" or key == "CreateTexture" then
             return function() return newWidget(key == "CreateTexture" and "Texture" or "FontString") end
@@ -111,8 +114,9 @@ local function newWidget(kind, name)
 end
 WowStub.newWidget = newWidget
 WowStub.frames = {}
-_G.CreateFrame = function(kind, name)
+_G.CreateFrame = function(kind, name, parent)
     local w = newWidget(kind, name)
+    w.parent = parent
     if name then WowStub.frames[name] = w; _G[name] = w end
     return w
 end

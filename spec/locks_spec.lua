@@ -62,6 +62,13 @@ describe("slot locks", function()
         assert.equal(0, #m.buttons)
     end)
 
+    it("can be switched off for isolating problems", function()
+        WowStub.menuModifiers = {}
+        ns.HandleSlash("feature lockmenu off")
+        assert.is_false(ns.Locks.Install())
+        assert.is_nil(WowStub.menuModifiers.MORE_CONTEXT_ACTIONS)
+    end)
+
     it("logs and carries on when the menu API is missing", function()
         _G.Menu = nil
         assert.is_false(ns.Locks.Install())

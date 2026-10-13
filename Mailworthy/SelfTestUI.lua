@@ -1,7 +1,10 @@
--- The self-test window and the report box. Both join Forever's controller UI
--- (ns.Gamepad.Join: footer, L2/R2 cycle, Circle closes via CloseButton), use
--- only plain buttons (no typing, no right-click, no drag needed) and never move
--- keyboard focus: SetFocus crashed the gamepad UI in LedgerLink.
+-- The self-test window and the report box: plain frames with plain buttons
+-- (mouse and keyboard work as usual). They register nothing with Blizzard's
+-- controller UI (that tainted gamepad input in alpha1, see Gamepad.lua). Opened
+-- at a mailbox, the window becomes a child of MailFrame so smart navigation
+-- reaches its buttons with the D-pad like the mail window's own. No typing, no
+-- right-click or drag needed, and keyboard focus never moves (SetFocus crashed
+-- the gamepad UI in LedgerLink).
 local _, ns = ...
 
 local UI = {}
@@ -15,7 +18,7 @@ local BACKDROP = {
     insets = { left = 11, right = 12, top = 12, bottom = 11 },
 }
 
-local frame, title, status, recipientButton, questionRows
+local frame, title, status, legend, recipientButton, questionRows
 local reportFrame, reportBox, reportText
 
 local function window(name, width, height)
@@ -33,7 +36,6 @@ local function window(name, width, height)
         f:SetBackdrop(BACKDROP)
         f:SetBackdropColor(0.05, 0.05, 0.07, 0.95)
     end
-    -- Named *CloseButton and set as f.CloseButton: Circle (B) closes through it.
     f.CloseButton = CreateFrame("Button", name .. "CloseButton", f, "UIPanelCloseButton")
     f.CloseButton:SetPoint("TOPRIGHT", -6, -6)
     if type(UISpecialFrames) == "table" then table.insert(UISpecialFrames, name) end
@@ -54,7 +56,7 @@ local function label(parent, font)
 end
 
 local function create()
-    local height = 230 + #ns.SelfTest.QUESTIONS * ROW
+    local height = 250 + #ns.SelfTest.QUESTIONS * ROW
     frame = window("MailworthySelfTestFrame", WIDTH, height)
     title = label(frame, "GameFontNormalLarge")
     title:SetPoint("TOP", 0, -18)
@@ -95,20 +97,16 @@ local function create()
         questionRows[i] = { q = q, text = text }
     end
 
-    ns.Gamepad.Join(frame, "MailworthySelfTestFooter", {
-        { key = ns.Gamepad.FACE_LEFT, label = "Attach test", fn = function(isDown)
-            if isDown ~= false then ns.SelfTest.RunAttach() end
-        end },
-        { key = ns.Gamepad.FACE_TOP, label = "Report", fn = function(isDown)
-            if isDown ~= false then ns.SelfTest.ShowReport() end
-        end },
-    })
+    legend = label(frame, "GameFontHighlightSmall")
+    legend:SetPoint("BOTTOM", 0, 16)
 end
 
 function UI.Refresh()
     if not frame then return end
     local glyph = ns.Gamepad.Glyph(ns.Gamepad.FACE_TOP)
     title:SetText("Mailworthy self-test  " .. glyph)
+    legend:SetText(string.format("%s select    %s back (closes the mail window too)    D-pad move",
+        ns.Gamepad.Glyph(ns.Gamepad.FACE_BOTTOM), ns.Gamepad.Glyph(ns.Gamepad.FACE_RIGHT)))
     status:SetText(ns.SelfTest.state.status ~= "" and ns.SelfTest.state.status
         or ("Steps: docs/DISCOVERY-SESSION-2.md. Controller symbols: " .. tostring(ns.Gamepad.LabelStyle())))
     recipientButton:SetText("Recipient: " .. tostring(MailworthyDB.selftest.recipient or "press to choose"))
@@ -118,10 +116,18 @@ function UI.Refresh()
     end
 end
 
+--- At a mailbox the window sits beside the mail window as its child (so the
+--- controller's D-pad reaches it); elsewhere it's a normal window.
 function UI.Show()
     if not frame then create() end
+    local mail = rawget(_G, "MailFrame")
+    local atMailbox = type(mail) == "table" and mail:IsShown()
+    frame:SetParent(atMailbox and mail or UIParent)
+    frame:ClearAllPoints()
+    if atMailbox then frame:SetPoint("TOPLEFT", mail, "TOPRIGHT", 8, 0) else frame:SetPoint("CENTER") end
     UI.Refresh()
     frame:Show()
+    ns.Log.Add("ui", "self-test window shown (%s)", atMailbox and "child of MailFrame" or "on its own")
 end
 
 function UI.Frame() return frame end
@@ -154,7 +160,6 @@ local function createReport()
     reportBox:SetScript("OnEditFocusGained", function(self) self:HighlightText() end)
     reportBox:SetScript("OnMouseUp", function(self) self:HighlightText() end)
     scroll:SetScrollChild(reportBox)
-    ns.Gamepad.Join(reportFrame, "MailworthyReportFooter", {})
 end
 
 function UI.ShowReport(text)
