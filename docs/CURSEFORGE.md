@@ -29,24 +29,22 @@ them load first when installed.
 
 ## Steps
 
-1. **Create the project** at authors.curseforge.com: Create Project → World of
-   Warcraft → name **Mailworthy**, the summary above, the avatar, the description,
-   license **MIT**. Leave the source link empty while the GitHub repo is private
-   (or make it public first).
-2. **Copy the project ID** from the project's page and add it to
-   `Mailworthy/Mailworthy.toc`:
-   ```
-   ## X-Curse-Project-ID: <id>
-   ```
-3. **Add the API token** as a repo secret (CurseForge: your account's API tokens
-   page → create a token), then:
+1. ~~Create the project~~ **Done:** project ID **1743661** (2026-10-13).
+2. ~~Add the ID to the `.toc`~~ **Done:** `## X-Curse-Project-ID: 1743661` in
+   `Mailworthy/Mailworthy.toc`.
+3. **Add the API token only when you want files on CurseForge.** As soon as the
+   repo has a `CF_API_KEY` secret, *every* `v*` tag uploads there, alpha tags
+   as alpha files. The discovery builds (self-test window) shouldn't, so add it
+   just before the first release build (CurseForge: your account's API tokens
+   page -> create a token), then:
    ```bash
    gh secret set CF_API_KEY --repo sjdodge123/mailworthy
    ```
+   Until then, tags only build GitHub releases.
 4. **Tag a release.** Tags with `alpha` / `beta` upload as alpha / beta files; a
    plain `v1.0.0` uploads as a release. The packager picks the game version from
    `## Interface: 16001` (WoW Forever 1.60.1).
-5. CurseForge reviews new projects and new files before they show publicly
+5. CurseForge reviews new files before they show publicly
    (LedgerLink's took from minutes to a few hours).
 
 ## Before the first public upload
@@ -64,4 +62,4 @@ be the release build only:
 - [ ] Discovery session 2 (alpha3) passes: no blocked actions with mouse/keyboard or
       the controller.
 - [ ] The description matches what shipped (update `media/curseforge-description.html`).
-- [ ] Steps 1-3 above, then tag `v1.0.0` (or `v1.0.0-beta1` to start as a beta).
+- [ ] Step 3 above (the API token), then tag `v1.0.0` (or `v1.0.0-beta1` to start as a beta).

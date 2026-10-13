@@ -3,6 +3,7 @@
 ## Notes: At a mailbox, one button mails every bag item worth more on the auction house (or disenchanted) to your bank alt.
 ## Author: sjdodge123
 ## Version: @project-version@
+## X-Curse-Project-ID: 1743661
 ## IconTexture: Interface\AddOns\Mailworthy\Textures\Icon
 ## OptionalDeps: Auctionator, Disenchantry
 ## SavedVariables: MailworthyDB
