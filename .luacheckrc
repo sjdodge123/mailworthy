@@ -23,7 +23,13 @@ read_globals = {
     "GetInboxInvoiceInfo",
     -- price sources
     "Auctionator",
-    -- menus, controller UI, timers
+    -- locks (Alt+click) and the locked-slot border
+    "IsAltKeyDown", "IsShiftKeyDown", "IsControlKeyDown", "HandleModifiedItemClick",
+    -- Triangle at the mailbox: our own override binding; FrameControlsManager is read only
+    "GamepadMode", "SetOverrideBindingClick", "ClearOverrideBindings", "GetBindingAction", "GetTime",
+    -- mouse: item tooltips on the lock grid
+    "GameTooltip",
+    -- menus (Menu is read only for the API report), controller UI, timers
     "Menu", "hooksecurefunc", "CreateAtlasMarkup", "C_Timer",
     -- UI
     "CreateFrame", "UIParent", "UISpecialFrames", "ChatFontNormal",
@@ -33,6 +39,7 @@ files["spec/**"] = {
     std = "+busted",
     globals = { "WowStub", "print", "unpack", "time", "date", "CreateFrame", "InboxFrame", "SendMailFrame",
         "C_Container", "Auctionator", "Menu", "MailworthySelfTestYes1", "MailworthySelfTestNo3", "MailFrame",
-        "MailworthyMailButton", "GamepadSharedUtility", "GamepadMode" },
+        "MailworthyMailButton", "GamepadSharedUtility", "GamepadMode", "ContainerFrameCombinedBags", "ContainerFrameContainer",
+        "HandleModifiedItemClick", "MailworthyPadWatcher", "MailworthyInboxButton", "GameTooltip" },
     allow_defined_top = true,
 }

@@ -29,6 +29,7 @@ local function defaultState()
         bags = { [0] = {}, [1] = {}, [2] = {} },
         attached = {}, cursor = nil, used = {}, sent = {}, postage = 30,
         inbox = {}, invoices = {},
+        mods = {}, bindings = {}, bindingOwners = {}, activeFrame = nil, now = 1000, gamepadUI = false,
     }
 end
 
@@ -70,6 +71,36 @@ function WowStub.reset()
     _G.SendMailFrame = WowStub.newWidget("Frame", "SendMailFrame")
     _G.InboxFrame = WowStub.newWidget("Frame", "InboxFrame")
     _G.MailFrame = WowStub.newWidget("Frame", "MailFrame")
+    _G.ContainerFrameCombinedBags = WowStub.containerFrame()
+    _G.ContainerFrameContainer = { ContainerFrames = { WowStub.containerFrame(), WowStub.containerFrame() } }
+end
+
+--- A bag item button like Blizzard's (pooled): GetBagID / GetID, textures may be
+--- created on it, but writing any Lua field on it is an error (taint guard).
+function WowStub.itemButton(bag, slot)
+    local b = { bag = bag, slot = slot, textures = {} }
+    function b.GetBagID() return b.bag end
+    function b.GetID() return b.slot end
+    function b.CreateTexture()
+        local t = WowStub.newWidget("Texture")
+        table.insert(b.textures, t)
+        return t
+    end
+    return setmetatable(b, { __newindex = function(_, k) error("wrote field " .. tostring(k) .. " on a Blizzard item button") end })
+end
+
+--- A container frame: UpdateItems (hookable) and EnumerateValidItems over its pooled buttons.
+function WowStub.containerFrame()
+    local f = { Items = {} }
+    function f.UpdateItems() end
+    function f.EnumerateValidItems(self)
+        local i = 0
+        return function()
+            i = i + 1
+            if self.Items[i] then return i, self.Items[i] end
+        end
+    end
+    return f
 end
 
 _G.unpack = _G.unpack or table.unpack -- luacheck: ignore 143
@@ -85,7 +116,10 @@ end
 -- SetFocus is counted so specs can prove the addon never calls it (gamepad crash).
 local function newWidget(kind, name)
     local w = { kind = kind, name = name, scripts = {}, hooks = {}, shown = false, events = {} }
-    local function runHooks(ev) for _, fn in ipairs(w.hooks[ev] or {}) do fn(w) end end
+    local function runHooks(ev)
+        if w.scripts[ev] then w.scripts[ev](w) end
+        for _, fn in ipairs(w.hooks[ev] or {}) do fn(w) end
+    end
     return setmetatable(w, { __index = function(self, key)
         if key == "SetScript" then return function(_, ev, fn) self.scripts[ev] = fn end end
         if key == "GetScript" then return function(_, ev) return self.scripts[ev] end end
@@ -128,6 +162,7 @@ _G.NUM_BAG_SLOTS = 4
 _G.ATTACHMENTS_MAX_SEND = 12
 
 _G.hooksecurefunc = function(t, method, hook)
+    if type(t) == "string" then t, method, hook = _G, t, method end -- global form
     local original = t[method]
     t[method] = function(...)
         local results = { original(...) }
@@ -136,6 +171,28 @@ _G.hooksecurefunc = function(t, method, hook)
     end
 end
 _G.C_Timer = { After = function(delay, fn) table.insert(WowStub.timers, { delay = delay, fn = fn }) end }
+_G.GetTime = function() return s().now end
+
+-- Modifier keys and modified item clicks
+_G.IsAltKeyDown = function() return s().mods.alt == true end
+_G.IsShiftKeyDown = function() return s().mods.shift == true end
+_G.IsControlKeyDown = function() return s().mods.ctrl == true end
+_G.HandleModifiedItemClick = function() return false end
+function WowStub.itemLocation(bag, slot)
+    return { IsBagAndSlot = function() return bag ~= nil end, GetBagAndSlot = function() return bag, slot end }
+end
+
+-- Override bindings: the last one set for a key wins; ClearOverrideBindings drops an owner's.
+_G.SetOverrideBindingClick = function(owner, _, key, buttonName)
+    s().bindings[key] = "CLICK " .. buttonName .. ":LeftButton"
+    s().bindingOwners[key] = owner
+end
+_G.ClearOverrideBindings = function(owner)
+    for key, o in pairs(s().bindingOwners) do
+        if o == owner then s().bindings[key] = nil; s().bindingOwners[key] = nil end
+    end
+end
+_G.GetBindingAction = function(key) return s().bindings[key] or "" end
 
 -- Character
 _G.GetUnitName = function() return s().name end
@@ -252,7 +309,13 @@ _G.GamepadSharedUtility = {
 _G.GamepadMode = { FrameControlsManager = {
     FrameShown = function(_, f) table.insert(WowStub.managerCalls, { "shown", f.name }) end,
     FrameHidden = function(_, f) table.insert(WowStub.managerCalls, { "hidden", f.name }) end,
+    GetActiveFrame = function() return s().activeFrame end,
 } }
+_G.InputUtil = {
+    IsGamepadUIEnabled = function() return s().gamepadUI end,
+    IsMKBUIEnabled = function() return not s().gamepadUI end,
+}
+_G.GameTooltip = newWidget("GameTooltip", "GameTooltip")
 _G.C_GamePad = {
     GetActiveDeviceID = function() return 5 end,
     GetDeviceMappedState = function() return { labelStyle = "Shapes" } end,

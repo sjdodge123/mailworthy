@@ -8,12 +8,13 @@ than at the vendor goes to your bank alt. The rest stays in your bags to vendor.
   turns disenchant value on by default.
 - **Preview first:** it shows the recipient, what goes and why, what stays and
   why, and a **Settings** button to fix anything before you press Send.
-- **Controller and keyboard/mouse:** every window works with a gamepad alone or with keyboard and mouse.
+- **Keyboard/mouse first, controller too:** everything works with keyboard and mouse, and with a gamepad alone.
 - **Lock bag slots** you never want mailed: Triangle on a bag item with a controller, or the lock grid in settings with keyboard and mouse.
 
 **Status: Phase 0 (discovery).** The current build is a **discovery build**:
-the Lock-slot menu entry, a Mailworthy button on the mail window (mouse, or
-D-pad + Cross), the known-character list and a self-test (`/mw selftest`) for
+a Mailworthy button and window on the Send Mail tab (mouse; D-pad + Cross;
+Triangle), slot locks (Alt+click, or the window's Bag locks grid) with a blue
+border, the known-character list and a self-test (`/mw selftest`) for
 [discovery session 2](docs/DISCOVERY-SESSION-2.md). It doesn't value or mail
 your bags yet; the only mail it sends is the opt-in send test (two cheap
 stacks to your bank alt, after a second press). The full design, phases and
@@ -25,10 +26,11 @@ open questions are in [docs/PLAN.md](docs/PLAN.md).
 /mw selftest          the self-test window (also: the Mailworthy button on the mail window)
 /mw selftest report   the copyable report (paste it to the addon developer)
 /mw locks             this character's locked slots
-/mw feature <name> on|off   switch lockMenu or mailButton off to isolate a problem (then /reload)
+/mw feature <name> on|off   mailButton, padTriangle, altClickLock, slotBorder (then /reload)
 ```
 
-Triangle (Y) on a bag item: **Mailworthy: Lock slot / Unlock slot**.
+At a mailbox: click the **Mailworthy** button under the mail window (either tab). Controller: Send Mail tab (R1), then Triangle (Y).
+Lock a slot: **Alt+click** it, or the window's **Bag locks** page. Locked slots get a blue border.
 
 ## Discovery (Phase 0)
 
@@ -49,7 +51,9 @@ the full list.
 | `## Interface: 16001` | addon loads without "out of date" | confirmed for LedgerLink (build 1.60.1.70205) |
 | Auctionator `API.v1` on Forever | S5 | **confirmed** (Auctionator 340; price, age, exactness, disenchant calls) |
 | Real AH prices for bag items | S5 `item` lines after an Auctionator scan | open |
-| Adding "Lock slot" to the bag item menu (Triangle) | alpha1 self-test | **works** (bag items only); alpha2 checks it causes no blocked actions on its own |
+| Adding "Lock slot" to the bag item menu (Triangle) | alpha1 + alpha2 | **taints controller input even unclicked**: removed; Alt+click and a Bag locks grid instead |
+| Our own Triangle binding at the mailbox; D-pad to buttons under SendMailFrame | alpha3 self-test | open |
+| Attach / send / chain mails from addon code | alpha2 self-test | **works**, including from a timer (no button press) |
 | `SendMail` to a two-part "First Surname" name | first test mail | open |
 | Several mails in a row from one press | Phase 3 test | open (ForeverMail's queue suggests yes) |
 | Writing into Forever's controller UI (footer bindings, FrameControlsManager) | alpha1 self-test | **never do it**: tainted gamepad input game-wide (2026-10-13) |

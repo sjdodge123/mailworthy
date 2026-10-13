@@ -17,18 +17,19 @@ SelfTest.TIMEOUT = 10
 SelfTest.SUBJECT = "Mailworthy test %d/2"
 
 SelfTest.QUESTIONS = {
-    { id = "no_blocks", text = 'Moved, jumped, targeted, looted for a minute: no "The game blocked" messages' },
-    { id = "lock_entry", text = 'Triangle on a bag item showed "Mailworthy: Lock slot"' },
-    { id = "unlock_entry", text = 'On a locked slot it said "Unlock slot"' },
-    { id = "lock_only_bags", text = "It was NOT in other Triangle menus (spellbook, character)" },
-    { id = "cross_still_works", text = "After locking, Cross still uses / equips bag items" },
-    { id = "mail_button_mouse", text = 'The "Mailworthy" button is on the mail window; a click opens this' },
-    { id = "mail_button_pad", text = "The D-pad reaches that button, and Cross opens this window" },
-    { id = "nav_dpad", text = "The D-pad reaches every button here (Attach test too); Cross presses" },
-    { id = "glyphs", text = "The button symbols here match your controller" },
-    { id = "mail_arrived", text = "(bank alt) Both test mails arrived" },
-    { id = "mail_instant", text = "(bank alt) They were there right away, no delay" },
+    { id = "no_blocks", text = 'Played a minute (move, jump, target, loot, NPC): no "The game blocked" messages' },
+    { id = "pad_triangle", text = "On the Send Mail tab, Triangle opens and closes this window" },
+    { id = "pad_inbox_hint", text = "On the Inbox, Triangle says to switch to Send Mail (R1)" },
+    { id = "bags_triangle_ok", text = "With the mailbox open, Triangle on a bag item still opens its More menu" },
+    { id = "mail_button_pad", text = "The D-pad reaches the Mailworthy button under the mail window" },
+    { id = "nav_dpad", text = "The D-pad reaches this window's buttons (pages, Yes / No, slots)" },
+    { id = "lock_grid", text = "Bag locks: Cross on a slot locks / unlocks it" },
+    { id = "alt_click", text = "Mouse: Alt+click on a bag item locks / unlocks it, and nothing else happens" },
+    { id = "border", text = "Locked slots show a blue border in your bags" },
+    { id = "cross_still_works", text = "Afterwards, Cross still uses / equips bag items" },
+    { id = "glyphs", text = "The button symbols match your controller" },
 }
+
 local state = { busy = false, armed = false, phase = 0, attach = nil, send = nil, status = "" }
 SelfTest.state = state
 
@@ -347,6 +348,10 @@ function SelfTest.Report()
             tostring(call(ns.Gamepad.Get("C_InputInterfaceStyle.GetCurrentStyle")) or "?"),
             ns.Gamepad.Glyph(ns.Gamepad.FACE_TOP)),
         "api: " .. ns.Gamepad.Presence(),
+        "features: " .. ns.Features.Describe(),
+        ns.PadKey.Report(),
+        string.format("AH durations: 1=%s, 2=%s, 3=%s", tostring(rawget(_G, "AUCTION_DURATION_ONE")),
+            tostring(rawget(_G, "AUCTION_DURATION_TWO")), tostring(rawget(_G, "AUCTION_DURATION_THREE"))),
     }
     for _, entry in pairs(MailworthyDB.characters) do lines[#lines + 1] = "known character: " .. ns.Characters.Describe(entry) end
     for _, l in ipairs(st().loads) do
@@ -374,7 +379,7 @@ function SelfTest.Report()
 end
 
 function SelfTest.Open(source)
-    ns.Log.Add("ui", "self-test opened from %s", tostring(source))
+    ns.Log.Add("ui", "window opened from %s", tostring(source))
     ns.SelfTestUI.Show()
 end
 

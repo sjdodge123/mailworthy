@@ -16,7 +16,49 @@ Runtime checks for each of these are in [DISCOVERY-SESSION-2.md](DISCOVERY-SESSI
 | `GAMEPAD_FACE_LEFT` | `PAD3` | Square | X |
 | `GAMEPAD_FACE_TOP` | `PAD4` | Triangle | Y |
 
-## Bag item "More" menu (Triangle) -> "Mailworthy: Lock slot"
+## Taint: what's safe (alpha1-alpha2 in game + source, 2026-10-13)
+
+**Unsafe (each tainted gamepad input until /reload: targeting, jump, interact,
+item use blocked):**
+- Adding a prompted binding to a Blizzard footer (`AddPromptedBinding` + `Finalize`).
+- Registering an addon window: `FrameControlsManager:FrameShown`, our own
+  `CreatePromptedBindingFooter`, `ShowUIPanel` (runs in the caller's context).
+- **Adding any entry to the gamepad "More" menu** (`Menu.ModifyMenu("MORE_CONTEXT_ACTIONS")`,
+  even if never clicked). The entry's element factory is created in our code;
+  Blizzard runs it (`Menu.lua:1091`), the menu frame gets a tainted compositor
+  `__index`, and the menu is then handed to SmartNavigation / FrameControlsManager
+  (`FrameControlsManager.lua:262-279`), whose state (current button, binding stack,
+  the shared `InputFunctionBindingButton_<key>` click handlers) is then written
+  tainted. `SetPreferredGamepadInteractTarget` (only caller `UpdateInteractIcons`,
+  `MainActionBarFrame.lua:237-257`) reads that binding stack. Keyboard/mouse
+  menus don't go through SmartNavigation, but this tag only exists in gamepad mode.
+- `CreateFrame` while a gamepad panel is open: SmartNavigation's CreateFrame hook
+  then refreshes button groups in our context. **Create every frame at login.**
+- Any Lua field written on a Blizzard frame, or any smart-navigation key
+  (`smartNavigation*`, `OnSmartNav*`, `customSmartNavOffset*`, `buttonContext`...) on ours.
+
+**Safe (read in source; verified in game where noted):**
+- Plain child `Button`s of the focused panel's **active group**. The mail window
+  searches only "Inbox" (`InboxFrame`) or "Send Mail" (`SendMailFrame`); children of
+  `MailFrame` itself are unreachable (seen in alpha2). Children outside the
+  frame's bounds count.
+- Our **own** override binding: `SetOverrideBindingClick(ourFrame, true, key, ourButton)`,
+  touching no Blizzard table; re-applied when `GetBindingAction(key, true)` shows
+  Blizzard replaced it; cleared on focus loss, mailbox close and combat. Gamepad
+  modules don't listen to `UPDATE_BINDINGS`, so no loop.
+- Read-only `GamepadMode.FrameControlsManager:GetActiveFrame()`.
+- `hooksecurefunc` post-hooks (`HandleModifiedItemClick`, each container frame's
+  `UpdateItems`) and textures created on Blizzard buttons (not hooked, not children
+  for SmartNavigation), kept in our own weak tables.
+- Mail sending from addon code, including from a timer (alpha2: no blocks from it).
+
+Prior art (other Forever addons): GatherLite and LefthyTools avoid `ShowUIPanel` /
+FrameControlsManager / Blizzard menus in gamepad mode; ClassicUIForever creates
+frames on UIParent then `SetParent`; ControllerCrossbarSwap and
+ForevermoreClassicUI: "never write a Lua field on a Blizzard frame";
+wow-forever-tweaks re-applies its own override binding when lost.
+
+## Bag item "More" menu (Triangle): DON'T add entries (see Taint above)
 
 - Built by `ContainerFrameCombinedBagsMixin:SetupGamepad`
   (`Blizzard_UIPanels_Game/Mainline/ContainerFrame.lua:3226-3325`) with
