@@ -154,3 +154,108 @@ describe("bank alt view", function()
         ns = ns2 -- after_each reads this one's log
     end)
 end)
+
+describe("vendor tags on a main after sending", function()
+    local ns, combined, prices
+
+    local function tagOf(button)
+        for _, f in ipairs(button.fontStrings) do
+            if f:IsShown() then return f.text end
+        end
+        return nil
+    end
+
+    before_each(function()
+        ns = loadAddon()
+        prices = {}
+        _G.Auctionator = { API = { v1 = {
+            GetAuctionPriceByItemLink = function(_, l) return prices[l] end,
+            GetAuctionAgeByItemLink = function() return 0 end,
+        } } }
+        WowStub.setBag(0, 1, WowStub.item(2770, "Copper Ore", { count = 5, sell = 5 }))
+        prices[WowStub.link(2770, "Copper Ore")] = 174
+        WowStub.setBag(0, 2, WowStub.item(2589, "Linen Cloth", { count = 20, sell = 10 }))
+        prices[WowStub.link(2589, "Linen Cloth")] = 40
+        WowStub.setBag(0, 3, WowStub.item(4865, "Ruined Pelt", { quality = 0, count = 2, sell = 5 }))
+        WowStub.setBag(0, 4, WowStub.item(6948, "Hearthstone", { bound = true, sell = 0 }))
+        combined = ContainerFrameCombinedBags
+        combined.Items = { WowStub.itemButton(0, 1), WowStub.itemButton(0, 2), WowStub.itemButton(0, 3),
+            WowStub.itemButton(0, 4) }
+        ns.Fire("PLAYER_LOGIN")
+        ns.Config.SetBankAlt("Roknua Themicrulah") -- this character is a main
+        MailFrame:Show()
+        SendMailFrame:Show()
+    end)
+
+    after_each(function() _G.Auctionator = nil end)
+
+    local function send()
+        _G.MailworthyMailButton:Click()
+        _G.MailworthyMailSend:Click()
+        WowStub.runTimers()
+        ns.Fire("MAIL_SEND_SUCCESS")
+        WowStub.runTimers()
+        combined:UpdateItems()
+    end
+
+    it("no tags before sending", function()
+        combined:UpdateItems()
+        for _, b in ipairs(combined.Items) do assert.is_nil(tagOf(b)) end
+    end)
+
+    it("after Send: V on what a vendor pays more for, grey junk included; nothing else", function()
+        send()
+        assert.equal(1, #WowStub.state.sent, "the Copper Ore went")
+        assert.is_nil(tagOf(combined.Items[1]), "its slot is empty now")
+        assert.equal("V", tagOf(combined.Items[2]), "Linen Cloth: the window kept it for the vendor")
+        assert.equal("V", tagOf(combined.Items[3]), "grey junk: no auction price, a vendor buys it")
+        assert.is_nil(tagOf(combined.Items[4]), "soulbound: nothing to say")
+        assert.equal("vendor", ns.BankAlt.Mode())
+    end)
+
+    it("uses the window's settings (postage included), so the tags match what it showed", function()
+        send()
+        local linen = ns.BankAlt.Refresh().keep[1]
+        for _, item in ipairs(ns.BankAlt.Refresh().keep) do if item.itemID == 2589 then linen = item end end
+        assert.equal(30, linen.result.postage)
+    end)
+
+    it("locking an item after the send removes its V at once; unlocking brings it back", function()
+        send()
+        assert.equal("V", tagOf(combined.Items[2]))
+        ns.Locks.ToggleItem(2589, "[Linen Cloth]", "Alt+click") -- "wait, I want to keep that"
+        assert.is_nil(tagOf(combined.Items[2]), "no bag update needed")
+        ns.Locks.ToggleItem(2589, "[Linen Cloth]", "Alt+click")
+        assert.equal("V", tagOf(combined.Items[2]))
+        WowStub.state.navButton = WowStub.itemButton(0, 3)
+        ns.Locks.ToggleSelectedBagSlot() -- L3 on the grey junk
+        assert.is_nil(tagOf(combined.Items[3]))
+    end)
+
+    it("a send that fails turns nothing on", function()
+        _G.MailworthyMailButton:Click()
+        _G.MailworthyMailSend:Click()
+        WowStub.runTimers()
+        ns.Fire("MAIL_FAILED")
+        combined:UpdateItems()
+        assert.is_nil(tagOf(combined.Items[2]))
+        assert.is_nil(ns.BankAlt.Mode())
+    end)
+
+    it("the tooltip says to vendor it, without 'Mailed for' (that's for the bank alt)", function()
+        local postCall, lines = nil, {}
+        _G.Enum = { TooltipDataType = { Item = 0 } }
+        _G.TooltipDataProcessor = { AddTooltipPostCall = function(_, fn) postCall = fn end }
+        _G.TooltipUtil = { GetDisplayedItem = function() return "name", WowStub.link(2589, "Linen Cloth") end }
+        ns.BankAlt.InstallTooltip()
+        rawset(GameTooltip, "AddLine", function(_, text) table.insert(lines, text) end)
+        send()
+        MailworthyDB.mailed[2589] = { route = "ah", at = WowStub.state.serverTime, from = "Rettana Quilwrit" }
+        postCall(GameTooltip, { id = 2589 })
+        local text = table.concat(lines, "\n")
+        assert.truthy(text:find("[Vendor now]", 1, true), text)
+        assert.is_nil(text:find("Mailed for", 1, true))
+        rawset(GameTooltip, "AddLine", nil)
+        _G.Enum, _G.TooltipDataProcessor, _G.TooltipUtil = nil, nil, nil
+    end)
+end)

@@ -44,6 +44,10 @@ local function after(delay, fn)
 end
 
 function Mailer.OnChanged(fn) table.insert(listeners, fn) end
+
+local sentListeners = {}
+--- fn(mailsSent) once a send run has mailed everything it planned.
+function Mailer.OnSent(fn) table.insert(sentListeners, fn) end
 local function notify()
     for _, fn in ipairs(listeners) do pcall(fn) end
 end
@@ -170,6 +174,7 @@ sendNext = function(index)
     if index > #state.mails then
         state.busy = false
         setStatus("Sent %d mail(s), %d stacks, to %s.", state.sent, state.stacks, state.bankAlt)
+        for _, fn in ipairs(sentListeners) do pcall(fn, state.sent) end
         return
     end
     if InCombatLockdown() then return Mailer.Stop("combat") end

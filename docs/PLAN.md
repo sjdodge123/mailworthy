@@ -279,6 +279,9 @@ bank alt's own, fresh Auctionator data** ([media/bank-alt-prototype.png](../medi
   Nothing is written into Blizzard tables. Tooltip lines use
   `TooltipDataProcessor.AddTooltipPostCall`, which Forever runs insecurely by design
   (`forceinsecure` behind an attribute delegate, `TooltipDataHandler.lua`).
+- **On a main after Send** (operator, 2026-10-14): **V** tags only, on what the window
+  kept because a vendor pays more (grey junk too), for the rest of the session, with the
+  window's own settings (postage included). Locking an item removes its V at once.
 - **As built:** no postage in the bank alt's verdicts (nothing is mailed from there);
   V = the vendor wins today; the Mailworthy button (Triangle) on the bank alt opens the
   summary, also `/mw summary` and the settings' "Bank alt summary" button; switches
