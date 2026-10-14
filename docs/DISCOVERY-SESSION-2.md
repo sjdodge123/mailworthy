@@ -59,6 +59,33 @@ runtime, and measures what no source can tell us.
 | Triangle opens / closes the window; D-pad highlight reaches every button; Cross presses; Circle closes only our window | **work** |
 | Bug | `PadKey.Check` errored ten times a second while nothing of ours was focused (`pairs(nil)`, caught by `pcall`, harmless in game) and flooded the 400-line log. Fixed after alpha5; report lines now say which build recorded each answer and blocked action |
 
+## Results of the v0.2.0 scan (2026-10-14)
+
+| Check | Result |
+|---|---|
+| Math | **right**: deposit, cut, postage, gain and threshold checked by hand on six lines (Copper Ore, Boar Meat, Fishing Pole, Spring Water, Linen Bandage, Scroll of Protection) |
+| Locks | **work**: Fishing Pole went from MAIL to "locked" after locking it |
+| AH prices | seen with age 0 (Copper Ore 1s 74c, Fishing Pole 9s); per unit still to confirm against the tooltip |
+| Report bug | items kept before pricing (locked, soulbound) printed "vendor ... = 0c": fixed |
+| Changes | soulbound / quest items no longer listed (one "NOT MAILABLE" line in the scan); profession tools (Fishing Pole was on the mail list) stay |
+
+## Phase 3 check: the Mailworthy window and Send (about 15 minutes)
+
+Nothing to buy: any cheap tradeable item works. To see a MAIL line, drop the minimum
+gain in settings (`/mw`, Amount and Percent all the way down), or lock everything you
+want to keep first. The Questions page of `/mw selftest` lists what to answer.
+
+1. **Mouse:** open a mailbox, Send Mail tab, click **Mailworthy**. Check the window: To,
+   Mailing (chips, gains), Staying (reasons), total; soulbound items aren't listed;
+   Mining Pick / Fishing Pole say "profession tool".
+2. Press an item in Mailing: it moves to Staying ("locked"); press it there to unlock.
+3. Press **Send to <alt>**: the status line counts the mails; the items leave your bags.
+4. **Controller** (`/reload` with it on): Send Mail tab (R1), Triangle, D-pad to Send,
+   Cross; Circle closes. Also **Settings** from the window (D-pad, Cross, Circle).
+5. Play a minute: any "The game blocked" message?
+6. **Bank alt:** log in, check the mail arrived (subject "Mailworthy 1/1"), answer the
+   last question, then `/mw selftest report` and paste it back.
+
 ## Phase 1 + 2 check: `/mw scan` and settings (about 10 minutes)
 
 Nothing to buy: the scan values whatever is already in your bags, single items and

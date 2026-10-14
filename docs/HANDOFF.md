@@ -61,11 +61,13 @@ must never break the game.
 | `Bags.lua` | scan bags 0-4 -> slots -> items (grouped per link + bound + in-use), locks, prices, verdicts, totals; `/mw scan` report in the copy box (sends nothing) |
 | `Config.lua` | saved settings (`MailworthyDB.settings` only what the player touched, `bankAlts[realm|faction]`, `names` history); choices, auto-complete, steppers |
 | `Widgets.lua` | window / button / label / legend helpers shared by all windows |
+| `Mailer.lua` | sending: plan 12 stacks per mail, re-check each slot, attach, zero money/COD, `SendMail`, chain on `MAIL_SEND_SUCCESS`; stops on failure / close / combat / 10 s; a run id kills a stopped run's timers; records `MailworthyDB.mailed` (30 days) |
+| `MailWindow.lua` | the window at the mailbox (`media/ui-prototype.png`): To, Mailing rows (chip + gain), Staying rows (reason), total, Send / Settings / Close; rows toggle item locks; pages of 8 / 5 |
 | `SettingsUI.lua` | settings window (bank alt buttons + optional typed name with "not seen" second press, steppers, disenchant, 2/8/24h, minimap toggle); controller via `PadKey` set `settings` (works away from the mailbox) |
 | `MinimapButton.lua` | LedgerLink's minimap button (click: settings; drag: move); feature `minimapButton` |
 | `SelfTest.lua` / `SelfTestUI.lua` | **discovery build only**: window with pages Questions / Bag locks / Tests, attach + chained send tests, inbox checks, `/mw selftest report`. To be replaced by the real window (Phase 3) and removed before v1.0 |
 
-Tests: `spec/` (busted on LuaJIT, 97 specs) with a WoW stub in
+Tests: `spec/` (busted on LuaJIT, 115 specs) with a WoW stub in
 `spec/support/wow_stub.lua` (bags, mail send tab, postage, timers with delays,
 override bindings, focused frame, item buttons that **error on any field write**).
 `Nav` drives the most recently shown visible window (`Nav.Root`); Circle closes only that one.
@@ -131,6 +133,10 @@ check), but the D-pad never reached them in alpha3/alpha4. Hence `Nav` + `PadKey
 Blizzard ships `SmartNavigationDebug` (overlay of navigable buttons) if this needs
 revisiting; showing it needs `/run`, which the operator shouldn't be asked to do lightly.
 
+**Timers outliving their run.** A `C_Timer.After` callback queued by a send run still
+fires after that run stops (combat, mailbox closed): the first Mailer draft would then
+call `SendMail` anyway. Every Mailer timer checks the run id and `busy`.
+
 **Process pitfalls.**
 - The operator **merges PRs silently**. Before pushing to a PR branch, gate the push
   on `gh pr view N --json state --jq .state` == OPEN (a printed check in the same
@@ -182,9 +188,12 @@ revisiting; showing it needs `/run`, which the operator shouldn't be asked to do
   the one bug it showed (`PadKey.Check` erroring while idle) is fixed in v0.2.0.
 - Latest tag `v0.2.0` (CurseForge release file, uploaded 2026-10-14): alpha5 + the
   PadKey fix + Phase 1.
-- Phase 1 (`/mw scan`) and Phase 2 (settings window, minimap button) built; one in-game
-  check covers both (DISCOVERY-SESSION-2.md "Phase 1 + 2 check"). The operator can't
-  afford full stacks: the check uses whatever is in the bags.
+- Latest tag `v0.3.0` (2026-10-14): settings window + minimap button.
+- v0.2.0 `/mw scan` checked by hand (DISCOVERY-SESSION-2.md "Results of the v0.2.0 scan"):
+  the math is right; fixed in Phase 3: vendor total on early keeps, soulbound / quest
+  items not listed, profession tools kept.
+- Phase 3 (the mailbox window + sending) built; in-game check pending (DISCOVERY-SESSION-2.md
+  "Phase 3 check"; the operator can't afford full stacks: cheap items are enough).
 - Still open: AH cut (needs a sale mail), disenchant prices for green items,
   ForeverMail compatibility (replaces the mailbox window).
 
@@ -203,7 +212,7 @@ revisiting; showing it needs `/run`, which the operator shouldn't be asked to do
    saved name history), min gain steppers (5s / 25%), disenchant checkbox (default on
    with Disenchantry, sticky once touched), listing length (2/8/24 h), minimap button
    (keyboard/mouse only). Must survive `/reload`.
-4. **Phase 3 - the real mailbox window** per `media/ui-prototype.png`: To: bank alt,
+4. **Phase 3 - the real mailbox window** (built; finish with the in-game check) per `media/ui-prototype.png`: To: bank alt,
    mailing list with reason chips and gains, staying list with reasons, total, Send /
    Settings / Close; Send = batches of 12 (attach, verify slot unchanged, `SendMail`,
    chain on `MAIL_SEND_SUCCESS`, stop on `MAIL_FAILED`/close/combat); never money;

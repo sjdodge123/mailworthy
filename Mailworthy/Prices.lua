@@ -57,8 +57,9 @@ function Prices.Vendor(link)
     return copper(sell) or 0
 end
 
---- Item class (2 = weapon, 4 = armor) without needing the item cached.
+--- Item class (2 = weapon, 4 = armor) and subclass, without needing the item cached.
 function Prices.ClassID(link)
     local instant = (C_Item and C_Item.GetItemInfoInstant) or GetItemInfoInstant
-    return tonumber((select(6, call(instant, link))))
+    local _, _, _, _, _, classID, subclassID = call(instant, link)
+    return tonumber(classID), tonumber(subclassID)
 end

@@ -28,7 +28,7 @@ function Bags.Slots()
                     bag = bag, slot = slot, itemID = info.itemID, link = info.hyperlink,
                     count = tonumber(info.stackCount) or 1, quality = tonumber(info.quality),
                     bound = info.isBound == true, inUse = info.isLocked == true, noValue = info.hasNoValue == true,
-                    quest = type(quest) == "table" and quest.isQuestItem == true,
+                    quest = type(quest) == "table" and quest.isQuestItem == true, icon = info.iconFileID,
                 }
             end
         end
@@ -44,7 +44,7 @@ function Bags.Group(slots)
         local item = byKey[key]
         if not item then
             item = { link = s.link, itemID = s.itemID, quality = s.quality, bound = s.bound, inUse = s.inUse,
-                quest = s.quest, noValue = s.noValue, count = 0, stacks = 0, slots = {} }
+                quest = s.quest, noValue = s.noValue, icon = s.icon, count = 0, stacks = 0, slots = {} }
             byKey[key] = item
             items[#items + 1] = item
         end
@@ -60,15 +60,16 @@ function Bags.CurrentSettings()
     return ns.Config.Values()
 end
 
---- Scan and value the bags. Returns { settings, priced, mail = {items}, keep = {items}, totals }.
+--- Scan and value the bags. Returns { settings, priced, mail = {items}, keep = {items},
+--- unmailable = {items} (soulbound / quest: never listed in the window), totals }.
 function Bags.Evaluate(settings)
     settings = settings or Bags.CurrentSettings()
     local priced = ns.Prices.Auctionator() ~= nil
-    local result = { settings = settings, priced = priced, mail = {}, keep = {},
+    local result = { settings = settings, priced = priced, mail = {}, keep = {}, unmailable = {},
         totals = { items = 0, stacks = 0, mails = 0, gain = 0, postage = 0 } }
     for _, item in ipairs(Bags.Group(Bags.Slots())) do
         item.locked = ns.Locks.IsItemLocked(item.itemID)
-        item.classID = ns.Prices.ClassID(item.link)
+        item.classID, item.subclassID = ns.Prices.ClassID(item.link)
         item.vendor = item.noValue and 0 or ns.Prices.Vendor(item.link)
         item.price = priced and ns.Prices.Lookup(item.link) or nil
         item.result = ns.Valuation.Evaluate(item, item.price, settings)
@@ -78,6 +79,8 @@ function Bags.Evaluate(settings)
             t.items, t.stacks = t.items + item.count, t.stacks + item.stacks
             t.gain = t.gain + (item.result.gain or 0)
             t.postage = t.postage + item.result.postage
+        elseif ns.Valuation.Unmailable(item.result) then
+            table.insert(result.unmailable, item)
         else
             table.insert(result.keep, item)
         end
@@ -107,7 +110,9 @@ end
 -- The numbers behind a verdict, so it can be checked by hand.
 local function workings(item, settings)
     local r, p, parts = item.result, item.price, {}
-    if item.vendor ~= nil then parts[#parts + 1] = "vendor " .. money(item.vendor) .. " each = " .. money(r.vendor or 0) end
+    if item.vendor ~= nil then
+        parts[#parts + 1] = "vendor " .. money(item.vendor) .. " each = " .. money(r.vendor or item.vendor * item.count)
+    end
     if p and p.ah then
         parts[#parts + 1] = string.format("AH %s each%s%s", money(p.ah),
             p.age and (", " .. p.age .. " days old") or "", p.exact and "" or " (not exact)")
@@ -144,6 +149,11 @@ function Bags.Report(result)
     for _, item in ipairs(result.keep) do
         local w = workings(item, s)
         lines[#lines + 1] = string.format("KEEP %s: %s%s", itemName(item), item.result.reason, w ~= "" and (" - " .. w) or "")
+    end
+    if #result.unmailable > 0 then
+        local names = {}
+        for _, item in ipairs(result.unmailable) do names[#names + 1] = itemName(item) end
+        lines[#lines + 1] = "NOT MAILABLE (soulbound or quest, not listed in the window): " .. table.concat(names, ", ")
     end
     return table.concat(lines, "\n")
 end

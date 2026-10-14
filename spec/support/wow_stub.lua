@@ -27,7 +27,7 @@ local function defaultState()
         professions = { { index = 6, name = "Mining", rank = 12, maxRank = 75, skillLine = 186 } },
         numSlots = { [0] = 20, [1] = 4, [2] = 6, [3] = 0, [4] = 0 },
         bags = { [0] = {}, [1] = {}, [2] = {} },
-        attached = {}, cursor = nil, used = {}, sent = {}, postage = 30,
+        attached = {}, cursor = nil, used = {}, sent = {}, postage = 30, money = 0, cod = 0, moneyCalls = {},
         inbox = {}, invoices = {},
         mods = {}, bindings = {}, bindingOwners = {}, activeFrame = nil, now = 1000, gamepadUI = false,
         navButton = nil,
@@ -255,7 +255,7 @@ _G.GetItemInfo = function(l)
 end
 _G.GetItemInfoInstant = function(l)
     local item = byLink(l)
-    if item then return item.itemID, "t", "s", "", 0, item.class, 0 end
+    if item then return item.itemID, "t", "s", "", 0, item.class, item.subclass or 0 end
 end
 local function at(bag, slot) return s().bags[bag] and s().bags[bag][slot] end
 local function attachItem(item)
@@ -291,7 +291,10 @@ _G.ClearSendMail = function()
     for _, item in ipairs(s().attached) do item.isLocked = false end
     s().attached = {}
 end
+_G.SetSendMailMoney = function(c) s().money = c; table.insert(s().moneyCalls, "money " .. tostring(c)) end
+_G.SetSendMailCOD = function(c) s().cod = c; table.insert(s().moneyCalls, "cod " .. tostring(c)) end
 _G.SendMail = function(name, subject, body)
+    table.insert(s().moneyCalls, "send")
     local count = #s().attached
     for _, item in ipairs(s().attached) do
         for _, bag in pairs(s().bags) do
@@ -299,7 +302,8 @@ _G.SendMail = function(name, subject, body)
         end
     end
     s().attached = {}
-    table.insert(s().sent, { name = name, subject = subject, body = body, count = count })
+    table.insert(s().sent, { name = name, subject = subject, body = body, count = count, money = s().money,
+        cod = s().cod })
 end
 _G.C_Mail = { IsCommandPending = function() return false end }
 _G.GetInboxNumItems = function() return #s().inbox, #s().inbox end

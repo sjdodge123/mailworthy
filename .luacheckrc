@@ -20,7 +20,7 @@ read_globals = {
     -- mail
     "SendMailFrame", "InboxFrame", "SendMail", "ClearSendMail", "ClickSendMailItemButton", "GetSendMailItem",
     "GetSendMailPrice", "ATTACHMENTS_MAX_SEND", "C_Mail", "GetInboxNumItems", "GetInboxHeaderInfo",
-    "GetInboxInvoiceInfo",
+    "GetInboxInvoiceInfo", "SetSendMailMoney", "SetSendMailCOD",
     -- price sources
     "Auctionator",
     -- locks (Alt+click) and the locked-slot border

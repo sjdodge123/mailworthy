@@ -31,7 +31,8 @@ function MailButton.GamepadUI()
     return ok and on == true
 end
 
---- Mail button click or Triangle: toggle the Mailworthy window.
+--- Mail button click or Triangle: toggle the Mailworthy window (the settings
+--- window instead while no bank alt is set: there's nobody to mail yet).
 --- Mouse / keyboard: on whichever tab is showing. Controller: on the Send Mail tab
 --- only (the D-pad reaches the window there); on the Inbox, a hint to press R1.
 --- We never switch tabs ourselves: MailFrameTab_OnClick would write
@@ -39,6 +40,12 @@ end
 function MailButton.Activate(source)
     ns.lastCommand = tostring(source)
     local tab = shown("SendMailFrame") and "send" or "inbox"
+    if not ns.Config.BankAlt() then
+        ns.Log.Add("mailbutton", "%s: no bank alt yet, settings shown", tostring(source))
+        ns.Print("Pick your bank alt first: Mailworthy mails only to that character.")
+        ns.SettingsUI.Show()
+        return
+    end
     if tab == "inbox" and MailButton.GamepadUI() then
         ns.Log.Add("mailbutton", "%s on the Inbox (controller UI): hint shown", tostring(source))
         ns.Print("Switch to the Send Mail tab (R1), then press Triangle or the Mailworthy button.")
@@ -46,7 +53,7 @@ function MailButton.Activate(source)
     end
     ns.Log.Add("mailbutton", "%s on the %s tab (%s UI)", tostring(source), tab,
         MailButton.GamepadUI() and "controller" or "mouse/keyboard")
-    ns.SelfTestUI.Toggle(tab)
+    ns.MailWindow.Toggle(tab)
 end
 
 local function makeButton(name, parent, mail)

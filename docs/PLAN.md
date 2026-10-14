@@ -167,7 +167,11 @@ locked; grey junk and everything uncommon or better stay in the bags
 The item stays in your bags (listed in the preview's kept list with the
 reason) when any of these hold:
 - it's locked (item lock; there's no separate never-mail list, operator 2026-10-13);
-- it's soulbound, a quest item, or currently locked by the game;
+- it's soulbound or a quest item (never listed in the window: it can't be mailed),
+  or currently locked by the game;
+- it's a profession tool (fishing poles, Mining Pick, Blacksmith Hammer, Skinning
+  Knife, Flint and Tinder, Arclight Spanner, enchanting rods): the v0.2.0 scan put
+  a Fishing Pole on the mail list;
 - it has no price while Auctionator is installed (missing data for one item never
   means "mail it"; without Auctionator at all, the common-items rule above applies);
 - its price is older than the age limit;
@@ -290,8 +294,8 @@ Disenchantry are optional dependencies (`.pkgmeta`, `## OptionalDeps`).
 | `Prices.lua` | price-source adapters | busted with stubbed addons |
 | `Valuation.lua` | the decision rule: item facts + prices + settings -> mail-AH / mail-DE / keep + reason + gain | busted (pure, most tests live here) |
 | `Bags.lua` | bag scan -> item facts, applies locks and filters | busted with stubbed `C_Container` |
-| `Mailer.lua` | batch queue and state machine (attach, send, wait, next, stop) | busted with stubbed mail events |
-| `Preview.lua` | recipient, mail / kept lists, totals, Send / Settings / Close | busted (rows + totals) + in game |
+| `Mailer.lua` | batch queue and state machine (attach, send, wait, next, stop); each run's timers die with it | busted with stubbed mail events |
+| `MailWindow.lua` | the window at the mailbox: recipient, mail / staying lists (rows lock / unlock), totals, Send / Settings / Close | busted + in game |
 | `MailButton.lua` | the Mailworthy button under the mail window (mouse; controller via Triangle, `PadKey.lua`; writes nothing into the controller UI) | busted + in game |
 | `Nav.lua` / `PadKey.lua` | Mailworthy's own controller highlight and override bindings for its windows | busted + in game |
 | `Locks.lua` / `Border.lua` | item locks (Alt+click, L3) and their blue glow | busted + in game |
@@ -311,7 +315,7 @@ realm+faction, name history, settings, blocked actions) and
 | **0 - Discovery** | LedgerLink `/rl probe` S5 (ledger-link PR #28, released in v1.3.0) and S6 (PR #29); repo, CI, packaging | the S5 + S6 report is back and its answers are in README "Beta unknowns" |
 | **1 - Prices + valuation** | `Prices`, `Valuation`, `Bags`; `/mw scan` shows what would be mailed and why, with the numbers (sends nothing). **Built**, in-game check pending | `/mw scan` agrees with a hand calculation on real bags |
 | **2 - Settings + characters** | settings panel, minimap button, bank alt picker with history and auto-complete, disenchant checkbox default, thresholds, fees | bank alt survives `/reload` and relog (the beta's SavedVariables bug), and every settings control works with the gamepad alone. **Built**, in-game check pending |
-| **3 - Mailbox + mailing** | mailbox button (opens settings when not set up), preview with recipient + Settings button, one press sends every batch (chained) | 30+ items reach the bank alt in under 3 presses, with nothing locked, bound or unpriced sent; works with ForeverMail installed |
+| **3 - Mailbox + mailing** | mailbox button (opens settings when not set up), preview with recipient + Settings button, one press sends every batch (chained). **Built**, in-game check pending | 30+ items reach the bank alt in under 3 presses, with nothing locked, bound or unpriced sent; works with ForeverMail installed |
 | **4 - Item locks** | **done** in alpha5 (Alt+click, L3, Bag locks page, blue glow); no never-mail list (operator, 2026-10-13: locks cover it) | locked items never appear in the preview's mail list |
 | **4c - Bank alt view** | tags on the bank alt's bag slots (recomputed with fresh prices), tooltip lines with the original reason, summary window | tags match a hand calculation with fresh prices; a changed verdict shows both |
 | **5 - Polish** | tooltip line ("Mailworthy: AH +2g 10s vs vendor"), release on GitHub + CurseForge (Forever flavor) | tagged release installs cleanly |

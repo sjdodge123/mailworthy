@@ -45,6 +45,27 @@ function Valuation.Deposit(vendorUnit, count, duration)
     return math.floor((vendorUnit or 0) * (count or 0) * Valuation.DEPOSIT_RATE) * mult
 end
 
+-- Profession tools stay in the bags whatever they'd sell for (the v0.2.0 scan
+-- listed a Fishing Pole to mail). Classic item IDs; fishing poles also by class
+-- (weapon, subclass 20).
+Valuation.TOOLS = {
+    [2901] = "Mining Pick", [5956] = "Blacksmith Hammer", [7005] = "Skinning Knife",
+    [4471] = "Flint and Tinder", [6219] = "Arclight Spanner", [10498] = "Gyromatic Micro-Adjustor",
+    [6218] = "Runed Copper Rod", [6339] = "Runed Silver Rod", [11130] = "Runed Golden Rod",
+    [11145] = "Runed Truesilver Rod", [16207] = "Runed Arcanite Rod", [6256] = "Fishing Pole",
+}
+Valuation.FISHING_POLE_SUBCLASS = 20
+
+function Valuation.IsTool(item)
+    return Valuation.TOOLS[item.itemID] ~= nil
+        or (item.classID == 2 and item.subclassID == Valuation.FISHING_POLE_SUBCLASS)
+end
+
+--- Soulbound and quest items can never be mailed: the window doesn't list them.
+function Valuation.Unmailable(result)
+    return result.action == "keep" and (result.reason == "soulbound" or result.reason == "quest item")
+end
+
 --- Armor (class 4) or weapon (class 2), uncommon or better.
 function Valuation.CanDisenchant(item)
     return (item.classID == 2 or item.classID == 4) and (item.quality or 0) >= 2
@@ -72,6 +93,7 @@ function Valuation.Evaluate(item, price, settings)
     if item.bound then return keep("soulbound") end
     if item.quest then return keep("quest item") end
     if item.inUse then return keep("in use") end
+    if Valuation.IsTool(item) then return keep("profession tool") end
     if item.vendor == nil then return keep("item info not loaded yet") end
 
     local n = item.count or 1

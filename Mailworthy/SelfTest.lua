@@ -16,18 +16,20 @@ SelfTest.DELAY = 0.5
 SelfTest.TIMEOUT = 10
 SelfTest.SUBJECT = "Mailworthy test %d/2"
 
+-- v0.4.0 check (docs/DISCOVERY-SESSION-2.md "Phase 3 check"); earlier answers stay in
+-- the saved data but only these are reported.
 SelfTest.QUESTIONS = {
     { id = "no_blocks", text = 'Played a minute (move, jump, target, loot, NPC): no "The game blocked" messages' },
-    { id = "pad_triangle", text = "On the Send Mail tab, Triangle opens and closes this window" },
-    { id = "pad_nav", text = "Window open: the D-pad moves a gold highlight to every button, the first too" },
-    { id = "pad_cross_circle", text = "Cross presses the highlighted button; Circle closes only this window" },
-    { id = "bags_l3", text = "In your bags, L3 locks / unlocks the selected item" },
-    { id = "bags_triangle_ok", text = "In your bags, Triangle still opens the item's More menu" },
-    { id = "alt_click", text = "Mouse: Alt+click on a bag item locks / unlocks it, and nothing else happens" },
-    { id = "lock_follows", text = "A locked item stays locked after moving it or sorting your bags" },
-    { id = "glow", text = "Locked items glow blue, like quest items" },
-    { id = "cross_still_works", text = "Cross still uses / equips bag items normally" },
-    { id = "icon", text = "Mailworthy shows its envelope icon in the AddOns list" },
+    { id = "window_lists", text = "The Mailworthy window lists what goes and what stays, with reasons" },
+    { id = "row_lock", text = "Pressing an item in the window locks it (it moves to staying) and unlocks it" },
+    { id = "send_works", text = "Send mailed exactly the listed items to your bank alt, in one press" },
+    { id = "no_money", text = "The mail had no money attached and nothing locked / soulbound in it" },
+    { id = "pad_window", text = "Controller: Triangle opens it, D-pad + Cross reach Send, Circle closes it" },
+    { id = "settings_mouse", text = "Settings: every button works with the mouse" },
+    { id = "settings_pad", text = "Settings with the controller, at the mailbox and away from it" },
+    { id = "settings_saved", text = "Settings are unchanged after /reload" },
+    { id = "minimap", text = "The minimap icon opens settings; its toggle hides it" },
+    { id = "arrived", text = "On the bank alt: the Mailworthy mail arrived" },
 }
 
 
@@ -246,6 +248,8 @@ local function sendMail(phase, how)
     local n, price = SelfTest.AttachedCount(), sendPrice()
     local pending = call(C_Mail and C_Mail.IsCommandPending)
     ns.lastCommand = string.format("selftest send %d (%s)", phase, how)
+    pcall(SetSendMailCOD, 0)
+    pcall(SetSendMailMoney, 0)
     local ok, err = pcall(SendMail, recipient, string.format(SelfTest.SUBJECT, phase), "")
     ns.Log.Add("send", "mail %d to %q %s: %d attached, postage %s, IsCommandPending %s, SendMail %s", phase, recipient,
         how, n, tostring(price), tostring(pending), ok and "called" or tostring(err))

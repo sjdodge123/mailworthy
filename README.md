@@ -12,15 +12,14 @@ than at the vendor goes to your bank alt. The rest stays in your bags to vendor.
 - **Keyboard/mouse first, controller too:** everything works with keyboard and mouse, and with a gamepad alone.
 - **Lock items** you never want mailed: Alt+click (mouse) or L3 in your bags (controller); the lock follows the item.
 
-**Status: Phase 2 (settings).** The current build is a **discovery build**:
-a Mailworthy button and window at the mailbox (mouse; controller: Triangle,
-then the D-pad / Cross / Circle), item locks (Alt+click, or L3 in the bags) with a
-blue glow, the known-character list and a self-test (`/mw selftest`) for
-[discovery session 2](docs/DISCOVERY-SESSION-2.md). `/mw` opens the settings
-window (bank alt, minimum gain, disenchant, listing length; also the minimap button), and
-`/mw scan` values your bags and shows what it would mail and why, but nothing mails them yet; the only mail it sends is the opt-in send test (two cheap
-stacks to your bank alt, after a second press). The full design, phases and
-open questions are in [docs/PLAN.md](docs/PLAN.md).
+**Status: Phase 3 (mailing).** At a mailbox, the **Mailworthy** button (controller:
+Send Mail tab, then Triangle) opens the Mailworthy window: who gets the mail, what
+goes and why, what stays and why, and the total gain. **Send** mails it all to your
+bank alt in one press; pressing an item locks it so it stays. Item locks (Alt+click,
+or L3 in the bags) glow blue. `/mw` opens the settings (bank alt, minimum gain,
+disenchant, listing length; also the minimap button); `/mw scan` shows the numbers
+behind every verdict. Discovery tools (`/mw selftest`) are still in. The full design,
+phases and open questions are in [docs/PLAN.md](docs/PLAN.md).
 
 ## Discovery build commands
 
@@ -54,7 +53,7 @@ each in-game round are in [docs/DISCOVERY-SESSION-2.md](docs/DISCOVERY-SESSION-2
 |---|---|---|
 | `## Interface: 16001` | addon loads without "out of date" | confirmed for LedgerLink (build 1.60.1.70205) |
 | Auctionator `API.v1` on Forever | S5 | **confirmed** (Auctionator 340; price, age, exactness, disenchant calls) |
-| Real AH prices for bag items | `/mw scan` after an Auctionator scan | open; Mailworthy assumes `GetAuctionPriceByItemLink` is per unit and `GetAuctionAgeByItemLink` is in days (Auctionator's convention; S5 saw age 0) |
+| Real AH prices for bag items | `/mw scan` after an Auctionator scan | **seen** (v0.2.0 scan: Copper Ore 1s 74c, Fishing Pole 9s, all age 0); per unit still to confirm against the tooltip; Mailworthy assumes `GetAuctionPriceByItemLink` is per unit and `GetAuctionAgeByItemLink` is in days (Auctionator's convention; S5 saw age 0) |
 | Controller in the settings window away from the mailbox (our own D-pad / Cross / Circle bindings with no Blizzard window focused) | Phase 2 check | open |
 | Disenchantry installed | `C_AddOns.IsAddOnLoaded("Disenchantry")` (in Forever's API docs), else `DisenchantryDB` exists | open |
 | Adding "Lock slot" to the bag item menu (Triangle) | alpha1 + alpha2 | **taints controller input even unclicked**: removed; Alt+click and a Bag locks grid instead |
