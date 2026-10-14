@@ -54,7 +54,7 @@ textures / font strings on Blizzard frames kept in our own tables, read-only
 - Never invent WoW API functions: read Blizzard's Forever source
   (Ketho/wow-ui-source-forever) first; wrap anything unverified in `pcall` / nil
   checks and list it under "Beta unknowns" in README.md.
-- In-game checks go into one copyable report (`/mw selftest report` for now), not
+- In-game checks go into one copyable report (`/mw report`), not
   lists of `/dump` lines. Ask for an in-game test only when research shows the fix
   is real.
 - Mailworthy files share names with LedgerLink's (`media/logo-400.png`, ...): link

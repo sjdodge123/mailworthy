@@ -1,6 +1,5 @@
 -- Mailworthy: namespace, saved variables, events and slash commands.
--- The design (entry points, decision rule, phases) is in docs/PLAN.md; this
--- discovery build carries the pieces docs/DISCOVERY-SESSION-2.md tests.
+-- The design (entry points, decision rule, phases) is in docs/PLAN.md.
 local addonName, ns = ...
 
 ns.NAME = addonName
@@ -15,11 +14,8 @@ function ns.Init()
     MailworthyCharDB = type(MailworthyCharDB) == "table" and MailworthyCharDB or {}
     MailworthyDB.blocked = MailworthyDB.blocked or {}
     MailworthyDB.characters = MailworthyDB.characters or {}
-    MailworthyDB.selftest = MailworthyDB.selftest or {}
-    local st = MailworthyDB.selftest
-    st.log = st.log or {}
-    st.answers = st.answers or {}
-    st.loads = st.loads or {}
+    MailworthyDB.selftest = nil -- discovery builds' self-test data (answers, test results, old log)
+    MailworthyDB.log = type(MailworthyDB.log) == "table" and MailworthyDB.log or {}
     MailworthyCharDB.lockedItems = MailworthyCharDB.lockedItems or {} -- itemID -> { link, at }
     MailworthyDB.features = MailworthyDB.features or {}
 end
@@ -94,31 +90,28 @@ end)
 local HELP = {
     "At a mailbox: click the Mailworthy button under the mail window. Controller: Send Mail tab (R1), then Triangle (Y).",
     "Lock an item (it stays locked wherever it moves): Alt+click it, or L3 in your bags (controller).",
-    "Locked items glow blue. The window's Bag locks page works with both.",
+    "Locked items glow blue. In the Mailworthy window, pressing an item locks or unlocks it.",
     "/mw or /mw settings - bank alt, minimum gain, disenchant, listing length (also: minimap button)",
-    "/mw selftest - open the self-test window",
-    "/mw selftest report - the copyable report (paste it to the addon developer)",
     "/mw locks - list this character's locked items",
     "/mw scan - what Mailworthy would mail and why (sends nothing)",
     "/mw summary - on your bank alt: what to list, disenchant or vendor",
     "/mw feature <mailButton|padTriangle|padNav|padLock|altClickLock|slotBorder|minimapButton|bankAltTags|tooltipLines>"
         .. " on|off"
         .. " - isolate a problem (then /reload)",
+    "/mw report - a copyable report for bug reports",
     "/mw help - this list",
 }
 
 local function showHelp()
-    ns.Print("v" .. ns.VERSION .. " (discovery build) - commands (/mw or /mailworthy):")
+    ns.Print("v" .. ns.VERSION .. " - commands (/mw or /mailworthy):")
     for _, line in ipairs(HELP) do print("  " .. line) end
 end
 
 function ns.HandleSlash(msg)
     ns.lastCommand = "/mw " .. tostring(msg or "")
     local cmd, rest = string.match(string.lower(msg or ""), "^%s*(%S*)%s*(.-)%s*$")
-    if cmd == "selftest" and rest == "report" then
-        ns.SelfTest.ShowReport()
-    elseif cmd == "selftest" then
-        ns.SelfTest.Open("slash")
+    if cmd == "report" then
+        ns.Report.Open()
     elseif cmd == "feature" then
         featureCommand(rest)
     elseif cmd == "locks" then

@@ -5,17 +5,18 @@
 <h2>How it works</h2>
 <ol>
 <li>Open any mailbox and click the <strong>Mailworthy</strong> button under the mail window.</li>
-<li>Check the preview: who it's going to, what will be mailed and why, and what stays in your bags and why.</li>
-<li>Click <strong>Send</strong>. Mailworthy fills as many mails as it needs (12 items each) and sends them all.</li>
+<li>Check the Mailworthy window: who it's going to, what will be mailed and why, and what stays in your bags and why. Click any item to keep it.</li>
+<li>Click <strong>Send</strong>. Mailworthy fills as many mails as it needs (12 stacks each) and sends them all with that one click.</li>
 <li>Sell what's left to the nearest vendor.</li>
 </ol>
 <p>The first time, Mailworthy asks you to pick your bank alt. You choose from the characters you've logged into on this realm and faction, so there are no typos.</p>
 
 <h2>What gets mailed</h2>
-<p>For every stack in your bags, Mailworthy compares what you'd get from a vendor with what it's worth on the auction house after the 5% auction cut, the listing deposit and the postage (30 copper per item). An item is mailed when it's clearly worth it: by default at least <strong>5 silver</strong> and <strong>25%</strong> more than the vendor pays. Both numbers are adjustable.</p>
+<p>For every item in your bags (all its stacks together), Mailworthy compares what you'd get from a vendor with what it's worth on the auction house after the 5% auction cut, the listing deposit and the postage (30 copper per stack). An item is mailed when it's clearly worth it: by default at least <strong>5 silver</strong> and <strong>25%</strong> more than the vendor pays. Both numbers are adjustable.</p>
 <p>Mailworthy never mails:</p>
 <ul>
 <li>items you've locked;</li>
+<li>your profession tools (fishing poles, Mining Pick, Blacksmith Hammer, Skinning Knife and the like);</li>
 <li>gold.</li>
 </ul>
 
@@ -32,18 +33,19 @@
 <ul>
 <li>a small tag on the bag slot: <strong>AH</strong> to list on the auction house, <strong>DE</strong> to disenchant, or <strong>V</strong> if it's now better sold to a vendor;</li>
 <li>a tooltip line with today's price and why it was mailed in the first place, so you can see when the market has moved;</li>
-<li>a summary of what to list, what to disenchant and what to vendor.</li>
+<li>a summary of what to list, what to disenchant and what to vendor: the Mailworthy button at a mailbox, or <code>/mw summary</code>.</li>
 </ul>
 
 <h2>Lock the items you want to keep</h2>
 <ul>
 <li><strong>Mouse:</strong> Alt+click a bag item to lock or unlock it.</li>
 <li><strong>Controller:</strong> press <strong>L3</strong> on an item in your bags.</li>
+<li>Or click the item in the Mailworthy window (mouse or controller).</li>
 <li>Locked items <strong>glow blue</strong>, like quest items, and stay locked wherever you move them, even after sorting your bags. Mailworthy never mails them.</li>
 </ul>
 
 <h2>Controller support</h2>
-<p>Mailworthy works with WoW Forever's controller interface. At a mailbox, switch to <strong>Send Mail</strong> (R1) and press <strong>Triangle (Y)</strong>. In the Mailworthy window the D-pad moves between buttons, Cross presses and Circle closes it.</p>
+<p>Mailworthy works with WoW Forever's controller interface. At a mailbox, switch to <strong>Send Mail</strong> (R1) and press <strong>Triangle (Y)</strong>. In the Mailworthy window the D-pad moves between buttons, Cross presses and Circle closes it. The settings window works the same way, wherever you open it.</p>
 
 <h2>Settings</h2>
 <ul>
@@ -51,15 +53,18 @@
 <li>Include disenchant value</li>
 <li>Auction listing length used for the deposit estimate</li>
 <li>Your bank alt</li>
+<li>Bank alt tags on every character, or only on the bank alt</li>
+<li>Minimap button</li>
 </ul>
-<p>Open them from the Mailworthy window, or type <code>/mw</code>.</p>
+<p>Open them from the Mailworthy window, the minimap button, or type <code>/mw</code>.</p>
 
 <h2>Good to know</h2>
 <ul>
 <li>Mail only goes between characters on the same realm and faction, so that's who Mailworthy offers as your bank alt.</li>
 <li>Mailworthy doesn't post auctions. It gets the items to your bank alt; you list them there (Auctionator makes that quick).</li>
-<li>Nothing is sent without your click, nothing happens in combat, and the preview always shows why each item is mailed or kept.</li>
+<li>Nothing is sent without your click, nothing happens in combat, and the window always shows why each item is mailed or kept.</li>
+<li>Want the numbers? <code>/mw scan</code> shows the price, deposit, postage and gain behind every decision.</li>
 </ul>
 
 <h2>Feedback</h2>
-<p>Found a bug or an item that went to the wrong place? Leave a comment with the item and what you expected. The preview's "why" column is the first thing to include.</p>
+<p>Found a bug or an item that went to the wrong place? Leave a comment with the item and what you expected, and paste the text from <code>/mw report</code> (and <code>/mw scan</code> for pricing questions).</p>

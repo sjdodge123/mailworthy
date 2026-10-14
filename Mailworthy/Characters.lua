@@ -1,7 +1,6 @@
 -- Known characters (account-wide): every character that logs in with Mailworthy
 -- is recorded, so the bank alt is picked from a list instead of typed. Mail
 -- can't cross realm or faction, so only same realm + faction are offered.
--- Also writes the SavedVariables marker the self-test reads (beta reload bug).
 local _, ns = ...
 
 local Characters = {}
@@ -71,13 +70,3 @@ function Characters.Mailable()
 end
 
 ns.On("PLAYER_LOGIN", function() Characters.Record() end)
-
--- SavedVariables marker: one entry per login or /reload. If earlier entries
--- vanish after a relog, the beta's reload bug is still there.
-ns.On("PLAYER_ENTERING_WORLD", function(isInitialLogin, isReloadingUi)
-    if not (isInitialLogin or isReloadingUi) then return end
-    local loads = MailworthyDB.selftest.loads
-    loads[#loads + 1] = { char = ns.PlayerName(), at = call(GetServerTime) or time(),
-        kind = isReloadingUi and "reload" or "login" }
-    while #loads > 30 do table.remove(loads, 1) end
-end)

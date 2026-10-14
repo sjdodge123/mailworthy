@@ -308,7 +308,7 @@ function UI.Send()
     UI.Refresh(true)
 end
 
---- Beside the mail window, as a child of the showing tab (like the self-test window).
+--- Beside the mail window, as a child of the showing tab; away from a mailbox, centred.
 function UI.Show(tab)
     if not frame then UI.Create() end
     local send, inbox, mail = rawget(_G, "SendMailFrame"), rawget(_G, "InboxFrame"), rawget(_G, "MailFrame")

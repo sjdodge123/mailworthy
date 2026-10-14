@@ -25,9 +25,8 @@ Widgets.lua
 MailButton.lua
 Nav.lua
 PadKey.lua
-SelfTest.lua
-SelfTestUI.lua
 SettingsUI.lua
 MinimapButton.lua
 MailWindow.lua
 BankAlt.lua
+Report.lua

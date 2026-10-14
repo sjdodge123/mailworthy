@@ -72,16 +72,18 @@ end
 --- Which binding set is wanted right now (nil = none).
 function PadKey.Wanted()
     if InCombatLockdown() or not ns.MailButton.GamepadUI() then return nil end
-    -- "settings": our free-standing windows (settings, bank alt summary), anywhere.
-    local settings, summary = ns.SettingsUI and ns.SettingsUI.Frame(), ns.BankAlt and ns.BankAlt.Frame()
-    local standalone = (settings and settings:IsShown()) or (summary and summary:IsShown())
+    -- "settings": our free-standing windows (settings, bank alt summary, report), anywhere.
+    local standalone = false
+    for _, mod in ipairs({ ns.SettingsUI, ns.BankAlt, ns.Report }) do
+        local f = mod and mod.Frame()
+        if f and f:IsShown() then standalone = true end
+    end
     if standalone and ns.Features.On("padNav") then return "settings" end
     local focused = activeFrame()
     local mail = rawget(_G, "MailFrame")
     if focused ~= nil and focused == mail and mail:IsShown() then
-        local window, selftest = ns.MailWindow and ns.MailWindow.Frame(), ns.SelfTestUI.Frame()
-        local open = (window and window:IsShown()) or (selftest and selftest:IsShown())
-        if open and ns.Features.On("padNav") then return "window" end
+        local window = ns.MailWindow and ns.MailWindow.Frame()
+        if window and window:IsShown() and ns.Features.On("padNav") then return "window" end
         if ns.Features.On("padTriangle") then return "mail" end
     elseif isBagFrame(focused) and ns.Features.On("padLock") then
         return "bags"
@@ -166,7 +168,7 @@ function PadKey.Create()
     padButton("MailworthyPadCircle", function()
         local closed = ns.Nav.CloseTop()
         ns.Log.Add("pad", "Circle closed %s", closed and tostring(closed:GetName()) or "nothing")
-        -- Back in the window below (the self-test under the settings): start at its top-left.
+        -- Back in the window below (the Mailworthy window under the settings): start at its top-left.
         if ns.Nav.Root() then ns.Nav.Reset() end
     end)
     for _, dir in ipairs({ "Up", "Down", "Left", "Right" }) do
