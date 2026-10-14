@@ -77,8 +77,9 @@ function PadKey.Wanted()
     local focused = activeFrame()
     local mail = rawget(_G, "MailFrame")
     if focused ~= nil and focused == mail and mail:IsShown() then
-        local window = ns.SelfTestUI.Frame()
-        if window and window:IsShown() and ns.Features.On("padNav") then return "window" end
+        local window, selftest = ns.MailWindow and ns.MailWindow.Frame(), ns.SelfTestUI.Frame()
+        local open = (window and window:IsShown()) or (selftest and selftest:IsShown())
+        if open and ns.Features.On("padNav") then return "window" end
         if ns.Features.On("padTriangle") then return "mail" end
     elseif isBagFrame(focused) and ns.Features.On("padLock") then
         return "bags"

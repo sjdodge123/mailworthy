@@ -20,6 +20,7 @@ Prices.lua
 Valuation.lua
 Config.lua
 Bags.lua
+Mailer.lua
 Widgets.lua
 MailButton.lua
 Nav.lua
@@ -28,3 +29,4 @@ SelfTest.lua
 SelfTestUI.lua
 SettingsUI.lua
 MinimapButton.lua
+MailWindow.lua
