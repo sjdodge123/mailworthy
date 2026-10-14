@@ -59,11 +59,16 @@ must never break the game.
 | `Prices.lua` | Auctionator adapter (`Lookup`: AH price per unit, age in days, exact, disenchant; nil without Auctionator), vendor price (`GetItemInfo` 11th return), class ID, `DisenchantryInstalled` |
 | `Valuation.lua` | **pure** decision rule: settings (defaults + saved, disenchant follows Disenchantry), deposit, thresholds, keep reasons, no-Auctionator rule, `Money` formatting |
 | `Bags.lua` | scan bags 0-4 -> slots -> items (grouped per link + bound + in-use), locks, prices, verdicts, totals; `/mw scan` report in the copy box (sends nothing) |
+| `Config.lua` | saved settings (`MailworthyDB.settings` only what the player touched, `bankAlts[realm|faction]`, `names` history); choices, auto-complete, steppers |
+| `Widgets.lua` | window / button / label / legend helpers shared by all windows |
+| `SettingsUI.lua` | settings window (bank alt buttons + optional typed name with "not seen" second press, steppers, disenchant, 2/8/24h, minimap toggle); controller via `PadKey` set `settings` (works away from the mailbox) |
+| `MinimapButton.lua` | LedgerLink's minimap button (click: settings; drag: move); feature `minimapButton` |
 | `SelfTest.lua` / `SelfTestUI.lua` | **discovery build only**: window with pages Questions / Bag locks / Tests, attach + chained send tests, inbox checks, `/mw selftest report`. To be replaced by the real window (Phase 3) and removed before v1.0 |
 
-Tests: `spec/` (busted on LuaJIT, 79 specs) with a WoW stub in
+Tests: `spec/` (busted on LuaJIT, 97 specs) with a WoW stub in
 `spec/support/wow_stub.lua` (bags, mail send tab, postage, timers with delays,
 override bindings, focused frame, item buttons that **error on any field write**).
+`Nav` drives the most recently shown visible window (`Nav.Root`); Circle closes only that one.
 Guard spec `no_gamepad_taint_spec.lua`: Mailworthy may only *read*
 `FrameControlsManager:GetActiveFrame()` and `SmartNavigation:GetCurrentButton()`.
 
@@ -87,7 +92,7 @@ Guard spec `no_gamepad_taint_spec.lua`: Mailworthy may only *read*
 - Bags: backpack 20 slots, `NUM_BAG_SLOTS` 4; `GetContainerItemInfo` gives
   `isBound, hasNoValue, isLocked, quality, stackCount, itemID, hyperlink, iconFileID`;
   quest via `GetContainerItemQuestInfo`; sell price = `GetItemInfo` 11th return.
-- Settings API: `Settings.RegisterCanvasLayoutCategory` (no `InterfaceOptions_AddCategory`).
+- Settings API: `Settings.RegisterCanvasLayoutCategory` (no `InterfaceOptions_AddCategory`); not used (taint risk).
 - Mail auto-complete has no "my characters" flag (own list needed).
 - SavedVariables persist across login, character switch and `/reload`.
 - `labelStyle` "Shapes" (PlayStation); atlas markup works. Minimap buttons are not
@@ -146,6 +151,10 @@ revisiting; showing it needs `/run`, which the operator shouldn't be asked to do
   required typing; `SetFocus` never.
 - Locks are **per item ID** (all stacks, follow moves), per character; Alt+click
   (mouse), L3 in bags (controller), Bag locks page; blue quest-style glow.
+  **No never-mail list** (operator, 2026-10-13: locks cover it).
+- Settings: our own window, not Blizzard's options panel (registering there hands our
+  tables to a controller-navigated panel; same taint pattern as the More menu).
+  Valuation defaults apply until the player touches a setting.
 - Mailbox entry: "Mailworthy" button under the mail window (both tabs); controller:
   R1 then Triangle; Mailworthy's own D-pad / Cross / Circle while its window is
   open; no L2/R2 cycling into it; no More-menu entry.
@@ -169,11 +178,13 @@ revisiting; showing it needs `/run`, which the operator shouldn't be asked to do
 
 ## 7. State right now
 
-- Latest tag `v0.1.0-alpha5` (first CurseForge upload, alpha file). Its in-game
-  check passed (DISCOVERY-SESSION-2.md "Results of the alpha5 run"); the one bug it
-  showed (`PadKey.Check` erroring while idle) is fixed on main after it.
-- Phase 1 built (`Prices`, `Valuation`, `Bags`, `/mw scan`); in-game check pending
-  (DISCOVERY-SESSION-2.md "Phase 1 check").
+- alpha5's in-game check passed (DISCOVERY-SESSION-2.md "Results of the alpha5 run");
+  the one bug it showed (`PadKey.Check` erroring while idle) is fixed in v0.2.0.
+- Latest tag `v0.2.0` (CurseForge release file, uploaded 2026-10-14): alpha5 + the
+  PadKey fix + Phase 1.
+- Phase 1 (`/mw scan`) and Phase 2 (settings window, minimap button) built; one in-game
+  check covers both (DISCOVERY-SESSION-2.md "Phase 1 + 2 check"). The operator can't
+  afford full stacks: the check uses whatever is in the bags.
 - Still open: AH cut (needs a sale mail), disenchant prices for green items,
   ForeverMail compatibility (replaces the mailbox window).
 
@@ -185,8 +196,9 @@ revisiting; showing it needs `/run`, which the operator shouldn't be asked to do
    incl. deposit formula, postage share, thresholds, no-Auctionator common-items rule,
    disenchant eligibility), `Bags.lua` (scan -> facts, locks, filters); `/mw scan`
    prints what would be mailed and why. Most specs live here.
-3. **Phase 2 - settings:** settings window (our own frame, controller via `Nav`/`PadKey`;
-   register with `Settings.RegisterCanvasLayoutCategory` too): bank alt picker
+3. **Phase 2 - settings** (built; finish with the in-game check): settings window (our own
+   frame, controller via `Nav`/`PadKey`; **not** registered with
+   `Settings.RegisterCanvasLayoutCategory`, see PLAN "Settings panel"): bank alt picker
    (known characters as buttons, typed fallback with auto-complete + "not seen" warning,
    saved name history), min gain steppers (5s / 25%), disenchant checkbox (default on
    with Disenchantry, sticky once touched), listing length (2/8/24 h), minimap button

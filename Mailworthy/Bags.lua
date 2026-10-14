@@ -57,8 +57,7 @@ function Bags.Group(slots)
 end
 
 function Bags.CurrentSettings()
-    local saved = MailworthyDB and MailworthyDB.settings
-    return ns.Valuation.Settings(saved, ns.Prices.DisenchantryInstalled())
+    return ns.Config.Values()
 end
 
 --- Scan and value the bags. Returns { settings, priced, mail = {items}, keep = {items}, totals }.
@@ -127,6 +126,7 @@ function Bags.Report(result)
     local s, t = result.settings, result.totals
     local lines = {
         string.format("Mailworthy %s scan at %s (sends nothing)", ns.VERSION, date("%Y-%m-%d %H:%M")),
+        "bank alt: " .. tostring(ns.Config.BankAlt() or "none set (/mw settings)"),
         "prices: " .. (result.priced and "Auctionator" or "none (no Auctionator: mailing common items)"),
         string.format("settings: %dh listing (deposit x%d), AH cut %d%%, postage %s per stack, "
             .. "min gain %s and %d%%, disenchant %s, max price age %d days",

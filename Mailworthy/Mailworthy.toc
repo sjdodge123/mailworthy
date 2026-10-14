@@ -18,9 +18,13 @@ Locks.lua
 Border.lua
 Prices.lua
 Valuation.lua
+Config.lua
 Bags.lua
+Widgets.lua
 MailButton.lua
 Nav.lua
 PadKey.lua
 SelfTest.lua
 SelfTestUI.lua
+SettingsUI.lua
+MinimapButton.lua

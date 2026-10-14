@@ -20,7 +20,7 @@ describe("no writes into the controller UI", function()
         _G.GamepadSharedUtility, _G.GamepadMode, _G.Menu, _G.SmartNavigation = saved.util, saved.mode, saved.menu, saved.nav
     end)
 
-    it("logs in, opens the mailbox, binds Triangle, opens the window and the report without touching them", function()
+    it("logs in, opens the mailbox, binds Triangle, opens the window, report and settings without touching them", function()
         local ns = loadAddon()
         InboxFrame.gamepadFooter = WowStub.footer()
         ns.Fire("PLAYER_LOGIN")
@@ -35,6 +35,13 @@ describe("no writes into the controller UI", function()
         ns.Locks.ToggleSelectedBagSlot()
         ns.SelfTestUI.ShowPage("locks")
         ns.SelfTest.ShowReport()
+        -- settings over it, driven by the controller; then away from the mailbox
+        _G.MailworthySelfTestSettings:Click()
+        MailworthyPadWatcher.scripts.OnUpdate(MailworthyPadWatcher, 0.2)
+        _G.MailworthyPadDown:Click()
+        _G.MailworthySettingsDuration2:Click()
+        WowStub.state.activeFrame = nil
+        MailworthyPadWatcher.scripts.OnUpdate(MailworthyPadWatcher, 0.2)
         assert.equal(0, #InboxFrame.gamepadFooter.calls)
         assert.falsy(table.concat(MailworthyDB.selftest.log, "\n"):find("Mailworthy called", 1, true))
     end)

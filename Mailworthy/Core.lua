@@ -28,6 +28,7 @@ end
 -- can be isolated with /mw feature <name> off + /reload instead of a new build.
 ns.Features = { DEFAULTS = {
     mailButton = true, padTriangle = true, padNav = true, padLock = true, altClickLock = true, slotBorder = true,
+    minimapButton = true,
 } }
 
 function ns.Features.Describe()
@@ -94,11 +95,14 @@ local HELP = {
     "At a mailbox: click the Mailworthy button under the mail window. Controller: Send Mail tab (R1), then Triangle (Y).",
     "Lock an item (it stays locked wherever it moves): Alt+click it, or L3 in your bags (controller).",
     "Locked items glow blue. The window's Bag locks page works with both.",
+    "/mw or /mw settings - bank alt, minimum gain, disenchant, listing length (also: minimap button)",
     "/mw selftest - open the self-test window",
     "/mw selftest report - the copyable report (paste it to the addon developer)",
     "/mw locks - list this character's locked items",
     "/mw scan - what Mailworthy would mail and why (sends nothing)",
-    "/mw feature <mailButton|padTriangle|padNav|padLock|altClickLock|slotBorder> on|off - isolate a problem (then /reload)",
+    "/mw feature <mailButton|padTriangle|padNav|padLock|altClickLock|slotBorder|minimapButton> on|off"
+        .. " - isolate a problem (then /reload)",
+    "/mw help - this list",
 }
 
 local function showHelp()
@@ -119,6 +123,8 @@ function ns.HandleSlash(msg)
         ns.Locks.PrintList()
     elseif cmd == "scan" then
         ns.Bags.Scan()
+    elseif cmd == "" or cmd == "settings" then
+        ns.SettingsUI.Show()
     else
         showHelp()
     end

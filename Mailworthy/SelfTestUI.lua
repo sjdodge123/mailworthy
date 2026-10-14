@@ -18,48 +18,13 @@ ns.SelfTestUI = UI
 
 local WIDTH, ROW, CELL, COLUMNS = 440, 24, 34, 11
 UI.MAX_LOCK_BUTTONS = 110
-local BACKDROP = {
-    bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
-    edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
-    tile = true, tileSize = 32, edgeSize = 32,
-    insets = { left = 11, right = 12, top = 12, bottom = 11 },
-}
-
 local frame, title, status, legend, recipientButton, pageLabel
 local pages, questionRows, lockButtons = {}, {}, {}
 local lockSlots = setmetatable({}, { __mode = "k" }) -- our lock button -> { bag, slot }
 local current = "questions"
 local reportFrame, reportBox, reportText, reportHeading
 
-local function window(name, width, height, parent)
-    local ok, f = pcall(CreateFrame, "Frame", name, UIParent, "BackdropTemplate")
-    if not ok then f = CreateFrame("Frame", name, UIParent) end
-    if parent then f:SetParent(parent) end
-    f:SetSize(width, height)
-    f:SetFrameStrata("DIALOG")
-    f:EnableMouse(true)
-    if f.SetBackdrop then
-        f:SetBackdrop(BACKDROP)
-        f:SetBackdropColor(0.05, 0.05, 0.07, 0.95)
-    end
-    f.CloseButton = CreateFrame("Button", name .. "CloseButton", f, "UIPanelCloseButton")
-    f.CloseButton:SetPoint("TOPRIGHT", -6, -6)
-    if type(UISpecialFrames) == "table" then table.insert(UISpecialFrames, name) end
-    f:Hide()
-    return f
-end
-
-local function button(parent, text, width, onClick, name)
-    local b = CreateFrame("Button", name, parent, "UIPanelButtonTemplate")
-    b:SetSize(width, 22)
-    b:SetText(text)
-    b:SetScript("OnClick", onClick)
-    return b
-end
-
-local function label(parent, font)
-    return parent:CreateFontString(nil, "OVERLAY", font or "GameFontNormal")
-end
+local window, button, label = ns.Widgets.Window, ns.Widgets.Button, ns.Widgets.Label
 
 local function page(name)
     local p = CreateFrame("Frame", nil, frame)
@@ -154,12 +119,14 @@ function UI.Create()
     status:SetJustifyH("LEFT")
     local previous
     for i, spec in ipairs(PAGES) do
-        local b = button(frame, spec[2], 96, function() UI.ShowPage(spec[1]) end, "MailworthySelfTestPage" .. i)
+        local b = button(frame, spec[2], 76, function() UI.ShowPage(spec[1]) end, "MailworthySelfTestPage" .. i)
         if previous then b:SetPoint("LEFT", previous, "RIGHT", 6, 0) else b:SetPoint("TOPLEFT", 18, -74) end
         previous = b
     end
-    local report = button(frame, "Report", 96, function() ns.SelfTest.ShowReport() end, "MailworthySelfTestReport")
+    local report = button(frame, "Report", 76, function() ns.SelfTest.ShowReport() end, "MailworthySelfTestReport")
     report:SetPoint("LEFT", previous, "RIGHT", 6, 0)
+    local settings = button(frame, "Settings", 76, function() ns.SettingsUI.Show() end, "MailworthySelfTestSettings")
+    settings:SetPoint("LEFT", report, "RIGHT", 6, 0)
     pageLabel = label(frame, "GameFontNormalSmall")
     pageLabel:SetPoint("TOPRIGHT", -20, -24)
     createQuestions()
@@ -205,9 +172,7 @@ end
 function UI.Refresh()
     if not frame then return end
     title:SetText("Mailworthy  " .. ns.Gamepad.Glyph(ns.Gamepad.FACE_TOP))
-    legend:SetText(string.format("%s press    %s close    D-pad move    %s open / close",
-        ns.Gamepad.Glyph(ns.Gamepad.FACE_BOTTOM), ns.Gamepad.Glyph(ns.Gamepad.FACE_RIGHT),
-        ns.Gamepad.Glyph(ns.Gamepad.FACE_TOP)))
+    legend:SetText(ns.Widgets.Legend(ns.Gamepad.Glyph(ns.Gamepad.FACE_TOP) .. " open / close"))
     status:SetText(ns.SelfTest.state.status ~= "" and ns.SelfTest.state.status
         or "Discovery build: answer the questions; lock slots on Bag locks.")
     for _, spec in ipairs(PAGES) do

@@ -19,7 +19,17 @@ ns.Nav = Nav
 Nav.CONE = 45
 Nav.DIRECTIONS = { up = { 0, 1 }, down = { 0, -1 }, left = { -1, 0 }, right = { 1, 0 } }
 
-local root, highlight, current
+-- Every Mailworthy window registered with Attach; the last one shown is on top
+-- and is the one the D-pad navigates. Each has its own highlight.
+local roots, highlights, current = {}, {}, nil
+
+--- The window the controller drives: the most recently shown visible one.
+function Nav.Root()
+    for i = #roots, 1, -1 do
+        if roots[i]:IsVisible() then return roots[i] end
+    end
+    return nil
+end
 
 --- Pure: the candidate nearest to `from` in `dir` within the cone, or nil.
 --- `from` and each candidate are { x = , y = , ... }.
@@ -67,7 +77,8 @@ function Nav.Candidates()
             end
         end
     end
-    if root and root:IsVisible() then walk(root) end
+    local root = Nav.Root()
+    if root then walk(root) end
     return list
 end
 
@@ -80,14 +91,13 @@ end
 
 function Nav.Select(button)
     current = button
-    if not highlight then return end
-    if button then
+    for _, h in pairs(highlights) do h:Hide() end
+    local highlight = button and highlights[Nav.Root()]
+    if highlight then
         highlight:ClearAllPoints()
         highlight:SetPoint("TOPLEFT", button, "TOPLEFT", -4, 4)
         highlight:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 4, -4)
         highlight:Show()
-    else
-        highlight:Hide()
     end
 end
 
@@ -108,7 +118,7 @@ function Nav.Move(dir)
 end
 
 function Nav.Press()
-    if current and current:IsVisible() then
+    if current and current:IsVisible() and entryFor(current, Nav.Candidates()) then
         ns.Log.Add("nav", "Cross on %s", tostring(current:GetName() or "a button"))
         current:Click()
     else
@@ -120,10 +130,26 @@ function Nav.Stop()
     Nav.Select(nil)
 end
 
---- The window to navigate; the highlight is ours, a gold frame drawn around the selected button.
+--- Close the window the controller is in (Circle).
+function Nav.CloseTop()
+    local root = Nav.Root()
+    if root then root:Hide() end
+    return root
+end
+
+--- Register a window to navigate; the highlight is ours, a gold frame drawn
+--- around the selected button. Call at login (it creates a frame).
 function Nav.Attach(frame)
-    root = frame
-    highlight = CreateFrame("Frame", "MailworthyNavHighlight", frame)
+    if highlights[frame] then return end
+    roots[#roots + 1] = frame
+    frame:HookScript("OnShow", function(self)
+        for i = #roots, 1, -1 do
+            if roots[i] == self then table.remove(roots, i) end
+        end
+        roots[#roots + 1] = self
+    end)
+    local highlight = CreateFrame("Frame", (frame:GetName() or "Mailworthy") .. "NavHighlight", frame)
+    highlights[frame] = highlight
     highlight:SetFrameLevel(frame:GetFrameLevel() + 20)
     local specs = { { "TOPLEFT", "TOPRIGHT", nil, 2 }, { "BOTTOMLEFT", "BOTTOMRIGHT", nil, 2 },
         { "TOPLEFT", "BOTTOMLEFT", 2, nil }, { "TOPRIGHT", "BOTTOMRIGHT", 2, nil } }
