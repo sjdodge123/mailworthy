@@ -29,7 +29,7 @@ local frame, title, status, legend, recipientButton, pageLabel
 local pages, questionRows, lockButtons = {}, {}, {}
 local lockSlots = setmetatable({}, { __mode = "k" }) -- our lock button -> { bag, slot }
 local current = "questions"
-local reportFrame, reportBox, reportText
+local reportFrame, reportBox, reportText, reportHeading
 
 local function window(name, width, height, parent)
     local ok, f = pcall(CreateFrame, "Frame", name, UIParent, "BackdropTemplate")
@@ -263,9 +263,9 @@ function UI.CreateReport()
     if reportFrame then return end
     reportFrame = window("MailworthyReportFrame", 640, 440)
     reportFrame:SetPoint("CENTER")
-    local heading = label(reportFrame, "GameFontNormalLarge")
-    heading:SetPoint("TOP", 0, -18)
-    heading:SetText("Mailworthy self-test report")
+    reportHeading = label(reportFrame, "GameFontNormalLarge")
+    reportHeading:SetPoint("TOP", 0, -18)
+    reportHeading:SetText("Mailworthy self-test report")
     local hint = label(reportFrame, "GameFontHighlightSmall")
     hint:SetPoint("BOTTOM", 0, 18)
     hint:SetText("Click the text, Ctrl+C, then paste it to the addon developer")
@@ -290,9 +290,10 @@ function UI.CreateReport()
     scroll:SetScrollChild(reportBox)
 end
 
-function UI.ShowReport(text)
+function UI.ShowReport(text, heading)
     if not reportFrame then UI.CreateReport() end
     reportText = text
+    reportHeading:SetText(heading or "Mailworthy self-test report")
     reportBox:SetText(text)
     reportFrame:Show()
 end

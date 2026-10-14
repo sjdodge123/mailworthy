@@ -40,6 +40,6 @@ files["spec/**"] = {
     globals = { "WowStub", "print", "unpack", "time", "date", "CreateFrame", "InboxFrame", "SendMailFrame",
         "C_Container", "Auctionator", "Menu", "MailworthySelfTestYes1", "MailworthySelfTestNo3", "MailFrame",
         "MailworthyMailButton", "GamepadSharedUtility", "GamepadMode", "ContainerFrameCombinedBags", "ContainerFrameContainer",
-        "HandleModifiedItemClick", "MailworthyPadWatcher", "MailworthyInboxButton", "GameTooltip", "SmartNavigation" },
+        "HandleModifiedItemClick", "MailworthyPadWatcher", "DisenchantryDB", "MailworthyInboxButton", "GameTooltip", "SmartNavigation" },
     allow_defined_top = true,
 }

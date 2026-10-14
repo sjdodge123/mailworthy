@@ -59,6 +59,17 @@ runtime, and measures what no source can tell us.
 | Triangle opens / closes the window; D-pad highlight reaches every button; Cross presses; Circle closes only our window | **work** |
 | Bug | `PadKey.Check` errored ten times a second while nothing of ours was focused (`pairs(nil)`, caught by `pcall`, harmless in game) and flooded the 400-line log. Fixed after alpha5; report lines now say which build recorded each answer and blocked action |
 
+## Phase 1 check: `/mw scan` (about 5 minutes)
+
+1. With Auctionator installed, open the AH and run its full scan (prices only appear after a scan).
+2. Have in your bags: a stack worth listing (e.g. ore), a cheap stack (e.g. Linen Cloth),
+   something soulbound, a locked item (Alt+click or L3), and a green armor or weapon if you have one.
+3. `/mw scan`. The window lists every item: **MAIL** (AH / DE) or **KEEP** with the reason and
+   the numbers (vendor, AH price and age, deposit, postage, gain and what it needed).
+4. Pick two lines and check them against the game: the vendor price on the tooltip, Auctionator's
+   price on the tooltip. Does the verdict look right to you?
+5. Copy the window's text and paste it back, plus anything that looks wrong.
+
 ## Rerun with alpha5 (done; steps kept for the next build)
 
 1. Install the build (CurseForge or the GitHub release). Old slot locks become item locks at login.

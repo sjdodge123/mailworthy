@@ -1,0 +1,128 @@
+-- The decision rule (docs/PLAN.md "Decision rule"): mail an item to the bank
+-- alt when the auction house (after cut, deposit and postage) or disenchanting
+-- beats the vendor by at least the minimum gain; otherwise it stays in the bags.
+-- Pure: no WoW API calls, so every case is a busted spec.
+--
+-- An item is every stack of one item link in the bags (so one item never
+-- splits into "mail 20, keep 3"). Measured on Forever (2026-10-13):
+--   deposit = floor(vendor value of the listing x 5%) x 1 / 4 / 12 for 2h / 8h / 24h
+--   postage = 30c per attached stack
+local _, ns = ...
+
+local Valuation = {}
+ns.Valuation = Valuation
+
+Valuation.DEPOSIT_RATE = 0.05
+Valuation.DEPOSIT_MULTIPLIER = { 1, 4, 12 } -- AH durations 1 / 2 / 3 = 2h / 8h / 24h
+Valuation.DURATION_HOURS = { 2, 8, 24 }
+
+Valuation.DEFAULTS = {
+    duration = 3,         -- 24h listing (operator, 2026-10-13)
+    relistFactor = 1.0,   -- deposits counted in full (the game refunds them on a sale)
+    cut = 0.05,           -- AH cut, until a sale mail confirms it
+    postage = 30,         -- copper per attached stack
+    minGain = 500,        -- 5s ...
+    minGainPct = 0.25,    -- ... and 25% of the vendor value, both
+    maxAgeDays = 7,       -- older Auctionator prices don't count
+    disenchant = false,   -- Valuation.Settings switches it on when Disenchantry is installed
+}
+
+--- Settings for a scan: saved values over the defaults. The disenchant default
+--- follows Disenchantry until the player sets it (then their choice sticks).
+function Valuation.Settings(saved, disenchantryInstalled)
+    local s = {}
+    for k, v in pairs(Valuation.DEFAULTS) do s[k] = v end
+    s.disenchant = disenchantryInstalled == true
+    for k, v in pairs(type(saved) == "table" and saved or {}) do
+        if Valuation.DEFAULTS[k] ~= nil and type(v) == type(Valuation.DEFAULTS[k]) then s[k] = v end
+    end
+    if not Valuation.DEPOSIT_MULTIPLIER[s.duration] then s.duration = Valuation.DEFAULTS.duration end
+    return s
+end
+
+function Valuation.Deposit(vendorUnit, count, duration)
+    local mult = Valuation.DEPOSIT_MULTIPLIER[duration] or Valuation.DEPOSIT_MULTIPLIER[Valuation.DEFAULTS.duration]
+    return math.floor((vendorUnit or 0) * (count or 0) * Valuation.DEPOSIT_RATE) * mult
+end
+
+--- Armor (class 4) or weapon (class 2), uncommon or better.
+function Valuation.CanDisenchant(item)
+    return (item.classID == 2 or item.classID == 4) and (item.quality or 0) >= 2
+end
+
+function Valuation.Threshold(vendorTotal, settings)
+    return math.max(settings.minGain, math.ceil(vendorTotal * settings.minGainPct))
+end
+
+local function keep(reason, extra)
+    local r = extra or {}
+    r.action, r.reason = "keep", reason
+    return r
+end
+
+--- item: { link, itemID, count, stacks, quality, classID, vendor (copper per unit; nil = not
+---   loaded yet), bound, quest, inUse (locked by the game), locked (Mailworthy lock) }
+--- price: nil when there's no price source at all (no Auctionator); else
+---   { ah = copper per unit or nil, age = days or nil, de = copper per item or nil }
+--- Returns { action = "mail" | "keep", route = "ah" | "de" | "common" (mail only), reason,
+---   vendor, deposit, postage, ahNet, deNet, gain, threshold } (copper, totals for the item).
+function Valuation.Evaluate(item, price, settings)
+    settings = settings or Valuation.DEFAULTS
+    if item.locked then return keep("locked") end
+    if item.bound then return keep("soulbound") end
+    if item.quest then return keep("quest item") end
+    if item.inUse then return keep("in use") end
+    if item.vendor == nil then return keep("item info not loaded yet") end
+
+    local n = item.count or 1
+    local vendor = item.vendor * n
+    local postage = settings.postage * (item.stacks or 1)
+
+    if price == nil then
+        -- No price source: mail plain white (common) items, keep the rest (operator, 2026-10-13).
+        if item.quality == 1 then
+            return { action = "mail", route = "common", reason = "common item (no price data)",
+                vendor = vendor, postage = postage }
+        end
+        return keep(item.quality == 0 and "junk (no price data)" or "uncommon or better (no price data)",
+            { vendor = vendor })
+    end
+
+    local r = { vendor = vendor, postage = postage }
+    local stale = price.ah ~= nil and price.age ~= nil and price.age > settings.maxAgeDays
+    if price.ah ~= nil and not stale then
+        r.deposit = Valuation.Deposit(item.vendor, n, settings.duration)
+        r.ahNet = math.floor(price.ah * n * (1 - settings.cut)) - math.floor(r.deposit * settings.relistFactor) - postage
+    end
+    if settings.disenchant and price.de ~= nil and Valuation.CanDisenchant(item) then
+        r.deNet = math.floor(price.de * n) - postage
+    end
+    if r.ahNet == nil and r.deNet == nil then
+        if stale then return keep(string.format("price too old (%d days)", price.age), r) end
+        return keep("no price", r)
+    end
+
+    local best, route = r.ahNet, "ah"
+    if r.deNet ~= nil and (best == nil or r.deNet > best) then best, route = r.deNet, "de" end
+    r.gain = best - vendor
+    r.threshold = Valuation.Threshold(vendor, settings)
+    if r.gain >= r.threshold then
+        r.action, r.route = "mail", route
+        r.reason = route == "ah" and "auction house" or "disenchant"
+        return r
+    end
+    return keep("not worth it", r)
+end
+
+--- "1g 2s 3c", "-45c", "0c".
+function Valuation.Money(copper)
+    copper = math.floor((copper or 0) + 0.5)
+    local sign = copper < 0 and "-" or ""
+    copper = math.abs(copper)
+    local g, s, c = math.floor(copper / 10000), math.floor(copper / 100) % 100, copper % 100
+    local parts = {}
+    if g > 0 then parts[#parts + 1] = g .. "g" end
+    if s > 0 then parts[#parts + 1] = s .. "s" end
+    if c > 0 or #parts == 0 then parts[#parts + 1] = c .. "c" end
+    return sign .. table.concat(parts, " ")
+end

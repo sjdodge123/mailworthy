@@ -12,12 +12,12 @@ than at the vendor goes to your bank alt. The rest stays in your bags to vendor.
 - **Keyboard/mouse first, controller too:** everything works with keyboard and mouse, and with a gamepad alone.
 - **Lock items** you never want mailed: Alt+click (mouse) or L3 in your bags (controller); the lock follows the item.
 
-**Status: Phase 0 (discovery).** The current build is a **discovery build**:
+**Status: Phase 1 (prices + valuation).** The current build is a **discovery build**:
 a Mailworthy button and window at the mailbox (mouse; controller: Triangle,
 then the D-pad / Cross / Circle), item locks (Alt+click, or L3 in the bags) with a
 blue glow, the known-character list and a self-test (`/mw selftest`) for
-[discovery session 2](docs/DISCOVERY-SESSION-2.md). It doesn't value or mail
-your bags yet; the only mail it sends is the opt-in send test (two cheap
+[discovery session 2](docs/DISCOVERY-SESSION-2.md). `/mw scan` values your bags
+and shows what it would mail and why, but nothing mails them yet; the only mail it sends is the opt-in send test (two cheap
 stacks to your bank alt, after a second press). The full design, phases and
 open questions are in [docs/PLAN.md](docs/PLAN.md).
 
@@ -26,7 +26,8 @@ open questions are in [docs/PLAN.md](docs/PLAN.md).
 ```
 /mw selftest          the self-test window (also: the Mailworthy button on the mail window)
 /mw selftest report   the copyable report (paste it to the addon developer)
-/mw locks             this character's locked slots
+/mw locks             this character's locked items
+/mw scan              what Mailworthy would mail and why, with the numbers (sends nothing)
 /mw feature <name> on|off   mailButton, padTriangle, padNav, padLock, altClickLock, slotBorder (then /reload)
 ```
 
@@ -50,7 +51,8 @@ each in-game round are in [docs/DISCOVERY-SESSION-2.md](docs/DISCOVERY-SESSION-2
 |---|---|---|
 | `## Interface: 16001` | addon loads without "out of date" | confirmed for LedgerLink (build 1.60.1.70205) |
 | Auctionator `API.v1` on Forever | S5 | **confirmed** (Auctionator 340; price, age, exactness, disenchant calls) |
-| Real AH prices for bag items | S5 `item` lines after an Auctionator scan | open |
+| Real AH prices for bag items | `/mw scan` after an Auctionator scan | open; Mailworthy assumes `GetAuctionPriceByItemLink` is per unit and `GetAuctionAgeByItemLink` is in days (Auctionator's convention; S5 saw age 0) |
+| Disenchantry installed | `C_AddOns.IsAddOnLoaded("Disenchantry")` (in Forever's API docs), else `DisenchantryDB` exists | open |
 | Adding "Lock slot" to the bag item menu (Triangle) | alpha1 + alpha2 | **taints controller input even unclicked**: removed; Alt+click and a Bag locks grid instead |
 | Our own Triangle binding at the mailbox | alpha3/alpha4 self-test | **works**, no blocked actions |
 | D-pad to buttons under SendMailFrame (smart navigation) | alpha3/alpha4 self-test | **no**; Mailworthy's own D-pad / Cross / Circle bindings instead, **work** (alpha5) |
