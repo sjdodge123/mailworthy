@@ -86,6 +86,20 @@ describe("mail window", function()
         assert.is_true(ns.SettingsUI.Frame():IsShown())
     end)
 
+    it("updates itself after sending, even when the bags updated mid-send (v0.4.0 kept the sent item)", function()
+        _G.MailworthyMailButton:Click()
+        assert.is_true(_G.MailworthyMailRow1:IsShown())
+        _G.MailworthyMailSend:Click()
+        WowStub.runTimers()
+        ns.Fire("MAIL_SEND_SUCCESS")
+        ns.Fire("BAG_UPDATE_DELAYED") -- the item left the bags while the mailer was still busy
+        WowStub.runTimers()           -- the mailer finishes; no further bag update comes
+        assert.is_false(ns.Mailer.Busy())
+        assert.equal(0, #ns.MailWindow.Result().mail)
+        assert.is_false(_G.MailworthyMailRow1:IsShown())
+        assert.truthy(ns.Mailer.Status():find("Sent 1 mail", 1, true))
+    end)
+
     it("on the Inbox (mouse), Send says to switch to the Send Mail tab and sends nothing", function()
         SendMailFrame:Hide()
         InboxFrame:Show()

@@ -342,7 +342,11 @@ end
 ns.On("PLAYER_LOGIN", function()
     UI.Create()
     ns.Locks.OnChanged(refreshIfShown)
-    ns.Mailer.OnChanged(function() if frame and frame:IsShown() then UI.Refresh(true) end end)
+    -- While sending, redraw the status only; once it's done or stopped, re-scan: the bag
+    -- update for the sent items may have come mid-send, when it was skipped (v0.4.0).
+    ns.Mailer.OnChanged(function()
+        if frame and frame:IsShown() then UI.Refresh(ns.Mailer.Busy()) end
+    end)
     local settings = ns.SettingsUI.Frame()
     if settings then settings:HookScript("OnHide", refreshIfShown) end
 end)

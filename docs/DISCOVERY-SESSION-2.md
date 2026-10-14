@@ -69,6 +69,17 @@ runtime, and measures what no source can tell us.
 | Report bug | items kept before pricing (locked, soulbound) printed "vendor ... = 0c": fixed |
 | Changes | soulbound / quest items no longer listed (one "NOT MAILABLE" line in the scan); profession tools (Fishing Pole was on the mail list) stay |
 
+## Results of the v0.4.0 run (2026-10-14, partial)
+
+| Check | Result |
+|---|---|
+| Send (mouse, Roknua -> Rettana) | **works**: one press, `SendMail` to "Rettana Quilwrit", `MAIL_SEND_SUCCESS`, "Sent 1 mail(s)" |
+| Send on the Inbox tab | **refused** as designed: "switch to the Send Mail tab first" |
+| Row locks from the window, controller window + settings (Triangle, Cross, Circle; settings over the window) | **work** (log) |
+| Blocked actions | **none** with v0.4.0 (the listed ones are all pre-alpha3) |
+| Bug | the window kept showing the sent item: the bag update came mid-send and was skipped, and the final redraw reused the old scan. Fixed after v0.5.0 |
+| Report | the new "minimap" question showed an alpha1 answer with the same id: renamed `minimap_settings` |
+
 ## Phase 4c check: the bank alt view (about 10 minutes, after the Phase 3 check)
 
 On the bank alt, with the Phase 3 test mail taken from the mailbox:
