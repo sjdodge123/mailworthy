@@ -12,39 +12,32 @@ than at the vendor goes to your bank alt. The rest stays in your bags to vendor.
 - **Keyboard/mouse first, controller too:** everything works with keyboard and mouse, and with a gamepad alone.
 - **Lock items** you never want mailed: Alt+click (mouse) or L3 in your bags (controller); the lock follows the item.
 
-**Status: Phase 4c (bank alt view).** At a mailbox, the **Mailworthy** button (controller:
-Send Mail tab, then Triangle) opens the Mailworthy window: who gets the mail, what
-goes and why, what stays and why, and the total gain. **Send** mails it all to your
-bank alt in one press; pressing an item locks it so it stays. Item locks (Alt+click,
-or L3 in the bags) glow blue. `/mw` opens the settings (bank alt, minimum gain,
-disenchant, listing length; also the minimap button); `/mw scan` shows the numbers
-behind every verdict. On the bank alt, bag slots carry **AH / DE / V** tags (list,
-disenchant, vendor now) recomputed with its own prices, tooltips say why each item
-was mailed, and the Mailworthy button (or `/mw summary`) shows what to do with it all. Discovery tools (`/mw selftest`) are still in. The full design,
-phases and open questions are in [docs/PLAN.md](docs/PLAN.md).
+## Using it
 
-## Discovery build commands
+- **At a mailbox:** click **Mailworthy** under the mail window (controller: Send Mail
+  tab with R1, then Triangle). The window shows who gets the mail, what goes and why,
+  what stays and why, and the total gain. **Send** mails it all in one press, 12 stacks
+  per mail. Pressing an item locks it, so it stays.
+- **Lock items** you never want mailed: Alt+click (mouse), L3 in your bags (controller),
+  or press the item in the Mailworthy window. Locked items glow blue and stay locked
+  wherever they move.
+- **On your bank alt:** bag slots carry **AH / DE / V** tags (list it, disenchant it,
+  vendor it now) recomputed with that character's own prices; tooltips show today's
+  verdict and why the item was mailed; the Mailworthy button (or `/mw summary`) sums it up.
+- Profession tools (fishing poles, Mining Pick, Blacksmith Hammer, Skinning Knife, ...)
+  always stay. Gold is never attached.
 
 ```
-/mw                   settings: bank alt, minimum gain, disenchant, listing length, minimap button
-/mw selftest          the self-test window (also: the Mailworthy button on the mail window)
-/mw selftest report   the copyable report (paste it to the addon developer)
-/mw locks             this character's locked items
+/mw                   settings: bank alt, minimum gain, disenchant, listing length, tags, minimap button
 /mw scan              what Mailworthy would mail and why, with the numbers (sends nothing)
-/mw feature <name> on|off   mailButton, padTriangle, padNav, padLock, altClickLock, slotBorder, minimapButton (then /reload)
+/mw summary           on your bank alt: what to list, disenchant or vendor
+/mw locks             this character's locked items
+/mw report            a copyable report for bug reports
+/mw feature <name> on|off   turn one piece off to isolate a problem (then /reload); /mw feature lists them
 /mw help              all commands
 ```
 
-At a mailbox: click the **Mailworthy** button under the mail window (either tab). Controller: Send Mail tab (R1), then Triangle (Y).
-Lock an item (it stays locked wherever it moves): **Alt+click** it, or **L3** in your bags. Locked items glow blue.
-
-## Discovery (Phase 0)
-
-The first in-game checks run through LedgerLink's `/rl probe` (the `S5 …`
-lines from v1.3.0, plus the `S6 …` lines from PR #29). With Auctionator and Disenchantry
-installed and an Auctionator scan done: open a mailbox, click the **Send Mail**
-tab, run `/rl probe`, and paste the report back. Its answers go into the table
-below.
+The design, decision rule and phases are in [docs/PLAN.md](docs/PLAN.md).
 
 ## Beta unknowns (check in game)
 
@@ -56,10 +49,10 @@ each in-game round are in [docs/DISCOVERY-SESSION-2.md](docs/DISCOVERY-SESSION-2
 | `## Interface: 16001` | addon loads without "out of date" | confirmed for LedgerLink (build 1.60.1.70205) |
 | Auctionator `API.v1` on Forever | S5 | **confirmed** (Auctionator 340; price, age, exactness, disenchant calls) |
 | Real AH prices for bag items | `/mw scan` after an Auctionator scan | **seen** (v0.2.0 scan: Copper Ore 1s 74c, Fishing Pole 9s, all age 0); per unit still to confirm against the tooltip; Mailworthy assumes `GetAuctionPriceByItemLink` is per unit and `GetAuctionAgeByItemLink` is in days (Auctionator's convention; S5 saw age 0) |
-| Controller in the settings window away from the mailbox (our own D-pad / Cross / Circle bindings with no Blizzard window focused) | Phase 2 check | open |
+| Controller in the settings window away from the mailbox (our own D-pad / Cross / Circle bindings with no Blizzard window focused) | v0.4.0 report | **works**, no blocked actions |
 | Tooltip lines through `TooltipDataProcessor.AddTooltipPostCall` (item tooltips, bags and controller) | Phase 4c check | open |
 | Disenchantry installed | `C_AddOns.IsAddOnLoaded("Disenchantry")` (in Forever's API docs), else `DisenchantryDB` exists | open |
-| Adding "Lock slot" to the bag item menu (Triangle) | alpha1 + alpha2 | **taints controller input even unclicked**: removed; Alt+click and a Bag locks grid instead |
+| Adding "Lock slot" to the bag item menu (Triangle) | alpha1 + alpha2 | **taints controller input even unclicked**: removed; Alt+click, L3 and the Mailworthy window's rows instead |
 | Our own Triangle binding at the mailbox | alpha3/alpha4 self-test | **works**, no blocked actions |
 | D-pad to buttons under SendMailFrame (smart navigation) | alpha3/alpha4 self-test | **no**; Mailworthy's own D-pad / Cross / Circle bindings instead, **work** (alpha5) |
 | L3 lock in the bags, item locks that follow the item, blue glow | alpha5 self-test | **work** |
@@ -70,7 +63,8 @@ each in-game round are in [docs/DISCOVERY-SESSION-2.md](docs/DISCOVERY-SESSION-2
 | Postage / AH deposit | alpha1 self-test, LedgerLink S8 | **30c per item**; deposit floor(vendor x 5%) x 1 / 4 / 12 (2h / 8h / 24h) |
 | AH cut | an AH sale mail (`GetInboxInvoiceInfo`) | open (5% assumed) |
 | Disenchant prices for green items | Auctionator with a green item in bags | open |
-| SavedVariables survive `/reload` and relog | self-test marker | **work** (login, character switch, `/reload`) |
+| SavedVariables survive `/reload` and relog | self-test marker, v0.4.0 settings | **work** (login, character switch, `/reload`) |
+| One-press sending from the Mailworthy window (no money, no COD) | v0.4.0 | **works** (operator, 2026-10-14) |
 
 ## Picking up the work
 

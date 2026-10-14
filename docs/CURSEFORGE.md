@@ -47,17 +47,16 @@ them load first when installed.
 
 ## Toward v1.0
 
-Releases go to CurseForge from v0.2.0 on, while Mailworthy still carries its
-discovery tools (self-test window, Yes/No questions, attach / send tests,
-feature switches, logging). Before v1.0:
+Releases go to CurseForge from v0.2.0 on. Before v1.0:
 
-- [ ] Phases 1-3 of `docs/PLAN.md`: prices + valuation, settings + bank alt picker,
-      the real Mailworthy window (as in `media/ui-prototype.png`) and sending.
-- [ ] Remove the self-test window, the Questions page, the attach / send tests and
-      `/mw selftest`; keep slot locks (Alt+click, Bag locks), the border, the mail
-      buttons and the Triangle binding.
-- [ ] Keep the blocked-action recorder, but quiet: no chat spam for players.
+- [x] Phases 1-4c of `docs/PLAN.md`: prices + valuation, settings + bank alt picker,
+      the real Mailworthy window (as in `media/ui-prototype.png`), sending, bank alt view.
+- [x] Remove the self-test window, the Questions page, the attach / send tests and
+      `/mw selftest` (`/mw report` instead); keep item locks (Alt+click, L3, window
+      rows), the glow, the mail buttons and the Triangle binding.
+- [x] Keep the blocked-action recorder, but quiet: one chat line per session.
 - [x] Discovery session 2 passes: no blocked actions with mouse/keyboard or the
       controller (alpha4 and alpha5).
-- [ ] The description matches what shipped (update `media/curseforge-description.html`).
+- [x] The description matches what shipped (`media/curseforge-description.html`, Phase 5).
+- [ ] The v1.0 check passes (`docs/DISCOVERY-SESSION-2.md`).
 - [ ] Tag `v1.0.0`.

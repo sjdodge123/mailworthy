@@ -27,14 +27,4 @@ describe("characters", function()
         for _, e in ipairs(ns.Characters.Mailable()) do names[#names + 1] = e.name end
         assert.same({ "Ann Enchanter", "Zed Banker" }, names)
     end)
-
-    it("keeps a SavedVariables marker per login and reload, but not per zone change", function()
-        local ns = loadAddon()
-        ns.Fire("PLAYER_ENTERING_WORLD", true, false)
-        ns.Fire("PLAYER_ENTERING_WORLD", false, false)
-        ns.Fire("PLAYER_ENTERING_WORLD", false, true)
-        local kinds = {}
-        for _, l in ipairs(MailworthyDB.selftest.loads) do kinds[#kinds + 1] = l.kind end
-        assert.same({ "login", "reload" }, kinds)
-    end)
 end)

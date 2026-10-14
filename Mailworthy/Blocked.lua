@@ -8,6 +8,7 @@ local Blocked = {}
 ns.Blocked = Blocked
 
 Blocked.MAX = 10
+local told = false -- one chat line per session; the rest go to /mw report
 
 function Blocked.OnEvent(event, blockedAddon, fn)
     if blockedAddon ~= addonName then return end
@@ -18,8 +19,11 @@ function Blocked.OnEvent(event, blockedAddon, fn)
     }
     while #list > Blocked.MAX do table.remove(list, 1) end
     if ns.Log then ns.Log.Add("blocked", "%s %s after %s", event, tostring(fn), list[#list].after) end
-    ns.Print(string.format("The game blocked %s (after %s). Please report this to the addon developer.",
-        tostring(fn), list[#list].after))
+    if not told then
+        told = true
+        ns.Print(string.format("The game blocked %s (after %s). Please send /mw report to the addon developer.",
+            tostring(fn), list[#list].after))
+    end
 end
 
 --- Report lines for the recorded blocks, oldest first.

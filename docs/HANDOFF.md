@@ -66,9 +66,9 @@ must never break the game.
 | `BankAlt.lua` | bank alt view: verdicts with no postage (`Verdict`: ah / de / v), tags on bag buttons (a `Border` decorator), tooltip lines via `TooltipDataProcessor`, summary window (`/mw summary`, mail button on the bank alt); switches `bankAltTags`, `tooltipLines`; setting `tagsEverywhere` |
 | `SettingsUI.lua` | settings window (bank alt buttons + optional typed name with "not seen" second press, steppers, disenchant, 2/8/24h, minimap toggle); controller via `PadKey` set `settings` (works away from the mailbox) |
 | `MinimapButton.lua` | LedgerLink's minimap button (click: settings; drag: move); feature `minimapButton` |
-| `SelfTest.lua` / `SelfTestUI.lua` | **discovery build only**: window with pages Questions / Bag locks / Tests, attach + chained send tests, inbox checks, `/mw selftest report`. To be replaced by the real window (Phase 3) and removed before v1.0 |
+| `Report.lua` | `/mw report` (one copyable report: build, controller, switches, bank alt, settings, locks, last send, blocked actions, log), the copy box `/mw scan` uses, and the AH sale-mail reader (house cut). Replaced the discovery self-test in Phase 5 |
 
-Tests: `spec/` (busted on LuaJIT, 124 specs) with a WoW stub in
+Tests: `spec/` (busted on LuaJIT, 111 specs) with a WoW stub in
 `spec/support/wow_stub.lua` (bags, mail send tab, postage, timers with delays,
 override bindings, focused frame, item buttons that **error on any field write**).
 `Nav` drives the most recently shown visible window (`Nav.Root`); Circle closes only that one.
@@ -187,45 +187,23 @@ call `SendMail` anyway. Every Mailer timer checks the run id and `busy`.
 
 - alpha5's in-game check passed (DISCOVERY-SESSION-2.md "Results of the alpha5 run");
   the one bug it showed (`PadKey.Check` erroring while idle) is fixed in v0.2.0.
-- Latest tag `v0.2.0` (CurseForge release file, uploaded 2026-10-14): alpha5 + the
-  PadKey fix + Phase 1.
-- Latest tag `v0.3.0` (2026-10-14): settings window + minimap button.
-- v0.2.0 `/mw scan` checked by hand (DISCOVERY-SESSION-2.md "Results of the v0.2.0 scan"):
-  the math is right; fixed in Phase 3: vendor total on early keeps, soulbound / quest
-  items not listed, profession tools kept.
-- Latest tag `v0.4.0` (2026-10-14): the Mailworthy window and sending.
-- Phase 4c (bank alt view) built; in-game check pending (DISCOVERY-SESSION-2.md "Phase 4c check").
-- Phase 3 (the mailbox window + sending) built; in-game check pending (DISCOVERY-SESSION-2.md
-  "Phase 3 check"; the operator can't afford full stacks: cheap items are enough).
-- Still open: AH cut (needs a sale mail), disenchant prices for green items,
-  ForeverMail compatibility (replaces the mailbox window).
+- Tags so far: v0.2.0 (Phase 1), v0.3.0 (settings), v0.4.0 (sending), v0.5.0 (bank alt
+  view), v0.5.1 (window refreshes after sending); every one uploaded to CurseForge.
+- Confirmed in game: the `/mw scan` math (v0.2.0, by hand), settings with mouse and
+  controller and after `/reload`, one-press sending with no money / COD, the window
+  lists, row locks, minimap button (v0.4.0; operator 2026-10-14).
+- Phase 5 (release clean-up) built: the self-test is gone, `/mw report` replaces it.
+  Pending: the Phase 4c check and a v1.0 spot check on one build
+  (DISCOVERY-SESSION-2.md "v1.0 check"), then tag `v1.0.0` when the operator says so.
+- Still open: AH cut (needs a sale mail; the invoice reader in `Report.lua` logs it),
+  disenchant prices for green items, ForeverMail compatibility (replaces the mailbox window).
 
 ## 8. What's left (in order)
 
-1. ~~Process the alpha5 report~~ **Done** (all checks passed; idle `PadKey` error fixed).
-2. **Phase 1 - prices + valuation** (built; finish with the in-game `/mw scan` check): `Prices.lua` (Auctionator adapter: price, age,
-   exact, disenchant; vendor from `GetItemInfo`), `Valuation.lua` (pure decision rule
-   incl. deposit formula, postage share, thresholds, no-Auctionator common-items rule,
-   disenchant eligibility), `Bags.lua` (scan -> facts, locks, filters); `/mw scan`
-   prints what would be mailed and why. Most specs live here.
-3. **Phase 2 - settings** (built; finish with the in-game check): settings window (our own
-   frame, controller via `Nav`/`PadKey`; **not** registered with
-   `Settings.RegisterCanvasLayoutCategory`, see PLAN "Settings panel"): bank alt picker
-   (known characters as buttons, typed fallback with auto-complete + "not seen" warning,
-   saved name history), min gain steppers (5s / 25%), disenchant checkbox (default on
-   with Disenchantry, sticky once touched), listing length (2/8/24 h), minimap button
-   (keyboard/mouse only). Must survive `/reload`.
-4. **Phase 3 - the real mailbox window** (built; finish with the in-game check) per `media/ui-prototype.png`: To: bank alt,
-   mailing list with reason chips and gains, staying list with reasons, total, Send /
-   Settings / Close; Send = batches of 12 (attach, verify slot unchanged, `SendMail`,
-   chain on `MAIL_SEND_SUCCESS`, stop on `MAIL_FAILED`/close/combat); never money;
-   records `MailworthyDB.mailed`. Same `Nav`/`PadKey` controller model. Only on the
-   Send Mail tab for sending (we can't switch tabs; on the Inbox, mouse users click
-   the Send Mail tab, controller users press R1).
-5. **Phase 4c - bank alt view** (built; finish with the in-game check) per `media/bank-alt-prototype.png` (tags via the
-   `Border` technique, tooltip lines, summary).
-6. **Phase 5 - polish:** tooltip line on all characters (optional), remove the
-   self-test window / Questions / Tests / `/mw selftest`, keep switches + blocked
-   recorder (quiet), update `media/curseforge-description.html` to what shipped,
-   tag `v1.0.0`.
-7. README "Beta unknowns" table and PLAN's "Still open" list kept current after each report.
+1. Phases 1-5 are built (see PLAN "Phases" and the module table above).
+2. **Run the v1.0 check** with the operator (DISCOVERY-SESSION-2.md "v1.0 check"); fix
+   what fails in its own PR first.
+3. **Tag `v1.0.0`** when the operator says so.
+4. After 1.0: the AH cut from a sale mail (`[invoice]` lines in `/mw report`),
+   disenchant values for green items, ForeverMail compatibility.
+5. README "Beta unknowns" table and PLAN's "Still open" list kept current after each report.

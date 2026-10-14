@@ -6,8 +6,8 @@
 -- beta that tainted the whole gamepad input stack from login on, and the game
 -- then blocked jumping (DescendStop, RunBinding), targeting
 -- (SetPreferredGamepadInteractTarget), InteractUnit, ClearTarget and item use
--- (2026-10-13 self-test). Controller access now comes from plain buttons that
--- smart navigation reaches on its own. See docs/FOREVER-UI-NOTES.md.
+-- (2026-10-13 self-test). Controller access now comes from Mailworthy's own
+-- bindings (PadKey) and highlight (Nav). See docs/FOREVER-UI-NOTES.md.
 local _, ns = ...
 
 local Gamepad = {}

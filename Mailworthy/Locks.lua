@@ -9,8 +9,8 @@
 --     clicks; with only Alt held it matches none of its cases (chat link,
 --     dress-up, expand), so Blizzard does nothing else with the click.
 --   * controller: L3 while the bags have focus (PadKey: our own binding; the
---     selected slot is read from SmartNavigation, read-only), or the "Bag
---     locks" page of the Mailworthy window.
+--     selected slot is read from SmartNavigation, read-only), or pressing the
+--     item's row in the Mailworthy window.
 --
 -- Not the gamepad Triangle "More" menu: adding an entry there (Menu.ModifyMenu
 -- on MORE_CONTEXT_ACTIONS) taints the gamepad UI by design; jumping, targeting

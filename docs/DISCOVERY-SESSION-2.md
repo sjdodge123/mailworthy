@@ -69,7 +69,31 @@ runtime, and measures what no source can tell us.
 | Report bug | items kept before pricing (locked, soulbound) printed "vendor ... = 0c": fixed |
 | Changes | soulbound / quest items no longer listed (one "NOT MAILABLE" line in the scan); profession tools (Fishing Pole was on the mail list) stay |
 
-## Results of the v0.4.0 run (2026-10-14, partial)
+## v1.0 check (about 10 minutes, on the Phase 5 build)
+
+The self-test window is gone; answer in chat, and paste `/mw report` (from the bank alt)
+if anything fails.
+
+**On the bank alt (Phase 4c):**
+1. Run Auctionator's scan, open your bags: **AH / DE / V** tags top left, a legend under
+   the bags; none on locked or soulbound items.
+2. Hover (mouse) or select (controller) an item: a **Mailworthy** tooltip section with
+   today's verdict; the item your main mailed also says "Mailed for: ..., from <main>".
+3. At a mailbox, the **Mailworthy** button (controller: Triangle) opens the summary;
+   Circle closes it. `/mw summary` works away from the mailbox.
+
+**On your main (Phase 5):**
+4. Mail something cheap with the Mailworthy window (lower the minimum gain in `/mw` if
+   needed): the window clears the sent item by itself.
+5. `/mw selftest` now just shows the help; `/mw report` opens the copyable report.
+6. Play a minute with the controller on: any "The game blocked" message?
+
+## Results of the v0.4.0 run (2026-10-14)
+
+**Operator, 2026-10-14:** the mail arrived with no money or COD; the window lists looked
+right (tools kept); the minimap icon opens settings and its toggle hides it; settings
+survive `/reload`. Phase 3 confirmed.
+
 
 | Check | Result |
 |---|---|
@@ -80,7 +104,7 @@ runtime, and measures what no source can tell us.
 | Bug | the window kept showing the sent item: the bag update came mid-send and was skipped, and the final redraw reused the old scan. Fixed after v0.5.0 |
 | Report | the new "minimap" question showed an alpha1 answer with the same id: renamed `minimap_settings` |
 
-## Phase 4c check: the bank alt view (about 10 minutes, after the Phase 3 check)
+## Phase 4c check (superseded by the v1.0 check)
 
 On the bank alt, with the Phase 3 test mail taken from the mailbox:
 1. Run Auctionator's scan at the AH, open your bags: items carry small **AH / DE / V**
@@ -94,7 +118,7 @@ On the bank alt, with the Phase 3 test mail taken from the mailbox:
 4. On your main: no tags (unless settings say "every character"; try the toggle).
 5. Play a minute: any "The game blocked" message? Then `/mw selftest report`.
 
-## Phase 3 check: the Mailworthy window and Send (about 15 minutes)
+## Phase 3 check (done, v0.4.0)
 
 Nothing to buy: any cheap tradeable item works. To see a MAIL line, drop the minimum
 gain in settings (`/mw`, Amount and Percent all the way down), or lock everything you

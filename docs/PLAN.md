@@ -52,7 +52,7 @@ Per input:
 |---|---|---|
 | Start at the mailbox | Send Mail tab (R1), then **Triangle**, or D-pad to the **Mailworthy** button + Cross | click **Mailworthy** under the mail window (either tab) |
 | Preview: send / settings / close | D-pad + Cross on its buttons; Triangle closes | click |
-| Lock an item | **L3** on the item in your bags, or the **Bag locks** page | **Alt+click** the bag item |
+| Lock an item | **L3** on the item in your bags, or Cross on its row in the Mailworthy window | **Alt+click** the bag item, or click its row |
 | See locked items | blue quest-style glow in your bags | same |
 | Settings | the Mailworthy button (when not set up), the preview's Settings button | same, plus `/mw` and the minimap button |
 
@@ -228,7 +228,7 @@ preview shows which source priced each line.
   controller doesn't rely on it.
 - On `MAIL_CLOSED`: close the preview.
 - Anything the game blocks is recorded (`ADDON_ACTION_FORBIDDEN/BLOCKED`, as
-  in LedgerLink) and shown by `/mw probe`.
+  in LedgerLink) and shown by `/mw report`.
 - **ForeverMail compatibility:** ForeverMail replaces the standard mailbox
   window, so a button anchored to `MailFrame` may never show for its users.
   Anchor to whichever mail window is visible (ForeverMail's frame if present,
@@ -247,7 +247,7 @@ preview shows which source priced each line.
   binding (only while the bags are the focused window; L3 is auto-run in the
   world, untouched), reading the selected slot from
   `SmartNavigation:GetCurrentButton()` (read-only); a hint under the bags says so.
-  Also the **Bag locks** page of the Mailworthy window. Not the gamepad Triangle
+  Also the item's row in the Mailworthy window. Not the gamepad Triangle
   "More" menu: entries there taint controller input (alpha1/alpha2).
 - **Visible:** locked items glow blue: Blizzard's quest-item border
   (`UI-Icon-QuestBorder`) desaturated and tinted blue, plus an additive copy.
@@ -308,7 +308,7 @@ Disenchantry are optional dependencies (`.pkgmeta`, `## OptionalDeps`).
 | `Config.lua` | saved settings: bank alt per realm + faction, name history, steppers, sticky disenchant default | busted |
 | `SettingsUI.lua` / `Widgets.lua` | the settings window (bank alt picker, steppers, toggles); shared window helpers | busted + in game |
 | `MinimapButton.lua` | minimap button that opens settings (from LedgerLink) | busted |
-| `Probe.lua` | `/mw probe`, one copyable report | busted |
+| `Report.lua` | `/mw report`, one copyable report; AH sale mails (house cut) | busted |
 
 SavedVariables: `MailworthyDB` (account: characters, bank alt per
 realm+faction, name history, settings, blocked actions) and
@@ -322,9 +322,9 @@ realm+faction, name history, settings, blocked actions) and
 | **1 - Prices + valuation** | `Prices`, `Valuation`, `Bags`; `/mw scan` shows what would be mailed and why, with the numbers (sends nothing). **Built**, in-game check pending | `/mw scan` agrees with a hand calculation on real bags |
 | **2 - Settings + characters** | settings panel, minimap button, bank alt picker with history and auto-complete, disenchant checkbox default, thresholds, fees | bank alt survives `/reload` and relog (the beta's SavedVariables bug), and every settings control works with the gamepad alone. **Built**, in-game check pending |
 | **3 - Mailbox + mailing** | mailbox button (opens settings when not set up), preview with recipient + Settings button, one press sends every batch (chained). **Built**, in-game check pending | 30+ items reach the bank alt in under 3 presses, with nothing locked, bound or unpriced sent; works with ForeverMail installed |
-| **4 - Item locks** | **done** in alpha5 (Alt+click, L3, Bag locks page, blue glow); no never-mail list (operator, 2026-10-13: locks cover it) | locked items never appear in the preview's mail list |
+| **4 - Item locks** | **done** in alpha5 (Alt+click, L3, blue glow; rows in the Mailworthy window since Phase 3); no never-mail list (operator, 2026-10-13: locks cover it) | locked items never appear in the preview's mail list |
 | **4c - Bank alt view** | tags on the bank alt's bag slots (recomputed with fresh prices), tooltip lines with the original reason, summary window | tags match a hand calculation with fresh prices; a changed verdict shows both. **Built** (`BankAlt.lua`), in-game check pending |
-| **5 - Polish** | tooltip line ("Mailworthy: AH +2g 10s vs vendor"), release on GitHub + CurseForge (Forever flavor) | tagged release installs cleanly |
+| **5 - Polish** | self-test removed, `/mw report` instead; blocked-action chat line once per session; tooltip lines on every character via the "tags everywhere" setting; description matches what shipped. **Built**; v1.0 check pending | tagged release installs cleanly |
 
 ## Beta unknowns
 
@@ -362,7 +362,7 @@ it, is in [DISCOVERY-SESSION-2.md](DISCOVERY-SESSION-2.md) (U1-U20).
 
 ## Carried over from LedgerLink
 
-- One command for in-game checks (`/mw probe`), never lists of `/dump` lines.
+- One command for in-game checks (`/mw report`), never lists of `/dump` lines.
 - Every unverified API is wrapped in `pcall` / nil checks and listed in README "Beta unknowns".
 - Never call `SetFocus` (gamepad crash, 2026-10-05). Record blocked actions.
 - Keep the logic pure and test it with busted on LuaJIT; `luacheck .` stays clean.

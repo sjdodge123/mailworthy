@@ -112,7 +112,7 @@ describe("bag scan", function()
     it("shows the vendor total for items kept before pricing (v0.2.0 printed '= 0c')", function()
         ns.Locks.ToggleItem(2589, "link", "spec")
         ns.HandleSlash("scan")
-        local text = ns.SelfTestUI.ReportText()
+        local text = ns.Report.Text()
         assert.truthy(text:find("KEEP [Linen Cloth] x20: locked - vendor 10c each = 2s", 1, true), text)
     end)
 
@@ -125,7 +125,7 @@ describe("bag scan", function()
 
     it("/mw scan shows the workings in the copy box and sends nothing", function()
         ns.HandleSlash("scan")
-        local text = ns.SelfTestUI.ReportText()
+        local text = ns.Report.Text()
         local function has(s) assert.truthy(text:find(s, 1, true), "missing: " .. s .. "\n" .. text) end
         has("prices: Auctionator")
         has("settings: 24h listing (deposit x12), AH cut 5%, postage 30c per stack, min gain 5s and 25%, "

@@ -165,6 +165,6 @@ function Bags.Scan()
         t.mails, money(t.gain), #result.keep, result.priced and "Auctionator" or "none")
     ns.Print(string.format("would mail %d items (%d stacks, %d mail(s)), %s more than vendoring; keeps %d. Details in the window.",
         t.items, t.stacks, t.mails, money(t.gain), #result.keep))
-    ns.SelfTestUI.ShowReport(Bags.Report(result), "Mailworthy scan (sends nothing)")
+    ns.Report.Show(Bags.Report(result), "Mailworthy scan (sends nothing)")
     return result
 end
