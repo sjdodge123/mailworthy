@@ -276,7 +276,13 @@ bank alt's own, fresh Auctionator data** ([media/bank-alt-prototype.png](../medi
   configured bank alt); a setting shows them on every character.
 - **Taint:** textures / font strings on bag buttons and tooltip lines only (tooltip
   lines are what Auctionator itself adds; no blocks were ever blamed on it).
-  Nothing is written into Blizzard tables.
+  Nothing is written into Blizzard tables. Tooltip lines use
+  `TooltipDataProcessor.AddTooltipPostCall`, which Forever runs insecurely by design
+  (`forceinsecure` behind an attribute delegate, `TooltipDataHandler.lua`).
+- **As built:** no postage in the bank alt's verdicts (nothing is mailed from there);
+  V = the vendor wins today; the Mailworthy button (Triangle) on the bank alt opens the
+  summary, also `/mw summary` and the settings' "Bank alt summary" button; switches
+  `bankAltTags`, `tooltipLines`; setting "AH / DE / V tags: every character".
 
 ## Release and CurseForge
 
@@ -317,7 +323,7 @@ realm+faction, name history, settings, blocked actions) and
 | **2 - Settings + characters** | settings panel, minimap button, bank alt picker with history and auto-complete, disenchant checkbox default, thresholds, fees | bank alt survives `/reload` and relog (the beta's SavedVariables bug), and every settings control works with the gamepad alone. **Built**, in-game check pending |
 | **3 - Mailbox + mailing** | mailbox button (opens settings when not set up), preview with recipient + Settings button, one press sends every batch (chained). **Built**, in-game check pending | 30+ items reach the bank alt in under 3 presses, with nothing locked, bound or unpriced sent; works with ForeverMail installed |
 | **4 - Item locks** | **done** in alpha5 (Alt+click, L3, Bag locks page, blue glow); no never-mail list (operator, 2026-10-13: locks cover it) | locked items never appear in the preview's mail list |
-| **4c - Bank alt view** | tags on the bank alt's bag slots (recomputed with fresh prices), tooltip lines with the original reason, summary window | tags match a hand calculation with fresh prices; a changed verdict shows both |
+| **4c - Bank alt view** | tags on the bank alt's bag slots (recomputed with fresh prices), tooltip lines with the original reason, summary window | tags match a hand calculation with fresh prices; a changed verdict shows both. **Built** (`BankAlt.lua`), in-game check pending |
 | **5 - Polish** | tooltip line ("Mailworthy: AH +2g 10s vs vendor"), release on GitHub + CurseForge (Forever flavor) | tagged release installs cleanly |
 
 ## Beta unknowns

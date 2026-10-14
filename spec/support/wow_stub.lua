@@ -79,13 +79,18 @@ end
 --- A bag item button like Blizzard's (pooled): GetBagID / GetID, textures may be
 --- created on it, but writing any Lua field on it is an error (taint guard).
 function WowStub.itemButton(bag, slot)
-    local b = { bag = bag, slot = slot, textures = {}, buttonContext = "ButtonContext_ContainerFrameItemButton" }
+    local b = { bag = bag, slot = slot, textures = {}, fontStrings = {}, buttonContext = "ButtonContext_ContainerFrameItemButton" }
     function b.GetBagID() return b.bag end
     function b.GetID() return b.slot end
     function b.CreateTexture()
         local t = WowStub.newWidget("Texture")
         table.insert(b.textures, t)
         return t
+    end
+    function b.CreateFontString()
+        local f = WowStub.newWidget("FontString")
+        table.insert(b.fontStrings, f)
+        return f
     end
     return setmetatable(b, { __newindex = function(_, k) error("wrote field " .. tostring(k) .. " on a Blizzard item button") end })
 end

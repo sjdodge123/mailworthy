@@ -35,6 +35,8 @@ read_globals = {
     "CreateFrame", "UIParent", "UISpecialFrames", "ChatFontNormal",
     -- minimap button
     "Minimap", "GetCursorPosition",
+    -- bank alt tooltip lines (TooltipDataProcessor is read with rawget)
+    "TooltipUtil",
 }
 
 files["spec/**"] = {
@@ -42,6 +44,6 @@ files["spec/**"] = {
     globals = { "WowStub", "print", "unpack", "time", "date", "CreateFrame", "InboxFrame", "SendMailFrame",
         "C_Container", "Auctionator", "Menu", "MailworthySelfTestYes1", "MailworthySelfTestNo3", "MailFrame",
         "MailworthyMailButton", "GamepadSharedUtility", "GamepadMode", "ContainerFrameCombinedBags", "ContainerFrameContainer",
-        "HandleModifiedItemClick", "MailworthyPadWatcher", "DisenchantryDB", "MailworthyInboxButton", "GameTooltip", "SmartNavigation", "Minimap", "MailworthyMinimapButton", "MailworthySettingsFrame" },
+        "HandleModifiedItemClick", "MailworthyPadWatcher", "DisenchantryDB", "MailworthyInboxButton", "GameTooltip", "SmartNavigation", "Minimap", "MailworthyMinimapButton", "MailworthySettingsFrame", "TooltipDataProcessor", "Enum", "TooltipUtil", "MailworthySummaryFrame" },
     allow_defined_top = true,
 }

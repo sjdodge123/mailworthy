@@ -72,8 +72,10 @@ end
 --- Which binding set is wanted right now (nil = none).
 function PadKey.Wanted()
     if InCombatLockdown() or not ns.MailButton.GamepadUI() then return nil end
-    local settings = ns.SettingsUI and ns.SettingsUI.Frame()
-    if settings and settings:IsShown() and ns.Features.On("padNav") then return "settings" end
+    -- "settings": our free-standing windows (settings, bank alt summary), anywhere.
+    local settings, summary = ns.SettingsUI and ns.SettingsUI.Frame(), ns.BankAlt and ns.BankAlt.Frame()
+    local standalone = (settings and settings:IsShown()) or (summary and summary:IsShown())
+    if standalone and ns.Features.On("padNav") then return "settings" end
     local focused = activeFrame()
     local mail = rawget(_G, "MailFrame")
     if focused ~= nil and focused == mail and mail:IsShown() then
