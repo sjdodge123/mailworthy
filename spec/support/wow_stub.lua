@@ -94,6 +94,7 @@ end
 function WowStub.containerFrame()
     local f = { Items = {} }
     function f.UpdateItems() end
+    function f.CreateFontString() return WowStub.newWidget("FontString") end -- PadKey's L3 hint
     function f.EnumerateValidItems(self)
         local i = 0
         return function()

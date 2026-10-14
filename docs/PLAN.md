@@ -15,7 +15,7 @@ LedgerLink are listed at the end.
 |---|---|
 | **Mailbox button (the main entry)** | Opening a mailbox shows a **Mailworthy** button on the mail window. Not set up yet: pressing it opens the settings panel right there. Set up: pressing it opens the preview; pressing **Send** in the preview mails. |
 | **Minimap button** | Opens the settings panel anywhere. Keyboard/mouse only (the controller can't reach minimap buttons, U20). Same pattern as LedgerLink's minimap button. |
-| Slash commands (`/mailworthy`, `/mw`) | Backup for both, plus `/mw probe` and `/mw scan`. Not the main way in. |
+| Slash commands (`/mailworthy`, `/mw`) | `/mw` alone opens the settings window; `/mw scan`, `/mw help`. Not the main way in. |
 
 ## Input: controller and keyboard/mouse (every window)
 
@@ -95,9 +95,15 @@ Prices come from Auctionator's own scans. Mailworthy never scans the AH itself.
 ## Settings panel
 
 Opened from the mailbox button (when not set up), the preview's **Settings**
-button, the minimap button or `/mw`. One panel, controller-reachable
-throughout. Registered with `Settings.RegisterCanvasLayoutCategory` (the old
-`InterfaceOptions_AddCategory` is gone on Forever).
+button (in the discovery build: the Mailworthy window's **Settings** button), the
+minimap button or `/mw`. One window (`SettingsUI.lua`, data in `Config.lua`), every
+control a button, so the controller reaches all of it: while it's open (out of
+combat), Mailworthy's own bindings drive it anywhere, not just at the mailbox (D-pad
+moves the highlight, Cross presses, Circle closes).
+
+**Not registered in Blizzard's options panel** (`Settings.RegisterCanvasLayoutCategory`):
+that hands our frame and category tables to a panel the controller UI navigates,
+the same pattern that made the More-menu entry taint gamepad input (alpha2).
 
 | Setting | Default | Scope |
 |---|---|---|
@@ -109,7 +115,6 @@ throughout. Registered with `Settings.RegisterCanvasLayoutCategory` (the old
 | Listing length, relist factor | **24h** (duration 3), 1.0 (operator, 2026-10-13). Deposit = floor(vendor value of the stack x 5%) x 1 / 4 / 12 for 2h / 8h / 24h (measured; the game labels durations 1/2/3 "2 / 8 / 24 Hours"), so the default is **x12** | account |
 | Postage | **30c per attached item** (measured 2026-10-13) | account |
 | Locked items | none | **per character** |
-| Never-mail items | none (add from the preview) | account |
 | Minimap button | shown | account |
 
 ### Bank alt picker (no mistypes)
@@ -161,7 +166,7 @@ locked; grey junk and everything uncommon or better stay in the bags
 
 The item stays in your bags (listed in the preview's kept list with the
 reason) when any of these hold:
-- it's locked (item lock), or on the never-mail list;
+- it's locked (item lock; there's no separate never-mail list, operator 2026-10-13);
 - it's soulbound, a quest item, or currently locked by the game;
 - it has no price while Auctionator is installed (missing data for one item never
   means "mail it"; without Auctionator at all, the common-items rule above applies);
@@ -290,12 +295,13 @@ Disenchantry are optional dependencies (`.pkgmeta`, `## OptionalDeps`).
 | `MailButton.lua` | the Mailworthy button under the mail window (mouse; controller via Triangle, `PadKey.lua`; writes nothing into the controller UI) | busted + in game |
 | `Nav.lua` / `PadKey.lua` | Mailworthy's own controller highlight and override bindings for its windows | busted + in game |
 | `Locks.lua` / `Border.lua` | item locks (Alt+click, L3) and their blue glow | busted + in game |
-| `Settings.lua` | settings panel: bank alt picker, toggles, numbers, lock grid | in game |
-| `Minimap.lua` | minimap button that opens settings (from LedgerLink) | busted |
+| `Config.lua` | saved settings: bank alt per realm + faction, name history, steppers, sticky disenchant default | busted |
+| `SettingsUI.lua` / `Widgets.lua` | the settings window (bank alt picker, steppers, toggles); shared window helpers | busted + in game |
+| `MinimapButton.lua` | minimap button that opens settings (from LedgerLink) | busted |
 | `Probe.lua` | `/mw probe`, one copyable report | busted |
 
 SavedVariables: `MailworthyDB` (account: characters, bank alt per
-realm+faction, name history, settings, never-mail list, blocked actions) and
+realm+faction, name history, settings, blocked actions) and
 `MailworthyCharDB` (locked items).
 
 ## Phases
@@ -304,9 +310,9 @@ realm+faction, name history, settings, never-mail list, blocked actions) and
 |---|---|---|
 | **0 - Discovery** | LedgerLink `/rl probe` S5 (ledger-link PR #28, released in v1.3.0) and S6 (PR #29); repo, CI, packaging | the S5 + S6 report is back and its answers are in README "Beta unknowns" |
 | **1 - Prices + valuation** | `Prices`, `Valuation`, `Bags`; `/mw scan` shows what would be mailed and why, with the numbers (sends nothing). **Built**, in-game check pending | `/mw scan` agrees with a hand calculation on real bags |
-| **2 - Settings + characters** | settings panel, minimap button, bank alt picker with history and auto-complete, disenchant checkbox default, thresholds, fees | bank alt survives `/reload` and relog (the beta's SavedVariables bug), and every settings control works with the gamepad alone |
+| **2 - Settings + characters** | settings panel, minimap button, bank alt picker with history and auto-complete, disenchant checkbox default, thresholds, fees | bank alt survives `/reload` and relog (the beta's SavedVariables bug), and every settings control works with the gamepad alone. **Built**, in-game check pending |
 | **3 - Mailbox + mailing** | mailbox button (opens settings when not set up), preview with recipient + Settings button, one press sends every batch (chained) | 30+ items reach the bank alt in under 3 presses, with nothing locked, bound or unpriced sent; works with ForeverMail installed |
-| **4 - Item locks** | mostly done in alpha5 (Alt+click, L3, Bag locks page, blue glow); left: never-mail list from the preview | locked items never appear in the preview's mail list |
+| **4 - Item locks** | **done** in alpha5 (Alt+click, L3, Bag locks page, blue glow); no never-mail list (operator, 2026-10-13: locks cover it) | locked items never appear in the preview's mail list |
 | **4c - Bank alt view** | tags on the bank alt's bag slots (recomputed with fresh prices), tooltip lines with the original reason, summary window | tags match a hand calculation with fresh prices; a changed verdict shows both |
 | **5 - Polish** | tooltip line ("Mailworthy: AH +2g 10s vs vendor"), release on GitHub + CurseForge (Forever flavor) | tagged release installs cleanly |
 
@@ -323,7 +329,7 @@ realm+faction, name history, settings, never-mail list, blocked actions) and
 - `ATTACHMENTS_MAX_SEND` 12; `GetSendMailPrice()` 30 with nothing attached;
   `C_Mail.IsCommandPending` exists (useful for sending mails in a row).
 - The AH is the modern `C_AuctionHouse` (commodities); no classic AH functions.
-- Settings API: `Settings.RegisterCanvasLayoutCategory`.
+- Settings API: `Settings.RegisterCanvasLayoutCategory` (exists; Mailworthy doesn't use it, see "Settings panel").
 - Mail auto-complete has no account-characters flag.
 - Bag item buttons have no global names; combined bags exist; bags can be sorted.
 - The controller UI is Blizzard's "smart navigation" (`gamepadFooter` tables,

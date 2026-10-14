@@ -11,6 +11,9 @@
 --   window  mail window focused, Mailworthy window open:    Triangle closes,
 --           D-pad moves Mailworthy's highlight (Nav), Cross presses, Circle closes
 --   bags    bags focused:  L3 locks / unlocks the selected item (Locks)
+--   settings  the settings window open, anywhere (out of combat): D-pad moves,
+--           Cross presses, Circle closes it. Our own window, so no Blizzard
+--           panel needs focus; the bindings go as soon as it closes.
 --
 -- Blizzard binds unused face buttons to nothing while a window is focused and
 -- re-applies its bindings on its own refreshes, so ours are re-applied when
@@ -31,7 +34,14 @@ PadKey.SETS = {
         PADDLEFT = "MailworthyPadLeft", PADDRIGHT = "MailworthyPadRight",
     },
     bags = { PADLSTICK = "MailworthyPadLock" },
+    settings = {
+        PAD1 = "MailworthyPadCross", PAD2 = "MailworthyPadCircle",
+        PADDUP = "MailworthyPadUp", PADDDOWN = "MailworthyPadDown",
+        PADDLEFT = "MailworthyPadLeft", PADDRIGHT = "MailworthyPadRight",
+    },
 }
+
+local NAVIGATES = { window = true, settings = true }
 
 local watcher, active, elapsed = nil, nil, 0
 PadKey.stats = { applies = 0, clears = 0, presses = 0, sets = {} }
@@ -62,6 +72,8 @@ end
 --- Which binding set is wanted right now (nil = none).
 function PadKey.Wanted()
     if InCombatLockdown() or not ns.MailButton.GamepadUI() then return nil end
+    local settings = ns.SettingsUI and ns.SettingsUI.Frame()
+    if settings and settings:IsShown() and ns.Features.On("padNav") then return "settings" end
     local focused = activeFrame()
     local mail = rawget(_G, "MailFrame")
     if focused ~= nil and focused == mail and mail:IsShown() then
@@ -82,7 +94,7 @@ local function clear(reason, entering)
     pcall(ClearOverrideBindings, watcher)
     ns.Log.Add("pad", "%s bindings cleared (%s)", active, reason)
     PadKey.stats.clears = PadKey.stats.clears + 1
-    if active == "window" then ns.Nav.Stop() end
+    if NAVIGATES[active] then ns.Nav.Stop() end
     active = nil
 end
 
@@ -94,7 +106,7 @@ function PadKey.Check()
         active = want
         PadKey.stats.sets[want] = (PadKey.stats.sets[want] or 0) + 1
         ns.Log.Add("pad", "%s bindings on", want)
-        if want == "window" then ns.Nav.Reset() end
+        if NAVIGATES[want] then ns.Nav.Reset() end
     end
     if not active then return end -- nothing wanted and nothing bound (most of the time)
     for key, buttonName in pairs(PadKey.SETS[active]) do
@@ -149,9 +161,10 @@ function PadKey.Create()
     padButton("MailworthyPadTriangle", function() ns.MailButton.Activate("Triangle") end)
     padButton("MailworthyPadCross", function() ns.Nav.Press() end)
     padButton("MailworthyPadCircle", function()
-        local window = ns.SelfTestUI.Frame()
-        if window then window:Hide() end
-        ns.Log.Add("pad", "Circle closed the window")
+        local closed = ns.Nav.CloseTop()
+        ns.Log.Add("pad", "Circle closed %s", closed and tostring(closed:GetName()) or "nothing")
+        -- Back in the window below (the self-test under the settings): start at its top-left.
+        if ns.Nav.Root() then ns.Nav.Reset() end
     end)
     for _, dir in ipairs({ "Up", "Down", "Left", "Right" }) do
         padButton("MailworthyPad" .. dir, function() ns.Nav.Move(dir:lower()) end)

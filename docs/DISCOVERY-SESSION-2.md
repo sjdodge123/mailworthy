@@ -59,16 +59,37 @@ runtime, and measures what no source can tell us.
 | Triangle opens / closes the window; D-pad highlight reaches every button; Cross presses; Circle closes only our window | **work** |
 | Bug | `PadKey.Check` errored ten times a second while nothing of ours was focused (`pairs(nil)`, caught by `pcall`, harmless in game) and flooded the 400-line log. Fixed after alpha5; report lines now say which build recorded each answer and blocked action |
 
-## Phase 1 check: `/mw scan` (about 5 minutes)
+## Phase 1 + 2 check: `/mw scan` and settings (about 10 minutes)
 
-1. With Auctionator installed, open the AH and run its full scan (prices only appear after a scan).
-2. Have in your bags: a stack worth listing (e.g. ore), a cheap stack (e.g. Linen Cloth),
-   something soulbound, a locked item (Alt+click or L3), and a green armor or weapon if you have one.
-3. `/mw scan`. The window lists every item: **MAIL** (AH / DE) or **KEEP** with the reason and
-   the numbers (vendor, AH price and age, deposit, postage, gain and what it needed).
-4. Pick two lines and check them against the game: the vendor price on the tooltip, Auctionator's
-   price on the tooltip. Does the verdict look right to you?
-5. Copy the window's text and paste it back, plus anything that looks wrong.
+Nothing to buy: the scan values whatever is already in your bags, single items and
+small stacks included (most will say KEEP; the numbers are what we check). Run it on
+the build with the settings window.
+
+**Prices (Phase 1)**
+1. With Auctionator installed, open the AH and run its full scan (prices only appear
+   after a scan). Lock one item (Alt+click or L3).
+2. `/mw scan`. Every item gets a line: **MAIL** (AH / DE / COMMON) or **KEEP** with the
+   reason and the numbers (vendor, AH price and age, deposit, postage, gain and what it needed).
+3. Pick two items and compare with their tooltips: vendor price, Auctionator's price.
+   Is the AH price per item (not per stack)? The locked item should say "locked".
+
+**Settings (Phase 2), mouse/keyboard**
+4. `/mw`: the settings window. Your other character is listed: click it (it shows "> name <").
+   Click the minus / plus steppers, the disenchant button, 8h then 24h, and the minimap
+   button toggle (the minimap icon hides and shows). Then click the minimap icon: settings
+   open again.
+5. Type a made-up name in the box and press **Use name**: it warns first. Press again:
+   it's saved and listed "(not seen)"; press its **Forget**. Pick your real alt again.
+6. `/reload`, `/mw`: everything is as you left it.
+
+**Settings, controller** (`/reload` with the controller on)
+7. At a mailbox: Send Mail tab (R1), Triangle, then the window's **Settings** button
+   (D-pad + Cross). The highlight is on the settings window now: move to every button,
+   change something with Cross, Circle closes settings only (the Mailworthy window stays).
+8. Away from the mailbox: `/mw` (or the minimap with the mouse), then D-pad / Cross /
+   Circle work in it. Play a minute after closing it: any "The game blocked" message?
+9. `/mw scan` once more (it shows the bank alt and your settings), then
+   `/mw selftest report`; paste both back.
 
 ## Rerun with alpha5 (done; steps kept for the next build)
 
