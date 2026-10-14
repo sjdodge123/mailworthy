@@ -28,7 +28,7 @@ SelfTest.QUESTIONS = {
     { id = "settings_mouse", text = "Settings: every button works with the mouse" },
     { id = "settings_pad", text = "Settings with the controller, at the mailbox and away from it" },
     { id = "settings_saved", text = "Settings are unchanged after /reload" },
-    { id = "minimap", text = "The minimap icon opens settings; its toggle hides it" },
+    { id = "minimap_settings", text = "The minimap icon opens settings; its toggle hides it" },
     { id = "arrived", text = "On the bank alt: the Mailworthy mail arrived" },
     { id = "tags", text = "Bank alt: bag items show AH / DE / V tags, and they look right" },
     { id = "tooltip", text = "Bank alt: the tooltip has today's verdict and 'Mailed for'" },
