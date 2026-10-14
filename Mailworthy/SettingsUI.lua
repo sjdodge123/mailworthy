@@ -14,11 +14,11 @@ local UI = {}
 ns.SettingsUI = UI
 
 UI.MAX_CHOICES = 6
-local WIDTH, HEIGHT, ROW = 420, 548, 26
+local WIDTH, HEIGHT, ROW = 420, 580, 26
 
 local frame, nameBox, nameHint, current, emptyHint, legend
 local choiceRows = {}
-local amountLabel, pctLabel, disenchantButton, minimapButton
+local amountLabel, pctLabel, disenchantButton, minimapButton, tagsButton
 local durationButtons = {}
 local pendingUnknown -- a typed name Mailworthy hasn't seen, waiting for a second press
 
@@ -167,9 +167,18 @@ function UI.Create()
         if ns.MinimapButton then ns.MinimapButton.Refresh() end
         UI.Refresh()
     end, "MailworthySettingsMinimap")
-    minimapButton:SetPoint("TOPLEFT", 24, -478)
+    minimapButton:SetPoint("TOPLEFT", 24, -510)
+    tagsButton = W.Button(frame, "", 220, function()
+        ns.Config.Set("tagsEverywhere", not ns.Config.Flag("tagsEverywhere"))
+        if ns.BankAlt then ns.BankAlt.Redraw() end
+        UI.Refresh()
+    end, "MailworthySettingsTags")
+    tagsButton:SetPoint("TOPLEFT", 24, -478)
+    W.Button(frame, "Bank alt summary", 140, function()
+        if ns.BankAlt then ns.BankAlt.ShowWindow() end
+    end, "MailworthySettingsSummary"):SetPoint("TOPRIGHT", -24, -478)
     W.Button(frame, "Done", 100, function() frame:Hide() end, "MailworthySettingsDone")
-        :SetPoint("TOPRIGHT", -24, -478)
+        :SetPoint("TOPRIGHT", -24, -510)
     legend = W.Label(frame, "GameFontHighlightSmall")
     legend:SetPoint("BOTTOM", 0, 18)
     ns.Nav.Attach(frame)
@@ -210,6 +219,7 @@ function UI.Refresh()
         b:SetText(selected(ns.Valuation.DURATION_HOURS[i] .. "h", v.duration == i))
     end
     minimapButton:SetText("Minimap button: " .. (ns.Config.MinimapShown() and "shown" or "hidden"))
+    tagsButton:SetText("AH / DE / V tags: " .. (ns.Config.Flag("tagsEverywhere") and "every character" or "bank alt only"))
     legend:SetText(ns.MailButton.GamepadUI() and W.Legend() or "")
 end
 

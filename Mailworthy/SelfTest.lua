@@ -16,7 +16,7 @@ SelfTest.DELAY = 0.5
 SelfTest.TIMEOUT = 10
 SelfTest.SUBJECT = "Mailworthy test %d/2"
 
--- v0.4.0 check (docs/DISCOVERY-SESSION-2.md "Phase 3 check"); earlier answers stay in
+-- Phase 3 + 4c checks (docs/DISCOVERY-SESSION-2.md); earlier answers stay in
 -- the saved data but only these are reported.
 SelfTest.QUESTIONS = {
     { id = "no_blocks", text = 'Played a minute (move, jump, target, loot, NPC): no "The game blocked" messages' },
@@ -30,6 +30,9 @@ SelfTest.QUESTIONS = {
     { id = "settings_saved", text = "Settings are unchanged after /reload" },
     { id = "minimap", text = "The minimap icon opens settings; its toggle hides it" },
     { id = "arrived", text = "On the bank alt: the Mailworthy mail arrived" },
+    { id = "tags", text = "Bank alt: bag items show AH / DE / V tags, and they look right" },
+    { id = "tooltip", text = "Bank alt: the tooltip has today's verdict and 'Mailed for'" },
+    { id = "summary", text = "Bank alt: the Mailworthy button / Triangle opens the summary" },
 }
 
 

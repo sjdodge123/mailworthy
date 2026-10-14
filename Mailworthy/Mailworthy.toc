@@ -30,3 +30,4 @@ SelfTestUI.lua
 SettingsUI.lua
 MinimapButton.lua
 MailWindow.lua
+BankAlt.lua

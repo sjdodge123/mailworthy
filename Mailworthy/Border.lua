@@ -19,6 +19,10 @@ Border.GLOW_ALPHA = 0.7
 
 local borders = setmetatable({}, { __mode = "k" }) -- button -> { textures }
 local frames = {}
+local decorators = {} -- fn(button, bag, slot): more per-slot drawing (bank alt tags)
+
+--- Draw more on every bag button after each refresh (same hooks, same rules).
+function Border.AddDecorator(fn) table.insert(decorators, fn) end
 
 --- The lock glow for any button (ours or the game's bag buttons), created once,
 --- kept in our own weak table.
@@ -55,7 +59,12 @@ function Border.RefreshFrame(frame)
     for _, button in iter, state, start do
         local okBag, bag = pcall(button.GetBagID, button)
         local okSlot, slot = pcall(button.GetID, button)
-        Border.Show(button, okBag and okSlot and ns.Locks.IsLocked(bag, slot))
+        local valid = okBag and okSlot
+        if ns.Features.On("slotBorder") then Border.Show(button, valid and ns.Locks.IsLocked(bag, slot)) end
+        for _, fn in ipairs(decorators) do
+            local okDecorate, err = pcall(fn, button, valid and bag or nil, valid and slot or nil)
+            if not okDecorate then ns.Log.Add("border", "decorator error: %s", tostring(err)) end
+        end
     end
 end
 
@@ -76,8 +85,9 @@ local function containerFrames()
 end
 
 function Border.Install()
-    if not ns.Features.On("slotBorder") then
-        ns.Log.Add("border", "slot border off (/mw feature slotBorder on, then /reload)")
+    -- The hooks serve the lock glow and the bank alt tags: either switch keeps them.
+    if not ns.Features.On("slotBorder") and not ns.Features.On("bankAltTags") then
+        ns.Log.Add("border", "slot border and bank alt tags off (/mw feature slotBorder on, then /reload)")
         return
     end
     local hooked = 0

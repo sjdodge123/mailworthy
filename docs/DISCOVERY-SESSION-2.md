@@ -69,6 +69,20 @@ runtime, and measures what no source can tell us.
 | Report bug | items kept before pricing (locked, soulbound) printed "vendor ... = 0c": fixed |
 | Changes | soulbound / quest items no longer listed (one "NOT MAILABLE" line in the scan); profession tools (Fishing Pole was on the mail list) stay |
 
+## Phase 4c check: the bank alt view (about 10 minutes, after the Phase 3 check)
+
+On the bank alt, with the Phase 3 test mail taken from the mailbox:
+1. Run Auctionator's scan at the AH, open your bags: items carry small **AH / DE / V**
+   tags (top left), and a legend under the bags explains them. Locked and soulbound
+   items have none.
+2. Hover an item (mouse) or select it (controller): the tooltip has a **Mailworthy**
+   section with today's verdict and, for mailed items, "Mailed for: ..., from <main>".
+3. At a mailbox, the **Mailworthy** button (controller: Triangle) opens the summary:
+   stacks to list, items to disenchant, what's now better at a vendor. Circle closes it.
+   Also `/mw summary` away from the mailbox, and D-pad / Cross / Circle there.
+4. On your main: no tags (unless settings say "every character"; try the toggle).
+5. Play a minute: any "The game blocked" message? Then `/mw selftest report`.
+
 ## Phase 3 check: the Mailworthy window and Send (about 15 minutes)
 
 Nothing to buy: any cheap tradeable item works. To see a MAIL line, drop the minimum

@@ -1,0 +1,332 @@
+-- The bank alt view (media/bank-alt-prototype.png): what each item is for,
+-- recomputed with this character's own, fresh Auctionator prices.
+--
+--   * tags on bag slots: AH (list it), DE (disenchant it), V (vendor now);
+--   * tooltip lines: today's verdict with the price and its age, and why it was
+--     mailed ("Mailed for: Auction +8s 21c, Oct 14, from <main>", recorded by
+--     Mailer in MailworthyDB.mailed);
+--   * a summary window: stacks to list, items to disenchant, items now better
+--     at a vendor (and how many of those were mailed for the auction house).
+--
+-- Shown on the bank alt (the character this realm + faction mails to), or on
+-- every character with the "tags everywhere" setting. Postage doesn't count
+-- here: nothing is being mailed. Without Auctionator: no tags, only the
+-- "Mailed for" line.
+--
+-- Taint: tags are textures and font strings on the game's bag buttons, kept in
+-- our own weak table (the lock glow's technique, via Border's hooks); tooltip
+-- lines go through TooltipDataProcessor, which runs addon callbacks insecurely
+-- by design (forceinsecure behind an attribute delegate). Switches:
+-- /mw feature bankAltTags off, /mw feature tooltipLines off.
+local _, ns = ...
+
+local BankAlt = {}
+ns.BankAlt = BankAlt
+
+BankAlt.TAGS = {
+    ah = { text = "AH", label = "Auction", color = { 0.2, 0.4, 0.75 } },
+    de = { text = "DE", label = "Disenchant", color = { 0.45, 0.25, 0.65 } },
+    v = { text = "V", label = "Vendor now", color = { 0.45, 0.38, 0.2 } },
+}
+
+local money = function(c) return ns.Valuation.Money(c) end
+local tags = setmetatable({}, { __mode = "k" }) -- bag button -> { bg, text }
+local cache = { dirty = true, bySlot = {}, byLink = {}, byItemID = {} }
+local frame, rows, header, legend
+
+local function call(fn, ...)
+    if type(fn) ~= "function" then return nil end
+    local results = { pcall(fn, ...) }
+    if not results[1] then return nil end
+    return unpack(results, 2, table.maxn(results))
+end
+
+function BankAlt.IsBankAlt()
+    local alt = ns.Config.BankAlt()
+    return alt ~= nil and alt:lower() == tostring(ns.PlayerName()):lower()
+end
+
+function BankAlt.Active()
+    return BankAlt.IsBankAlt() or ns.Config.Flag("tagsEverywhere")
+end
+
+--- Pure: the tag for a valued item: "ah" / "de" when the auction house or
+--- disenchanting beats the vendor by the minimum gain, "v" when the vendor wins,
+--- nil when there's nothing to say (locked, soulbound, tool, no price...).
+function BankAlt.Verdict(item)
+    local r = item.result
+    if not r then return nil end
+    if r.action == "mail" then return (r.route == "ah" or r.route == "de") and r.route or nil end
+    if r.reason == "not worth it" and (r.vendor or 0) > 0 then return "v" end
+    return nil
+end
+
+--- Settings for the bank alt's own verdicts: no postage (nothing is mailed from here).
+function BankAlt.Settings()
+    local s = ns.Config.Values()
+    s.postage = 0
+    return s
+end
+
+function BankAlt.Invalidate()
+    cache.dirty = true
+end
+
+function BankAlt.Refresh()
+    cache.dirty = false
+    cache.bySlot, cache.byLink, cache.byItemID = {}, {}, {}
+    cache.result = ns.Bags.Evaluate(BankAlt.Settings())
+    for _, list in ipairs({ cache.result.mail, cache.result.keep }) do
+        for _, item in ipairs(list) do
+            item.verdict = cache.result.priced and BankAlt.Verdict(item) or nil
+            cache.byLink[item.link] = item
+            cache.byItemID[item.itemID] = cache.byItemID[item.itemID] or item
+            for _, s in ipairs(item.slots) do cache.bySlot[s.bag .. ":" .. s.slot] = item end
+        end
+    end
+    return cache.result
+end
+
+local function current()
+    if cache.dirty then BankAlt.Refresh() end
+    return cache
+end
+
+-- Tags on bag buttons --------------------------------------------------------------
+
+local function tagFor(button)
+    local t = tags[button]
+    if t then return t end
+    t = {}
+    t.bg = button:CreateTexture(nil, "OVERLAY", nil, 6)
+    t.bg:SetSize(18, 11)
+    t.bg:SetPoint("TOPLEFT", 2, -2)
+    t.text = button:CreateFontString(nil, "OVERLAY", "SystemFont_Tiny")
+    t.text:SetPoint("CENTER", t.bg, "CENTER", 0, 0)
+    t.text:SetTextColor(1, 1, 1)
+    tags[button] = t
+    return t
+end
+
+--- Border decorator: show the slot's tag, or hide ours if there's none.
+function BankAlt.Decorate(button, bag, slot)
+    local want = ns.Features.On("bankAltTags") and BankAlt.Active() and bag ~= nil
+    local item = want and current().bySlot[bag .. ":" .. tostring(slot)]
+    local tag = item and item.verdict and BankAlt.TAGS[item.verdict]
+    if not tag then
+        local t = tags[button]
+        if t then t.bg:Hide() t.text:Hide() end
+        return
+    end
+    local t = tagFor(button)
+    t.bg:SetColorTexture(tag.color[1], tag.color[2], tag.color[3], 0.95)
+    t.text:SetText(tag.text)
+    t.bg:Show()
+    t.text:Show()
+end
+
+local function redraw()
+    BankAlt.Invalidate()
+    ns.Border.RefreshAll()
+    if legend then
+        legend:SetText((ns.Features.On("bankAltTags") and BankAlt.Active() and ns.Prices.Auctionator())
+            and "Mailworthy: |cff6f9fffAH|r auction   |cffb080e0DE|r disenchant   |cffd0b070V|r vendor now" or "")
+    end
+    if frame and frame:IsShown() then BankAlt.RefreshWindow() end
+end
+BankAlt.Redraw = redraw
+
+-- Tooltip --------------------------------------------------------------------------
+
+local function ageText(age)
+    if age == nil then return "" end
+    if age <= 0 then return " (scanned today)" end
+    return string.format(" (scanned %d day%s ago)", age, age == 1 and "" or "s")
+end
+
+--- Pure: the tooltip lines for one item: { { text, r, g, b }, ... }.
+--- `item` is the valued bag item (or nil when it isn't in the bags), `record` the
+--- MailworthyDB.mailed entry (or nil).
+function BankAlt.TooltipLines(item, record, settings)
+    local lines = {}
+    local verdict = item and item.verdict
+    local tag = verdict and BankAlt.TAGS[verdict]
+    if not tag and not record then return lines end
+    lines[1] = { "Mailworthy" .. (tag and ("  |cffffffff[" .. tag.label .. "]|r") or ""), 1, 0.82, 0 }
+    if tag then
+        local r, p = item.result, item.price or {}
+        local text
+        if verdict == "ah" then
+            text = string.format("Auction price today: %s each%s. After the %d%% cut and the %dh deposit: %s more than a vendor.",
+                money(p.ah), ageText(p.age), math.floor(settings.cut * 100 + 0.5),
+                ns.Valuation.DURATION_HOURS[settings.duration], money(r.gain))
+        elseif verdict == "de" then
+            text = string.format("Disenchanting today: %s, %s more than a vendor.", money(p.de), money(r.gain))
+        elseif p.ah then
+            text = string.format("Auction price today: %s each%s. After the %d%% cut and the deposit that's %s, "
+                .. "so sell it to a vendor (%s).", money(p.ah), ageText(p.age), math.floor(settings.cut * 100 + 0.5),
+                (r.gain or 0) > 0 and ("under your " .. money(r.threshold) .. " minimum gain") or "less than a vendor pays",
+                money(r.vendor))
+        else
+            text = string.format("Worth no more than a vendor today: sell it (%s).", money(r.vendor))
+        end
+        lines[#lines + 1] = { text, 1, 1, 1 }
+    end
+    if record then
+        local was = BankAlt.TAGS[record.route] and BankAlt.TAGS[record.route].label
+            or (record.route == "common" and "Common item") or tostring(record.reason)
+        lines[#lines + 1] = { string.format("Mailed for: %s%s, %s, from %s", was,
+            record.gain and (" +" .. money(record.gain)) or "", date("%b %d", record.at or 0), tostring(record.from)),
+            0.55, 0.75, 1 }
+    end
+    return lines
+end
+
+local function onTooltip(tooltip, data)
+    if not ns.Features.On("tooltipLines") or not BankAlt.Active() then return end
+    if tooltip ~= rawget(_G, "GameTooltip") then return end
+    local link = select(2, call(rawget(_G, "TooltipUtil") and TooltipUtil.GetDisplayedItem, tooltip))
+    local itemID = type(data) == "table" and tonumber(data.id) or nil
+    local c = current()
+    local item = (link and c.byLink[link]) or (itemID and c.byItemID[itemID]) or nil
+    itemID = itemID or (item and item.itemID)
+    local record = itemID and type(MailworthyDB.mailed) == "table" and MailworthyDB.mailed[itemID] or nil
+    local lines = BankAlt.TooltipLines(item, record, c.result and c.result.settings or BankAlt.Settings())
+    if #lines == 0 then return end
+    tooltip:AddLine(" ")
+    for _, l in ipairs(lines) do tooltip:AddLine(l[1], l[2], l[3], l[4], true) end
+end
+
+function BankAlt.InstallTooltip()
+    if not ns.Features.On("tooltipLines") then
+        ns.Log.Add("bankalt", "tooltip lines off (/mw feature tooltipLines on, then /reload)")
+        return false
+    end
+    local processor, enum = rawget(_G, "TooltipDataProcessor"), rawget(_G, "Enum")
+    local itemType = type(enum) == "table" and type(enum.TooltipDataType) == "table" and enum.TooltipDataType.Item
+    if type(processor) ~= "table" or type(processor.AddTooltipPostCall) ~= "function" or itemType == nil then
+        ns.Log.Add("bankalt", "TooltipDataProcessor missing: no tooltip lines")
+        return false
+    end
+    local ok, err = pcall(processor.AddTooltipPostCall, itemType, function(tooltip, data)
+        local okLines, errLines = pcall(onTooltip, tooltip, data)
+        if not okLines then ns.Log.Add("bankalt", "tooltip error: %s", tostring(errLines)) end
+    end)
+    ns.Log.Add("bankalt", "tooltip lines %s", ok and "installed" or ("failed: " .. tostring(err)))
+    return ok
+end
+
+-- Summary --------------------------------------------------------------------------
+
+--- Pure: totals per verdict for the summary window.
+function BankAlt.Summary(result)
+    local s = { ah = { stacks = 0, items = 0, gain = 0 }, de = { stacks = 0, items = 0, gain = 0 },
+        v = { stacks = 0, items = 0, vendor = 0, wasAuction = 0 } }
+    local mailed = type(MailworthyDB.mailed) == "table" and MailworthyDB.mailed or {}
+    for _, list in ipairs({ result.mail, result.keep }) do
+        for _, item in ipairs(list) do
+            local v = item.verdict
+            local t = v and s[v]
+            if t then
+                t.stacks, t.items = t.stacks + item.stacks, t.items + item.count
+                if v == "v" then
+                    t.vendor = t.vendor + (item.result.vendor or 0)
+                    local record = mailed[item.itemID]
+                    if record and record.route == "ah" then t.wasAuction = t.wasAuction + 1 end
+                else
+                    t.gain = t.gain + (item.result.gain or 0)
+                end
+            end
+        end
+    end
+    return s
+end
+
+local ROW_TEXT = {
+    ah = function(t) return string.format("%d stack%s to list", t.stacks, t.stacks == 1 and "" or "s"), "+" .. money(t.gain) end,
+    de = function(t) return string.format("%d item%s to disenchant", t.items, t.items == 1 and "" or "s"), "+" .. money(t.gain) end,
+    v = function(t)
+        return string.format("%d stack%s to sell to a vendor%s", t.stacks, t.stacks == 1 and "" or "s",
+            t.wasAuction > 0 and string.format(" (%d mailed for the auction house)", t.wasAuction) or ""), money(t.vendor)
+    end,
+}
+
+function BankAlt.CreateWindow()
+    if frame then return frame end
+    local W = ns.Widgets
+    frame = W.Window("MailworthySummaryFrame", 440, 230)
+    frame:SetPoint("CENTER")
+    local title = W.Label(frame, "GameFontNormalLarge")
+    title:SetPoint("TOPLEFT", 22, -18)
+    title:SetText("Mailworthy: on your bank alt")
+    header = W.Label(frame, "GameFontNormal")
+    header:SetPoint("TOPLEFT", 24, -50)
+    rows = {}
+    for i, key in ipairs({ "ah", "de", "v" }) do
+        local row = {}
+        local y = -74 - (i - 1) * 28
+        row.chipBg = frame:CreateTexture(nil, "BORDER")
+        row.chipBg:SetSize(84, 16)
+        row.chipBg:SetPoint("TOPLEFT", 26, y)
+        local c = BankAlt.TAGS[key].color
+        row.chipBg:SetColorTexture(c[1], c[2], c[3], 0.9)
+        local chip = W.Label(frame, "GameFontHighlightSmall")
+        chip:SetPoint("CENTER", row.chipBg, "CENTER")
+        chip:SetText(BankAlt.TAGS[key].label)
+        row.text = W.Label(frame, "GameFontHighlight")
+        row.text:SetPoint("TOPLEFT", 120, y - 1)
+        row.value = W.Label(frame, "GameFontHighlight")
+        row.value:SetPoint("TOPRIGHT", -26, y - 1)
+        rows[key] = row
+    end
+    W.Button(frame, "Close", 100, function() frame:Hide() end, "MailworthySummaryClose"):SetPoint("BOTTOMRIGHT", -20, 40)
+    W.Button(frame, "Scan details", 120, function() ns.Bags.Scan() end, "MailworthySummaryScan")
+        :SetPoint("BOTTOMLEFT", 20, 40)
+    ns.Nav.Attach(frame)
+    return frame
+end
+
+function BankAlt.RefreshWindow()
+    if not frame then return end
+    local c = current()
+    local summary = BankAlt.Summary(c.result)
+    header:SetText(c.result.priced and "With today's prices" or "No Auctionator prices here: install it and run a scan")
+    for key, row in pairs(rows) do
+        local text, value = ROW_TEXT[key](summary[key])
+        row.text:SetText(text)
+        row.value:SetText(value)
+    end
+end
+
+function BankAlt.ShowWindow()
+    if not frame then BankAlt.CreateWindow() end
+    BankAlt.Invalidate()
+    BankAlt.RefreshWindow()
+    frame:Show()
+    frame:Raise()
+    ns.Log.Add("bankalt", "summary shown")
+end
+
+function BankAlt.Frame() return frame end
+
+ns.Border.AddDecorator(BankAlt.Decorate)
+
+ns.On("PLAYER_LOGIN", function()
+    BankAlt.CreateWindow()
+    BankAlt.InstallTooltip()
+    -- Legend under the combined bags (a font string: not seen by smart navigation).
+    local bags = rawget(_G, "ContainerFrameCombinedBags")
+    if type(bags) == "table" and ns.Features.On("bankAltTags") then
+        legend = bags:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        legend:SetPoint("TOPRIGHT", bags, "BOTTOMRIGHT", -10, -4)
+    end
+    ns.Locks.OnChanged(redraw)
+    local settings = ns.SettingsUI.Frame()
+    if settings then settings:HookScript("OnHide", redraw) end
+    local api = ns.Prices.Auctionator()
+    if api and type(api.RegisterForDBUpdate) == "function" then
+        pcall(api.RegisterForDBUpdate, ns.Prices.CALLER, redraw)
+    end
+    redraw()
+end)
+ns.On("BAG_UPDATE_DELAYED", function() redraw() end)

@@ -46,6 +46,13 @@ function MailButton.Activate(source)
         ns.SettingsUI.Show()
         return
     end
+    if ns.BankAlt and ns.BankAlt.IsBankAlt() then
+        -- On the bank alt there's nothing to mail: the summary of what to do with it all.
+        local summary = ns.BankAlt.Frame()
+        if summary and summary:IsShown() then summary:Hide() else ns.BankAlt.ShowWindow() end
+        ns.Log.Add("mailbutton", "%s on the bank alt: summary", tostring(source))
+        return
+    end
     if tab == "inbox" and MailButton.GamepadUI() then
         ns.Log.Add("mailbutton", "%s on the Inbox (controller UI): hint shown", tostring(source))
         ns.Print("Switch to the Send Mail tab (R1), then press Triangle or the Mailworthy button.")

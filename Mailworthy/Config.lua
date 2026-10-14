@@ -39,8 +39,10 @@ end
 
 function Config.Get(key) return Config.Values()[key] end
 
+Config.FLAGS = { minimapHidden = true, tagsEverywhere = true } -- saved switches outside the decision rule
+
 function Config.Set(key, value)
-    if ns.Valuation.DEFAULTS[key] == nil and key ~= "minimapHidden" then return end
+    if ns.Valuation.DEFAULTS[key] == nil and not Config.FLAGS[key] then return end
     db().settings[key] = value
     ns.Log.Add("config", "%s = %s", key, tostring(value))
 end
@@ -64,6 +66,9 @@ function Config.Step(key, dir)
 end
 
 function Config.MinimapShown() return db().settings.minimapHidden ~= true end
+
+--- A saved switch from Config.FLAGS (false until set).
+function Config.Flag(key) return db().settings[key] == true end
 
 -- Bank alt --------------------------------------------------------------------
 
