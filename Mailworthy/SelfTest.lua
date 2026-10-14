@@ -333,7 +333,7 @@ end)
 -- Answers and report -----------------------------------------------------------
 
 function SelfTest.Answer(id, value)
-    st().answers[id] = { value = value, char = ns.PlayerName(), at = call(GetServerTime) or time() }
+    st().answers[id] = { value = value, char = ns.PlayerName(), at = call(GetServerTime) or time(), version = ns.VERSION }
     ns.Log.Add("answer", "%s = %s", id, value)
     if ns.SelfTestUI then ns.SelfTestUI.Refresh() end
 end
@@ -368,7 +368,8 @@ function SelfTest.Report()
     for _, q in ipairs(SelfTest.QUESTIONS) do
         local ans = st().answers[q.id]
         lines[#lines + 1] = string.format("answer %s: %s (%s)", q.id,
-            ans and (ans.value .. " by " .. tostring(ans.char)) or "not answered", q.text)
+            ans and string.format("%s by %s at %s (%s)", ans.value, tostring(ans.char),
+                date("%m-%d %H:%M", ans.at or 0), ans.version or "older build") or "not answered", q.text)
     end
     for _, l in ipairs(ns.Blocked.Lines()) do lines[#lines + 1] = l end
     lines[#lines + 1] = "log:"

@@ -18,6 +18,20 @@ describe("controller bindings", function()
         SendMailFrame:Show()
     end)
 
+    -- The watcher runs Check inside pcall and logs errors, so a failing Check
+    -- doesn't fail a test by itself (alpha5 logged one ten times a second).
+    after_each(function()
+        for _, line in ipairs(ns.Log.Lines()) do
+            assert.is_nil(line:find("check error", 1, true), line)
+        end
+    end)
+
+    it("does nothing, and logs nothing, while nothing of ours is focused", function()
+        for _ = 1, 5 do tick() end
+        assert.same({}, WowStub.state.bindings)
+        assert.equal(0, ns.PadKey.stats.applies)
+    end)
+
     it("binds only Triangle while the mail window is focused", function()
         tick()
         assert.is_nil(WowStub.state.bindings.PAD4, "not focused yet")

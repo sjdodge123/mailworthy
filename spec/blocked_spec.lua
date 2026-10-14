@@ -15,6 +15,9 @@ describe("blocked actions", function()
         assert.equal("SendMail()", entry.fn)
         assert.equal("/mw send", entry.after)
         assert.truthy(ns.Blocked.Lines()[1]:find("SendMail()", 1, true))
+        assert.truthy(ns.Blocked.Lines()[1]:find("(" .. ns.VERSION .. ")", 1, true), "names the build")
+        MailworthyDB.blocked[1].version = nil -- recorded by a build that didn't store it
+        assert.truthy(ns.Blocked.Lines()[1]:find("(older build)", 1, true))
     end)
 
     it("ignores other addons' blocks", function()

@@ -49,9 +49,19 @@ runtime, and measures what no source can tell us.
 | AH durations | 2 / 8 / 24 hours |
 | Requests | lock the item not the slot; quest-style glow; controller locking without a menu entry |
 
-## Rerun with v0.2.0 (alpha5 changes, about 10 minutes)
+## Results of the alpha5 run (2026-10-13)
 
-1. Install `Mailworthy v0.2.0` (CurseForge or the GitHub release). Old slot locks become item locks at login.
+| Check | Result |
+|---|---|
+| Blocked actions | **none** (the blocks in the report are from 14:10-14:12, before alpha3) |
+| Envelope icon, Alt+click lock, lock follows the item, blue glow | **work** |
+| L3 lock in the bags; bags' own Triangle; Cross uses items | **work** |
+| Triangle opens / closes the window; D-pad highlight reaches every button; Cross presses; Circle closes only our window | **work** |
+| Bug | `PadKey.Check` errored ten times a second while nothing of ours was focused (`pairs(nil)`, caught by `pcall`, harmless in game) and flooded the 400-line log. Fixed after alpha5; report lines now say which build recorded each answer and blocked action |
+
+## Rerun with alpha5 (done; steps kept for the next build)
+
+1. Install the build (CurseForge or the GitHub release). Old slot locks become item locks at login.
 2. **AddOns list:** is the envelope icon there?
 3. **Mouse/keyboard (controller off):**
    - Alt+click an item: it **glows blue** like a quest item.

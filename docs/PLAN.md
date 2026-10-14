@@ -14,7 +14,7 @@ LedgerLink are listed at the end.
 | Where | What it does |
 |---|---|
 | **Mailbox button (the main entry)** | Opening a mailbox shows a **Mailworthy** button on the mail window. Not set up yet: pressing it opens the settings panel right there. Set up: pressing it opens the preview; pressing **Send** in the preview mails. |
-| **Minimap button** | Opens the settings panel anywhere. Works with the controller. Same pattern as LedgerLink's minimap button. |
+| **Minimap button** | Opens the settings panel anywhere. Keyboard/mouse only (the controller can't reach minimap buttons, U20). Same pattern as LedgerLink's minimap button. |
 | Slash commands (`/mailworthy`, `/mw`) | Backup for both, plus `/mw probe` and `/mw scan`. Not the main way in. |
 
 ## Input: controller and keyboard/mouse (every window)
@@ -73,7 +73,7 @@ Notes:
    gamepad button is bound to it while the mailbox is open.
 2. **First time:** the button opens the settings panel. Pick the bank alt from
    the characters Mailworthy has seen (or type a name). Leave "Include
-   disenchant value" on. Optionally lock bag slots. Close the settings panel
+   disenchant value" on. Optionally lock items. Close the settings panel
    and you're back at the mailbox.
 3. **Preview.** The button opens the preview:
    - **To: <bank alt>** at the top, so a wrong recipient is obvious before
@@ -85,9 +85,8 @@ Notes:
    - totals: "14 items in 2 mails, about 3g 20s more than vendoring, postage 4s 20c";
    - buttons: **Send**, **Settings** (opens the settings panel on top of the
      preview; the preview recalculates when it closes), **Close**.
-4. **Send.** Mail 1 of N goes to the bank alt (12 items per mail). It chains
-   to the next mail if the game allows; otherwise each press of **Send** (or
-   the gamepad button) sends the next one.
+4. **Send.** Mail 1 of N goes to the bank alt (12 items per mail), and each
+   next mail follows on `MAIL_SEND_SUCCESS` without another press.
 5. **Vendor the rest.** Whatever stays in your bags is worth more at the vendor
    (or has no price data, or is locked).
 
@@ -107,10 +106,9 @@ throughout. Registered with `Settings.RegisterCanvasLayoutCategory` (the old
 | Minimum gain over vendor | **5s and 25%** (both must hold); two steppers in the settings window (gold/silver amount, percent), changeable any time, including from the preview's Settings button | account |
 | Max price age | 7 days (Auctionator `GetAuctionAgeByItemLink`, confirmed on Forever) | account |
 | AH cut | 5% | account |
-| Listing length, relist factor | 24h, 1.0 (deposit = floor(vendor x 5%) x 1 / 4 / 12 for 12h / 24h / 48h, measured) | account |
+| Listing length, relist factor | **24h** (duration 3), 1.0 (operator, 2026-10-13). Deposit = floor(vendor value of the stack x 5%) x 1 / 4 / 12 for 2h / 8h / 24h (measured; the game labels durations 1/2/3 "2 / 8 / 24 Hours"), so the default is **x12** | account |
 | Postage | **30c per attached item** (measured 2026-10-13) | account |
-| Gamepad button for the mailbox button | a pad button the probe shows as free | account |
-| Locked bag slots | none | **per character** |
+| Locked items | none | **per character** |
 | Never-mail items | none (add from the preview) | account |
 | Minimap button | shown | account |
 
@@ -131,8 +129,7 @@ throughout. Registered with `Settings.RegisterCanvasLayoutCategory` (the old
 - **Validation:** a typed name that matches no known character asks
   "Mailworthy hasn't seen this character - save anyway?" before it's stored.
 - **Forever names have a space** ("First Surname", LedgerLink probe
-  2026-10-05). Whether `SendMail` takes the full two-part name is a beta
-  unknown that Phase 3 must check first.
+  2026-10-05). `SendMail` takes the full two-part name (alpha2 send test, U7).
 - Mailworthy never calls `SetFocus` (the LedgerLink gamepad crash); the player
   clicks the box.
 
@@ -142,22 +139,28 @@ For each bag stack (count `n`, vendor `v` per unit, AH price `a` per unit,
 disenchant value `d` per item):
 
 ```
-vendor = v * n
-ahNet  = a * n * (1 - cut) - deposit(item, n, duration) * relistFactor - postageShare
-deNet  = d * n - postageShare            -- only when disenchant is enabled and the item can be disenchanted
-postageShare = postage of the mail it rides in / items in that mail
-best   = max(ahNet, deNet)
-mail   = best - vendor >= max(minGain, vendor * minGainPct)
+vendor  = v * n
+deposit = floor(v * n * 0.05) * 12      -- 24h listing (x1 / x4 for 2h / 8h)
+ahNet   = a * n * (1 - cut) - deposit * relistFactor - postage
+deNet   = d * n - postage               -- only when disenchant is enabled and the item can be disenchanted
+postage = 30c                           -- per attached stack (flat per item, so no batching needed)
+best    = max(ahNet, deNet)
+mail    = best - vendor >= max(minGain, vendor * minGainPct)
 ```
 
+The deposit counts as a full cost (relist factor 1.0): conservative, since the
+game refunds it when the item sells. Example: 20 Linen Cloth, vendor 10c, AH
+40c each: vendor 2s, deposit floor(200 x 5%) x 12 = 1s 20c, ahNet = 7s 60c -
+1s 20c - 30c = 6s 10c, gain 4s 10c: under the 5s minimum, so it stays.
+
 **Without Auctionator** (no price source) there's nothing to compare, so the rule
-is simple: mail every tradeable **white (common, quality 1)** item that isn't in
-a locked slot; grey junk and everything uncommon or better stay in the bags
+is simple: mail every tradeable **white (common, quality 1)** item that isn't
+locked; grey junk and everything uncommon or better stay in the bags
 (operator, 2026-10-13). The preview says "no price data: mailing common items".
 
 The item stays in your bags (listed in the preview's kept list with the
 reason) when any of these hold:
-- it's in a locked slot, or on the never-mail list;
+- it's locked (item lock), or on the never-mail list;
 - it's soulbound, a quest item, or currently locked by the game;
 - it has no price while Auctionator is installed (missing data for one item never
   means "mail it"; without Auctionator at all, the common-items rule above applies);
@@ -168,12 +171,11 @@ reason) when any of these hold:
 
 **Fees on Forever's AH.** Forever uses the modern auction house
 (`C_AuctionHouse`): stackable goods are "commodities" priced per unit, other
-items are listed one by one. The deposit can only be calculated while the AH
-is open (`C_AuctionHouse.CalculateItemDeposit` / `CalculateCommodityDeposit`).
-So whenever any character with Mailworthy (usually the bank alt) opens the AH,
-Mailworthy samples deposits for items in its bags and stores the deposit as a
-fraction of vendor price, per kind (item / commodity). Until a sample exists it
-uses a cautious default and marks the gain as "estimated".
+items are listed one by one. Measured (LedgerLink S8, 2026-10-13): the deposit is
+floor(vendor value of the stack x 5%) x 1 / 4 / 12 for 2h / 8h / 24h, the same for
+commodities and items, so Mailworthy computes it from the vendor price; no AH
+visit or sampling needed. The AH cut is assumed 5% until a sale mail confirms it
+(`GetInboxInvoiceInfo`, U2).
 
 Disenchant eligibility: armor or weapon (class 4 / 2), uncommon or better. A
 later option limits it to items whose required Enchanting skill is at or below
@@ -195,25 +197,25 @@ preview shows which source priced each line.
 
 - Attach with `C_Container.UseContainerItem(bag, slot)` while the Send Mail tab
   is open (fallback: `C_Container.PickupContainerItem` + `ClickSendMailItemButton(i)`).
-  The Send tab is opened for the player when they press **Send** in the preview.
+  Mailworthy never switches mail tabs itself (`MailFrameTab_OnClick` taints the
+  controller UI): sending needs the player on the Send Mail tab.
 - Before attaching, re-check that the slot still holds the previewed item
   (same link and count). Anything that changed is skipped, not guessed.
 - `SendMail(bankAlt, subject, "")` with subject "Mailworthy 1/3". Never attaches
   money. The recipient is always the saved bank alt shown in the preview.
 - Wait for `MAIL_SEND_SUCCESS` (next batch) or `MAIL_FAILED` (stop and say why).
   Stop on `MAIL_CLOSED` or on entering combat.
-- **Beta unknown:** whether a batch can follow automatically after
-  `MAIL_SEND_SUCCESS`, or each `SendMail` needs its own hardware event (a key
-  or button press). ForeverMail (Forever, 2026-10) advertises a mailing queue
-  that retries after errors, which suggests chaining works. Build for one
-  press = one mail, then switch on chaining once the in-game test confirms it.
+- Chaining works: mail 2 was attached and sent after `MAIL_SEND_SUCCESS` with
+  no new press (alpha2, U8), so one press of **Send** sends every batch.
 
 ### Mailbox button
 
-- On `MAIL_SHOW`: the **Mailworthy** button, a plain child `Button` of
-  `MailFrame` (mouse click; the controller reaches it with the D-pad, Cross
-  presses). No override bindings: binding pad keys from addon code is the kind
-  of write into the controller UI that tainted gamepad input in alpha1.
+- The **Mailworthy** button sits under the mail window on both tabs (children of
+  `InboxFrame` and `SendMailFrame`, created at login). Mouse: click it.
+  Controller: on the Send Mail tab, **Triangle** (Mailworthy's own override
+  binding, `PadKey.lua`); on the Inbox it shows an "R1 first" hint. Blizzard's
+  smart navigation never reached these buttons (alpha3/alpha4), so the
+  controller doesn't rely on it.
 - On `MAIL_CLOSED`: close the preview.
 - Anything the game blocks is recorded (`ADDON_ACTION_FORBIDDEN/BLOCKED`, as
   in LedgerLink) and shown by `/mw probe`.
@@ -284,14 +286,16 @@ Disenchantry are optional dependencies (`.pkgmeta`, `## OptionalDeps`).
 | `Bags.lua` | bag scan -> item facts, applies locks and filters | busted with stubbed `C_Container` |
 | `Mailer.lua` | batch queue and state machine (attach, send, wait, next, stop) | busted with stubbed mail events |
 | `Preview.lua` | recipient, mail / kept lists, totals, Send / Settings / Close | busted (rows + totals) + in game |
-| `MailButton.lua` | the Mailworthy button on the mail window (mouse + D-pad/Cross through smart navigation; writes nothing into the controller UI) | busted + in game |
+| `MailButton.lua` | the Mailworthy button under the mail window (mouse; controller via Triangle, `PadKey.lua`; writes nothing into the controller UI) | busted + in game |
+| `Nav.lua` / `PadKey.lua` | Mailworthy's own controller highlight and override bindings for its windows | busted + in game |
+| `Locks.lua` / `Border.lua` | item locks (Alt+click, L3) and their blue glow | busted + in game |
 | `Settings.lua` | settings panel: bank alt picker, toggles, numbers, lock grid | in game |
 | `Minimap.lua` | minimap button that opens settings (from LedgerLink) | busted |
 | `Probe.lua` | `/mw probe`, one copyable report | busted |
 
 SavedVariables: `MailworthyDB` (account: characters, bank alt per
 realm+faction, name history, settings, never-mail list, blocked actions) and
-`MailworthyCharDB` (locked slots).
+`MailworthyCharDB` (locked items).
 
 ## Phases
 
@@ -300,8 +304,8 @@ realm+faction, name history, settings, never-mail list, blocked actions) and
 | **0 - Discovery** | LedgerLink `/rl probe` S5 (ledger-link PR #28, released in v1.3.0) and S6 (PR #29); repo, CI, packaging | the S5 + S6 report is back and its answers are in README "Beta unknowns" |
 | **1 - Prices + valuation** | `Prices`, `Valuation`, `Bags`; `/mw scan` prints what would be mailed and why (sends nothing) | `/mw scan` agrees with a hand calculation on real bags |
 | **2 - Settings + characters** | settings panel, minimap button, bank alt picker with history and auto-complete, disenchant checkbox default, thresholds, fees | bank alt survives `/reload` and relog (the beta's SavedVariables bug), and every settings control works with the gamepad alone |
-| **3 - Mailbox + mailing** | mailbox button (opens settings when not set up), preview with recipient + Settings button, one mail per press, gamepad binding, then chaining if allowed | 30+ items reach the bank alt in under 3 presses, with nothing locked, bound or unpriced sent; works with ForeverMail installed |
-| **4 - Slot locks** | lock grid in settings, never-mail list from the preview, bag overlay | locked slots never appear in the preview's mail list |
+| **3 - Mailbox + mailing** | mailbox button (opens settings when not set up), preview with recipient + Settings button, one press sends every batch (chained) | 30+ items reach the bank alt in under 3 presses, with nothing locked, bound or unpriced sent; works with ForeverMail installed |
+| **4 - Item locks** | mostly done in alpha5 (Alt+click, L3, Bag locks page, blue glow); left: never-mail list from the preview | locked items never appear in the preview's mail list |
 | **4c - Bank alt view** | tags on the bank alt's bag slots (recomputed with fresh prices), tooltip lines with the original reason, summary window | tags match a hand calculation with fresh prices; a changed verdict shows both |
 | **5 - Polish** | tooltip line ("Mailworthy: AH +2g 10s vs vendor"), release on GitHub + CurseForge (Forever flavor) | tagged release installs cleanly |
 

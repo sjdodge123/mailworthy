@@ -99,8 +99,9 @@ registering our own window with `FrameControlsManager:FrameShown` plus our own
 on the game blocked `SetPreferredGamepadInteractTarget()` constantly, plus
 `DescendStop()` / `RunBinding()` (jumping), `InteractUnit()`, `SpellStopCasting()`,
 `ClearTarget()` and bag item use. Mailworthy must never write into these systems.
-What works instead: a plain child `Button` of `MailFrame` (smart navigation picks up
-descendant buttons of the focused panel by itself, see "Mailworthy windows" below).
+What works instead: Mailworthy's own override binding (Triangle) on its own frame, see
+"Taint" above. (Plain buttons under `MailFrame` were unreachable in alpha2, and under
+`SendMailFrame` in alpha3/alpha4.)
 
 What the source says (kept for reference):
 
@@ -125,9 +126,9 @@ What the source says (kept for reference):
 
 ## Mailworthy windows in smart navigation
 
-**Don't register** (tainted gamepad input in alpha1, see above). Use plain buttons
-inside a Blizzard panel the game already focuses (alpha2: our window is a child of
-`MailFrame` at the mailbox). The recipe below is Blizzard's own, for reference only.
+**Don't register** (tainted gamepad input in alpha1, see above). Mailworthy's windows
+use their own highlight and override bindings (`Nav.lua` + `PadKey.lua`, alpha5).
+The recipe below is Blizzard's own, for reference only.
 
 `Blizzard_GamepadSharedUtility/FrameControlsManager.lua`, `Blizzard_GamepadSmartNavigation/`
 
@@ -168,7 +169,7 @@ items (bags) is open, especially entering combat.
 
 **Measured 2026-10-13:** postage is a flat **30c per attached item** (5 items = 1s 50c;
 30c with none). Deposit = **floor(vendor value of the stack x 5%) x 1 / 4 / 12** for
-12h / 24h / 48h, the same for commodities and items (Linen Bandage x20, vendor 200c:
+durations 1 / 2 / 3, which the game labels **2 / 8 / 24 Hours** (alpha3 report), the same for commodities and items (Linen Bandage x20, vendor 200c:
 10 / 40 / 120c), and `CalculateCommodityDeposit` / `CalculateItemDeposit` answer even
 with the AH closed (0 for items the client hasn't cached yet).
 
@@ -180,6 +181,6 @@ with the AH closed (0 for items the client hasn't cached yet).
   commerceAuction` (`MailFrame.lua:785`); `consignment` is the house cut.
 - Deposits: `C_AuctionHouse.CalculateItemDeposit(itemLocation, duration, quantity)`,
   `C_AuctionHouse.CalculateCommodityDeposit(itemID, duration, quantity)`, duration 1-3
-  = 12h / 24h / 48h, nil when unavailable
+  (2h / 8h / 24h on Forever; the API docs' 12h / 24h / 48h are retail's), nil when unavailable
   (`Blizzard_APIDocumentationGenerated/AuctionHouseDocumentation.lua`).
 - Bag item buttons can be walked with `EnumerateValidItems` (`ContainerFrame.lua`).

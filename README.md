@@ -43,9 +43,8 @@ below.
 
 ## Beta unknowns (check in game)
 
-Every one of these will be wrapped defensively (pcall / nil checks). None is
-confirmed on Forever yet; see "Beta unknowns to settle" in docs/PLAN.md for
-the full list.
+Everything unverified is wrapped defensively (pcall / nil checks). Results of
+each in-game round are in [docs/DISCOVERY-SESSION-2.md](docs/DISCOVERY-SESSION-2.md).
 
 | API / behaviour | What to check | Status |
 |---|---|---|
@@ -53,13 +52,17 @@ the full list.
 | Auctionator `API.v1` on Forever | S5 | **confirmed** (Auctionator 340; price, age, exactness, disenchant calls) |
 | Real AH prices for bag items | S5 `item` lines after an Auctionator scan | open |
 | Adding "Lock slot" to the bag item menu (Triangle) | alpha1 + alpha2 | **taints controller input even unclicked**: removed; Alt+click and a Bag locks grid instead |
-| Our own Triangle binding at the mailbox; D-pad to buttons under SendMailFrame | alpha3 self-test | open |
+| Our own Triangle binding at the mailbox | alpha3/alpha4 self-test | **works**, no blocked actions |
+| D-pad to buttons under SendMailFrame (smart navigation) | alpha3/alpha4 self-test | **no**; Mailworthy's own D-pad / Cross / Circle bindings instead, **work** (alpha5) |
+| L3 lock in the bags, item locks that follow the item, blue glow | alpha5 self-test | **work** |
 | Attach / send / chain mails from addon code | alpha2 self-test | **works**, including from a timer (no button press) |
-| `SendMail` to a two-part "First Surname" name | first test mail | open |
-| Several mails in a row from one press | Phase 3 test | open (ForeverMail's queue suggests yes) |
+| `SendMail` to a two-part "First Surname" name | alpha2 send test | **works** |
+| Several mails in a row from one press | alpha2 send test | **works** (mail 2 sent after `MAIL_SEND_SUCCESS`, no press) |
 | Writing into Forever's controller UI (footer bindings, FrameControlsManager) | alpha1 self-test | **never do it**: tainted gamepad input game-wide (2026-10-13) |
-| Postage / AH deposit | alpha1 self-test, LedgerLink S8 | **30c per item**; deposit floor(vendor x 5%) x 1 / 4 / 12 (12h / 24h / 48h) |
-| SavedVariables survive `/reload` and relog | bank alt still set after a relog | open (LedgerLink saw a reload bug on the beta) |
+| Postage / AH deposit | alpha1 self-test, LedgerLink S8 | **30c per item**; deposit floor(vendor x 5%) x 1 / 4 / 12 (2h / 8h / 24h) |
+| AH cut | an AH sale mail (`GetInboxInvoiceInfo`) | open (5% assumed) |
+| Disenchant prices for green items | Auctionator with a green item in bags | open |
+| SavedVariables survive `/reload` and relog | self-test marker | **work** (login, character switch, `/reload`) |
 
 ## Picking up the work
 
