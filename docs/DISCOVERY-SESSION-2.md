@@ -84,9 +84,12 @@ if anything fails.
 
 **On your main (Phase 5):**
 4. Mail something cheap with the Mailworthy window (lower the minimum gain in `/mw` if
-   needed): the window clears the sent item by itself.
-5. `/mw selftest` now just shows the help; `/mw report` opens the copyable report.
-6. Play a minute with the controller on: any "The game blocked" message?
+   needed): the window clears the sent item by itself, and your bags now show **V** on
+   what's left for the vendor (grey junk too), with a legend under the bags.
+5. Lock one of the V items (Alt+click or L3): its V disappears at once; unlock it and it
+   comes back.
+6. `/mw selftest` now just shows the help; `/mw report` opens the copyable report.
+7. Play a minute with the controller on: any "The game blocked" message?
 
 ## Results of the v0.4.0 run (2026-10-14)
 

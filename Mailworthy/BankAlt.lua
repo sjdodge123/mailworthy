@@ -10,8 +10,15 @@
 --
 -- Shown on the bank alt (the character this realm + faction mails to), or on
 -- every character with the "tags everywhere" setting. Postage doesn't count
--- here: nothing is being mailed. Without Auctionator: no tags, only the
--- "Mailed for" line.
+-- there: nothing is being mailed.
+--
+-- On a main, after Send has mailed everything (operator, 2026-10-14): V tags
+-- only, on what the Mailworthy window kept because a vendor pays more, for the
+-- rest of the session, so the trip to the vendor is easy. Same settings as the
+-- window (postage included), so the tags match what it showed.
+--
+-- Grey junk with a vendor price is V too (the AH has no price for it). Without
+-- Auctionator: only that, plus the "Mailed for" line.
 --
 -- Taint: tags are textures and font strings on the game's bag buttons, kept in
 -- our own weak table (the lock glow's technique, via Border's hooks); tooltip
@@ -46,8 +53,26 @@ function BankAlt.IsBankAlt()
     return alt ~= nil and alt:lower() == tostring(ns.PlayerName()):lower()
 end
 
+local vendorMode = false -- this session, on this character, after a send
+
+--- "bankalt" (AH / DE / V), "everywhere" (the setting), "vendor" (a main after Send: V only), or nil.
+function BankAlt.Mode()
+    if BankAlt.IsBankAlt() then return "bankalt" end
+    if ns.Config.Flag("tagsEverywhere") then return "everywhere" end
+    if vendorMode then return "vendor" end
+    return nil
+end
+
 function BankAlt.Active()
-    return BankAlt.IsBankAlt() or ns.Config.Flag("tagsEverywhere")
+    return BankAlt.Mode() ~= nil
+end
+
+--- Mailer: everything was mailed. Tag what's left for the vendor (mains only).
+function BankAlt.AfterSend()
+    if vendorMode or BankAlt.IsBankAlt() then return end
+    vendorMode = true
+    ns.Log.Add("bankalt", "vendor tags on after sending")
+    BankAlt.Redraw()
 end
 
 --- Pure: the tag for a valued item: "ah" / "de" when the auction house or
@@ -58,13 +83,17 @@ function BankAlt.Verdict(item)
     if not r then return nil end
     if r.action == "mail" then return (r.route == "ah" or r.route == "de") and r.route or nil end
     if r.reason == "not worth it" and (r.vendor or 0) > 0 then return "v" end
+    -- Grey junk: no auction price, but a vendor buys it.
+    local unpriced = r.reason == "no price" or r.reason == "junk (no price data)"
+    if item.quality == 0 and unpriced and (item.vendor or 0) > 0 then return "v" end
     return nil
 end
 
---- Settings for the bank alt's own verdicts: no postage (nothing is mailed from here).
+--- Settings for the verdicts: on the bank alt (and with "tags everywhere") no postage,
+--- since nothing is mailed from there; after a send on a main, the window's own settings.
 function BankAlt.Settings()
     local s = ns.Config.Values()
-    s.postage = 0
+    if BankAlt.Mode() ~= "vendor" then s.postage = 0 end
     return s
 end
 
@@ -78,7 +107,8 @@ function BankAlt.Refresh()
     cache.result = ns.Bags.Evaluate(BankAlt.Settings())
     for _, list in ipairs({ cache.result.mail, cache.result.keep }) do
         for _, item in ipairs(list) do
-            item.verdict = cache.result.priced and BankAlt.Verdict(item) or nil
+            item.verdict = BankAlt.Verdict(item)
+            if BankAlt.Mode() == "vendor" and item.verdict ~= "v" then item.verdict = nil end
             cache.byLink[item.link] = item
             cache.byItemID[item.itemID] = cache.byItemID[item.itemID] or item
             for _, s in ipairs(item.slots) do cache.bySlot[s.bag .. ":" .. s.slot] = item end
@@ -129,8 +159,9 @@ local function redraw()
     BankAlt.Invalidate()
     ns.Border.RefreshAll()
     if legend then
-        legend:SetText((ns.Features.On("bankAltTags") and BankAlt.Active() and ns.Prices.Auctionator())
-            and "Mailworthy: |cff6f9fffAH|r auction   |cffb080e0DE|r disenchant   |cffd0b070V|r vendor now" or "")
+        local mode = ns.Features.On("bankAltTags") and BankAlt.Mode()
+        legend:SetText(mode == "vendor" and "Mailworthy: |cffd0b070V|r sell to a vendor"
+            or mode and "Mailworthy: |cff6f9fffAH|r auction   |cffb080e0DE|r disenchant   |cffd0b070V|r vendor now" or "")
     end
     if frame and frame:IsShown() then BankAlt.RefreshWindow() end
 end
@@ -190,7 +221,9 @@ local function onTooltip(tooltip, data)
     local c = current()
     local item = (link and c.byLink[link]) or (itemID and c.byItemID[itemID]) or nil
     itemID = itemID or (item and item.itemID)
-    local record = itemID and type(MailworthyDB.mailed) == "table" and MailworthyDB.mailed[itemID] or nil
+    -- On a main after sending, only the vendor verdict: "Mailed for" belongs on the bank alt.
+    local record = BankAlt.Mode() ~= "vendor" and itemID and type(MailworthyDB.mailed) == "table"
+        and MailworthyDB.mailed[itemID] or nil
     local lines = BankAlt.TooltipLines(item, record, c.result and c.result.settings or BankAlt.Settings())
     if #lines == 0 then return end
     tooltip:AddLine(" ")
@@ -321,6 +354,7 @@ ns.On("PLAYER_LOGIN", function()
         legend:SetPoint("TOPRIGHT", bags, "BOTTOMRIGHT", -10, -4)
     end
     ns.Locks.OnChanged(redraw)
+    ns.Mailer.OnSent(function() BankAlt.AfterSend() end)
     local settings = ns.SettingsUI.Frame()
     if settings then settings:HookScript("OnHide", redraw) end
     local api = ns.Prices.Auctionator()

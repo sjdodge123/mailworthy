@@ -24,6 +24,8 @@ than at the vendor goes to your bank alt. The rest stays in your bags to vendor.
 - **On your bank alt:** bag slots carry **AH / DE / V** tags (list it, disenchant it,
   vendor it now) recomputed with that character's own prices; tooltips show today's
   verdict and why the item was mailed; the Mailworthy button (or `/mw summary`) sums it up.
+- **After sending:** your main's bags tag what's left for the vendor with **V** (grey
+  junk too) for the rest of the session. Lock an item to keep it and its V goes.
 - Profession tools (fishing poles, Mining Pick, Blacksmith Hammer, Skinning Knife, ...)
   always stay. Gold is never attached.
 

@@ -159,6 +159,8 @@ call `SendMail` anyway. Every Mailer timer checks the run id and `busy`.
 - Locks are **per item ID** (all stacks, follow moves), per character; Alt+click
   (mouse), L3 in bags (controller), Bag locks page; blue quest-style glow.
   **No never-mail list** (operator, 2026-10-13: locks cover it).
+- After a send, the main's bags get **V** tags (vendor items, grey junk) for the session;
+  locks re-evaluate tags at once (operator, 2026-10-14). `BankAlt.Mode()` = "vendor".
 - Settings: our own window, not Blizzard's options panel (registering there hands our
   tables to a controller-navigated panel; same taint pattern as the More menu).
   Valuation defaults apply until the player touches a setting.
