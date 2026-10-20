@@ -123,9 +123,18 @@ local function workings(item, settings)
         if p.exact == false then text = text .. " (not exact, -10%)" end
         parts[#parts + 1] = text
     end
+    local L = r.liquidity
+    if L and (L.available or L.trend) then
+        local text = "market: " .. (L.available and (L.available .. " listed") or "listed ?")
+        if L.trend then text = text .. string.format(", %+d%% vs last week", math.floor(L.trend * 100 + 0.5)) end
+        if L.glut then text = text .. " (glut: floor price, deposit counted lost)" end
+        parts[#parts + 1] = text
+    end
     if r.ahNet then
+        local deposit = money(r.deposit)
+        if r.depositCounted ~= r.deposit then deposit = deposit .. " counted " .. money(r.depositCounted) end
         parts[#parts + 1] = string.format("AH net %s (cut %d%%, deposit %s, postage %s)", money(r.ahNet),
-            math.floor(settings.cut * 100 + 0.5), money(r.deposit), money(r.postage))
+            math.floor(settings.cut * 100 + 0.5), deposit, money(r.postage))
     end
     if p and p.de then parts[#parts + 1] = "disenchant " .. money(p.de) .. " each" end
     if r.deNet then parts[#parts + 1] = "DE net " .. money(r.deNet) end

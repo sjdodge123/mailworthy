@@ -39,7 +39,7 @@ describe("bank alt view", function()
         WowStub.setBag(0, 1, WowStub.item(2770, "Copper Ore", { count = 5, sell = 5 }))
         prices[WowStub.link(2770, "Copper Ore")] = { ah = 174 }
         WowStub.setBag(0, 2, WowStub.item(2589, "Linen Cloth", { count = 20, sell = 10 }))
-        prices[WowStub.link(2589, "Linen Cloth")] = { ah = 40 }
+        prices[WowStub.link(2589, "Linen Cloth")] = { ah = 38 } -- 722 - 60 (half deposit) - 200 = 4s 62c: under 5s
         WowStub.setBag(0, 3, WowStub.item(6360, "Green Ring", { quality = 2, class = 4, sell = 50 }))
         prices[WowStub.link(6360, "Green Ring")] = { de = 1000 }
         WowStub.setBag(0, 4, WowStub.item(6948, "Hearthstone", { bound = true, sell = 0 }))
@@ -60,8 +60,8 @@ describe("bank alt view", function()
 
     it("tags each slot with today's verdict: AH, DE, V; nothing on soulbound items", function()
         combined:UpdateItems()
-        assert.equal("AH", tagOf(combined.Items[1]), "Copper Ore: 826 - 12 deposit, no postage, vs 25c")
-        assert.equal("V", tagOf(combined.Items[2]), "Linen Cloth: gain 4s 40c, under 5s")
+        assert.equal("AH", tagOf(combined.Items[1]), "Copper Ore: 826 - 6 (half the 12c deposit), no postage, vs 25c")
+        assert.equal("V", tagOf(combined.Items[2]), "Linen Cloth: gain 4s 62c, under 5s")
         assert.equal("DE", tagOf(combined.Items[3]))
         assert.is_nil(tagOf(combined.Items[4]))
     end)
@@ -70,7 +70,7 @@ describe("bank alt view", function()
         local item
         for _, i in ipairs(ns.BankAlt.Refresh().mail) do if i.itemID == 2770 then item = i end end
         assert.equal(0, item.result.postage)
-        assert.equal(826 - 12 - 25, item.result.gain)
+        assert.equal(826 - 6 - 25, item.result.gain)
     end)
 
     it("follows a lock at once (a locked item has no tag)", function()
@@ -93,13 +93,13 @@ describe("bank alt view", function()
             from = "Tilda Quickfoot", to = "Rettana Quilwrit" } }
         local text = hover(WowStub.link(2589, "Linen Cloth"), 2589)
         assert.truthy(text:find("Mailworthy  |cffffffff[Vendor now]|r", 1, true), text)
-        assert.truthy(text:find("Auction price today: 40c each (scanned today). After the 5% cut and the deposit "
+        assert.truthy(text:find("Auction price today: 38c each (scanned today). After the 5% cut and the deposit "
             .. "that's under your 5s minimum gain, so sell it to a vendor (2s).", 1, true), text)
         assert.truthy(text:find("Mailed for: Auction +8s 21c, " .. date("%b %d", WowStub.state.serverTime)
             .. ", from Tilda Quickfoot", 1, true), text)
         text = hover(WowStub.link(2770, "Copper Ore"), 2770)
         assert.truthy(text:find("Auction price today: 1s 74c each (scanned today). After the 5% cut and the 24h deposit: "
-            .. "7s 89c more than a vendor.", 1, true), text)
+            .. "7s 95c more than a vendor.", 1, true), text)
         assert.is_nil(text:find("Mailed for", 1, true), "never mailed: no such line")
     end)
 
@@ -116,7 +116,7 @@ describe("bank alt view", function()
     it("summary: stacks to list, items to disenchant, what's now better at a vendor", function()
         MailworthyDB.mailed = { [2589] = { route = "ah", at = WowStub.state.serverTime } }
         local s = ns.BankAlt.Summary(ns.BankAlt.Refresh())
-        assert.same({ stacks = 1, items = 5, gain = 789 }, s.ah)
+        assert.same({ stacks = 1, items = 5, gain = 795 }, s.ah)
         assert.same({ stacks = 1, items = 1, gain = 950 }, s.de)
         assert.same({ stacks = 1, items = 20, vendor = 200, wasAuction = 1 }, s.v)
         ns.HandleSlash("summary")

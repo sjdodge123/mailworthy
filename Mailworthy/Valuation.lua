@@ -18,12 +18,16 @@ Valuation.LAUNCH_EPOCH = 1793833200 -- Forever launch: 2026-11-04 15:00 PST (doc
 Valuation.FRESH_REALM_DAYS = 14  -- launch days 0-13: unpriced white trade goods are mailed
 Valuation.TRADE_GOODS = 7        -- item class: cloth, ore, herbs, leather, enchanting materials...
 Valuation.INEXACT_HAIRCUT = 0.10 -- off an inexact price (Auctionator matched a similar name)
+Valuation.TREND_DAYS = 10        -- liquidity: the 3-day median against the median of scanned days 4-10
+Valuation.GLUT_SUPPLY = 10       -- a glut: at least 10x our count listed ...
+Valuation.GLUT_DROP = 0.25       -- ... and the recent median 25% or more under the older one
 Valuation.DEPOSIT_MULTIPLIER = { 1, 4, 12 } -- AH durations 1 / 2 / 3 = 2h / 8h / 24h
 Valuation.DURATION_HOURS = { 2, 8, 24 }
 
 Valuation.DEFAULTS = {
     duration = 3,         -- 24h listing (operator, 2026-10-13)
-    relistFactor = 1.0,   -- deposits counted in full (the game refunds them on a sale)
+    relistFactor = 0.5,   -- half the deposit counted: the game refunds it on a sale, and raw materials sell
+                          -- (research 4.3); a glut counts it in full
     cut = 0.05,           -- AH cut, until a sale mail confirms it
     postage = 30,         -- copper per attached stack
     minGain = 500,        -- 5s ...
@@ -101,22 +105,55 @@ end
 --- in the latest scan can't flip a verdict; the last scan's price when there are fewer than
 --- two days of history. An inexact price loses INEXACT_HAIRCUT. Returns copper (nil without
 --- a price) and the number of scanned days behind it (1 = the last scan alone).
-function Valuation.SmoothedPrice(price)
-    if type(price) ~= "table" or price.ah == nil then return nil, 0 end
+local function median(list)
+    local n = #list
+    if n == 0 then return nil end
+    table.sort(list)
+    return n % 2 == 1 and list[(n + 1) / 2] or math.floor((list[n / 2] + list[n / 2 + 1]) / 2)
+end
+
+--- The scanned days of a price history (rows with a maxSeen), newest first.
+local function scannedDays(price)
     local days = {}
-    for _, row in ipairs(type(price.history) == "table" and price.history or {}) do
-        if type(row) == "table" and row.maxSeen then days[#days + 1] = row.maxSeen end
-        if #days == Valuation.MEDIAN_DAYS then break end
+    for _, row in ipairs(type(price) == "table" and type(price.history) == "table" and price.history or {}) do
+        if type(row) == "table" and row.maxSeen then days[#days + 1] = row end
+    end
+    return days
+end
+
+--- `field` = "maxSeen" (default) or "minSeen" (a glut: the floor of the market).
+function Valuation.SmoothedPrice(price, field)
+    if type(price) ~= "table" or price.ah == nil then return nil, 0 end
+    local recent = {}
+    for i, row in ipairs(scannedDays(price)) do
+        if i > Valuation.MEDIAN_DAYS then break end
+        recent[#recent + 1] = row[field or "maxSeen"] or row.maxSeen
     end
     local unit, scans = price.ah, 1
-    local n = #days
-    if n >= 2 then
-        table.sort(days)
-        unit = n % 2 == 1 and days[(n + 1) / 2] or math.floor((days[n / 2] + days[n / 2 + 1]) / 2)
-        scans = n
-    end
+    if #recent >= 2 then unit, scans = median(recent), #recent end
     if price.exact == false then unit = math.floor(unit * (1 - Valuation.INEXACT_HAIRCUT)) end
     return unit, scans
+end
+
+--- Pure (research 4.3): how the market for an item looks, from Auctionator's history.
+--- { available = units listed at the last scan, recent / older = medians of the last 3 and
+--- the previous 7 scanned days, trend = recent / older - 1 (nil with fewer than 2 + 2 days),
+--- glut = at least GLUT_SUPPLY x `count` listed and the trend down GLUT_DROP or more }.
+--- A glut is valued at the floor of the market with the deposit counted as lost.
+function Valuation.Liquidity(price, count)
+    local L = { available = type(price) == "table" and tonumber(price.available) or nil, glut = false }
+    local recent, older = {}, {}
+    for i, row in ipairs(scannedDays(price)) do
+        if i <= Valuation.MEDIAN_DAYS then recent[#recent + 1] = row.maxSeen
+        elseif i <= Valuation.TREND_DAYS then older[#older + 1] = row.maxSeen end
+    end
+    if #recent >= 2 and #older >= 2 then
+        L.recent, L.older = median(recent), median(older)
+        if L.older > 0 then L.trend = L.recent / L.older - 1 end
+    end
+    L.glut = L.available ~= nil and tonumber(count) ~= nil and L.available >= Valuation.GLUT_SUPPLY * count
+        and L.trend ~= nil and L.trend <= -Valuation.GLUT_DROP
+    return L
 end
 
 function Valuation.Threshold(vendorTotal, settings)
@@ -135,8 +172,8 @@ end
 ---   { ah = copper per unit or nil, age = days or nil, de = copper per item or nil }
 ---   history = Prices.History rows (optional), exact = true / false / nil }
 --- Returns { action = "mail" | "keep", route = "ah" | "de" | "common" (mail only), reason,
----   vendor, deposit, postage, ahUnit (the smoothed unit price), scans (days behind it),
----   ahNet, deNet, gain, threshold } (copper, totals for the item).
+---   vendor, deposit, depositCounted, postage, ahUnit (the smoothed unit price), scans (days
+---   behind it), liquidity (Valuation.Liquidity), ahNet, deNet, gain, threshold } (copper, totals).
 function Valuation.Evaluate(item, price, settings)
     settings = settings or Valuation.DEFAULTS
     if item.locked then return keep("locked") end
@@ -163,9 +200,11 @@ function Valuation.Evaluate(item, price, settings)
     local r = { vendor = vendor, postage = postage }
     local stale = price.ah ~= nil and price.age ~= nil and price.age > settings.maxAgeDays
     if price.ah ~= nil and not stale then
-        r.ahUnit, r.scans = Valuation.SmoothedPrice(price)
+        r.liquidity = Valuation.Liquidity(price, n)
+        r.ahUnit, r.scans = Valuation.SmoothedPrice(price, r.liquidity.glut and "minSeen" or nil)
         r.deposit = Valuation.Deposit(item.vendor, n, settings.duration)
-        r.ahNet = math.floor(r.ahUnit * n * (1 - settings.cut)) - math.floor(r.deposit * settings.relistFactor) - postage
+        r.depositCounted = math.floor(r.deposit * (r.liquidity.glut and 1 or settings.relistFactor))
+        r.ahNet = math.floor(r.ahUnit * n * (1 - settings.cut)) - r.depositCounted - postage
     end
     if settings.disenchant and price.de ~= nil and Valuation.CanDisenchant(item) then
         r.deNet = math.floor(price.de * n) - postage

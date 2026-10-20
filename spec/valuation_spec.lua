@@ -37,15 +37,16 @@ describe("valuation", function()
     end)
 
     describe("auction house", function()
-        it("PLAN's example: gain 4s 10c is under the 5s minimum, so it stays", function()
+        it("PLAN's example: gain 4s 70c is under the 5s minimum, so it stays", function()
             local r = V.Evaluate(item(), { ah = 40, age = 0 }, S)
             assert.equal("keep", r.action)
             assert.equal("not worth it", r.reason)
             assert.equal(200, r.vendor)
             assert.equal(120, r.deposit)
+            assert.equal(60, r.depositCounted, "half: the game refunds it on a sale")
             assert.equal(30, r.postage)
-            assert.equal(760 - 120 - 30, r.ahNet)
-            assert.equal(410, r.gain)
+            assert.equal(760 - 60 - 30, r.ahNet)
+            assert.equal(470, r.gain)
             assert.equal(500, r.threshold)
         end)
 
@@ -53,16 +54,23 @@ describe("valuation", function()
             local r = V.Evaluate(item(), { ah = 60, age = 0 }, S)
             assert.equal("mail", r.action)
             assert.equal("ah", r.route)
-            assert.equal(1140 - 120 - 30 - 200, r.gain)
+            assert.equal(1140 - 60 - 30 - 200, r.gain)
+        end)
+
+        it("the deposit counts in full with a relist factor of 1 (the old default)", function()
+            local full = V.Settings({ relistFactor = 1 }, false)
+            local r = V.Evaluate(item(), { ah = 40, age = 0 }, full)
+            assert.equal(120, r.depositCounted)
+            assert.equal(760 - 120 - 30, r.ahNet)
         end)
 
         it("needs 25% of the vendor value too, when that's more than 5s", function()
             local sword = item({ count = 1, vendor = 10000 })
             assert.equal(2500, V.Threshold(10000, S))
-            -- 1g 90s: 18050 - 6000 deposit - 30 postage = 12020, gain 20s 20c < 25s
-            assert.equal("keep", V.Evaluate(sword, { ah = 19000 }, S).action)
-            -- 2g: 19000 - 6000 - 30 = 12970, gain 29s 70c
-            assert.equal("mail", V.Evaluate(sword, { ah = 20000 }, S).action)
+            -- 1g 50s: 14250 - 3000 (half of the 6000 deposit) - 30 postage = 11220, gain 12s 20c < 25s
+            assert.equal("keep", V.Evaluate(sword, { ah = 15000 }, S).action)
+            -- 1g 65s: 15675 - 3000 - 30 = 12645, gain 26s 45c
+            assert.equal("mail", V.Evaluate(sword, { ah = 16500 }, S).action)
         end)
 
         it("the 24h deposit (x12) can decide it: the same item mails with a 2h listing", function()
@@ -145,7 +153,7 @@ describe("valuation", function()
             assert.equal("mail", r.action)
             assert.equal(60, r.ahUnit)
             assert.equal(3, r.scans)
-            assert.equal(1140 - 120 - 30, r.ahNet)
+            assert.equal(1140 - 60 - 30, r.ahNet)
             -- and one spike doesn't make a dud mailworthy
             assert.equal("keep", V.Evaluate(item(), { ah = 60, age = 0, history = hist(60, 40, 40) }, S).action)
         end)
@@ -202,6 +210,59 @@ describe("valuation", function()
         end)
     end)
 
+    describe("liquidity (ALGORITHM-RESEARCH 4.3)", function()
+        -- rows newest first: { maxSeen, minSeen }
+        local function rows(...)
+            local list, day = {}, 100
+            for _, pair in ipairs({ ... }) do
+                list[#list + 1] = { day = day, maxSeen = pair[1], minSeen = pair[2] or pair[1], available = 1 }
+                day = day - 1
+            end
+            return list
+        end
+
+        it("needs two recent and two older scanned days for a trend", function()
+            local L = V.Liquidity({ available = 500, history = rows({ 40 }, { 40 }, { 40 }) }, 20)
+            assert.same({ available = 500, glut = false }, L)
+            L = V.Liquidity({ available = 500, history = rows({ 40 }, { 40 }, { 40 }, { 60 }) }, 20)
+            assert.is_nil(L.trend, "one older day isn't enough")
+            L = V.Liquidity({ available = 500, history = rows({ 45 }, { 40 }, { 44 }, { 60 }, { 62 }, { 58 }) }, 20)
+            assert.equal(44, L.recent)
+            assert.equal(60, L.older)
+            assert.is_true(math.abs(L.trend - (44 / 60 - 1)) < 1e-9)
+            assert.same({ available = nil, glut = false }, V.Liquidity(nil, 20))
+        end)
+
+        it("a glut is 10x our count listed and the recent median down 25% or more", function()
+            local falling = rows({ 45 }, { 40 }, { 44 }, { 60 }, { 62 }, { 58 }) -- -26.7%
+            assert.is_true(V.Liquidity({ available = 200, history = falling }, 20).glut)
+            assert.is_false(V.Liquidity({ available = 199, history = falling }, 20).glut, "not enough listed")
+            assert.is_false(V.Liquidity({ available = 200, history = falling }, 21).glut)
+            assert.is_false(V.Liquidity({ history = falling }, 20).glut, "no quantity known")
+            local flat = rows({ 60 }, { 58 }, { 62 }, { 60 }, { 60 })
+            assert.is_false(V.Liquidity({ available = 9999, history = flat }, 20).glut, "busy but stable: liquid")
+            local gentle = rows({ 50 }, { 50 }, { 50 }, { 60 }, { 60 }) -- -16.7%
+            assert.is_false(V.Liquidity({ available = 9999, history = gentle }, 20).glut)
+        end)
+
+        it("a glut is valued at the floor of the market with the deposit counted lost", function()
+            local history = rows({ 44, 30 }, { 40, 30 }, { 45, 30 }, { 60 }, { 62 }, { 58 })
+            -- liquid: 20 x 44c median = 8s 80c x 0.95 = 8s 36c - 60c (half deposit) - 30c = 7s 46c, gain 5s 46c
+            local r = V.Evaluate(item(), { ah = 44, available = 100, history = history }, S)
+            assert.equal("mail", r.action)
+            assert.equal(44, r.ahUnit)
+            assert.equal(60, r.depositCounted)
+            assert.equal(546, r.gain)
+            -- glut: the 30c floor, 6s x 0.95 = 5s 70c - 1s 20c - 30c = 4s 20c, gain 2s 20c: stays
+            r = V.Evaluate(item(), { ah = 44, available = 500, history = history }, S)
+            assert.equal("keep", r.action)
+            assert.is_true(r.liquidity.glut)
+            assert.equal(30, r.ahUnit)
+            assert.equal(120, r.depositCounted)
+            assert.equal(220, r.gain)
+        end)
+    end)
+
     describe("disenchant", function()
         local green
         before_each(function()
@@ -255,7 +316,7 @@ describe("valuation", function()
 
     describe("settings", function()
         it("defaults: 24h, 5% cut, 30c postage, 5s and 25%, 7 days", function()
-            assert.same({ duration = 3, relistFactor = 1, cut = 0.05, postage = 30, minGain = 500, minGainPct = 0.25,
+            assert.same({ duration = 3, relistFactor = 0.5, cut = 0.05, postage = 30, minGain = 500, minGainPct = 0.25,
                 maxAgeDays = 7, disenchant = false }, S)
         end)
 
