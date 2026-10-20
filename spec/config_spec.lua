@@ -43,6 +43,15 @@ describe("config", function()
             MailworthyDB.realms["Classic Beta PvP"].firstSeen = launch - 30 * 86400
             assert.equal(35, ns.Config.ServerDay())
         end)
+
+        it("falls back to the local clock when the server time is missing or fails", function()
+            local saved = _G.GetServerTime
+            _G.GetServerTime = nil
+            assert.equal(ns.Valuation.ServerDay(os.time(), ns.Config.FirstSeen()), ns.Config.ServerDay())
+            _G.GetServerTime = function() error("boom") end
+            assert.is_number(ns.Config.ServerDay())
+            _G.GetServerTime = saved
+        end)
     end)
 
     describe("bank alt", function()

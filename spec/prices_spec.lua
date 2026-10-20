@@ -44,9 +44,9 @@ describe("prices", function()
             assert.same({ day = 10, minSeen = 10, maxSeen = 15, available = 100 }, h[21])
         end)
 
-        it("drops rows without a day and survives errors in Auctionator", function()
-            auctionator({ ["2589"] = { { rawDay = 3, maxSeen = 9 }, "junk", { minSeen = 1 } } })
-            assert.same({ { day = 3, minSeen = nil, maxSeen = 9, available = nil } }, P.History(link))
+        it("drops rows without a day, ignores odd numbers and survives errors in Auctionator", function()
+            auctionator({ ["2589"] = { { rawDay = 3, maxSeen = 9, minSeen = "abc", available = -4 }, "junk", { minSeen = 1 } } })
+            assert.same({ { day = 3, minSeen = nil, maxSeen = 9, available = -4 } }, P.History(link))
             auctionator({}, function() error("boom") end)
             assert.is_nil(P.History(link))
             _G.Auctionator.Utilities.BasicDBKeyFromLink = function() return "2589" end
@@ -67,6 +67,17 @@ describe("prices", function()
             assert.is_nil(P.Lookup(link).exact, "unknown when Auctionator can't say")
             _G.Auctionator.API.v1.IsAuctionDataExactByItemLink = function() return true end
             assert.equal(true, P.Lookup(link).exact)
+        end)
+
+        it("says when the price call itself failed, so it never counts as 'no price yet'", function()
+            auctionator({})
+            assert.is_nil(P.Lookup(link).failed)
+            _G.Auctionator.API.v1.GetAuctionPriceByItemLink = function() error("boom") end
+            local p = P.Lookup(link)
+            assert.is_nil(p.ah)
+            assert.is_true(p.failed)
+            _G.Auctionator.API.v1.GetAuctionPriceByItemLink = nil
+            assert.is_nil(P.Lookup(link), "no price call at all = no price source: the no-Auctionator rule")
         end)
     end)
 end)

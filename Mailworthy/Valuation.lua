@@ -55,8 +55,10 @@ end
 --- Pure: research 4.2. With Auctionator installed but no price for this item yet, a white
 --- trade good is mailed during the first FRESH_REALM_DAYS launch days: cloth, ore, herbs and
 --- leather always sell on a fresh realm, and in launch week almost nothing has a price.
+--- The exception to AGENTS "an item without a price stays" (operator, 2026-10-20); never
+--- when the price call itself failed.
 function Valuation.FreshRealmDefault(item, price, settings)
-    return type(price) == "table" and price.ah == nil
+    return type(price) == "table" and price.ah == nil and not price.failed
         and item.quality == 1 and item.classID == Valuation.TRADE_GOODS
         and tonumber(settings.serverDay) ~= nil and settings.serverDay < Valuation.FRESH_REALM_DAYS
 end
@@ -98,7 +100,8 @@ function Valuation.BankReason(item, r, settings)
         if what then return string.format("bank: %s sell once raids open (launch day %d)", what, Valuation.RAID_DAY) end
     end
     local L = r and r.liquidity
-    if L and L.glut and L.older and r.ahUnit and L.older >= Valuation.BANK_RECOVERY * r.ahUnit then
+    if item.classID == Valuation.TRADE_GOODS and L and L.glut and L.older and r.ahUnit
+        and L.older >= Valuation.BANK_RECOVERY * r.ahUnit then
         return string.format("bank: the market is flooded (%d listed, %+d%% vs last week)", L.available,
             math.floor(L.trend * 100 + 0.5))
     end
@@ -209,8 +212,9 @@ end
 --- so the preview doesn't fill with 5s items the player no longer cares about.
 function Valuation.MinGain(settings)
     local day = tonumber(settings.serverDay)
-    local scale = 1 + math.max(0, (day or 0) - Valuation.RAID_DAY) / Valuation.INFLATION_DAYS
-    return math.floor(settings.minGain * math.min(scale, Valuation.INFLATION_CAP))
+    local extraDays = math.max(0, (day or 0) - Valuation.RAID_DAY)
+    local grown = settings.minGain + math.floor(settings.minGain * extraDays / Valuation.INFLATION_DAYS)
+    return math.min(grown, settings.minGain * Valuation.INFLATION_CAP)
 end
 
 function Valuation.Threshold(vendorTotal, settings)

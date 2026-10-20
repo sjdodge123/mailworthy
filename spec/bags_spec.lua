@@ -166,11 +166,15 @@ describe("bag scan", function()
         assert.truthy(text:find("KEEP [Linen Cloth] x20: locked - vendor 10c each = 2s", 1, true), text)
     end)
 
-    it("a failing price call is no price, never a crash", function()
+    it("a failing price call is no price, never a crash, and never the fresh-realm default", function()
         Auctionator.API.v1.GetAuctionPriceByItemLink = function() error("boom") end
         local result = ns.Bags.Evaluate()
         assert.equal(0, #result.mail)
         assert.equal("no price", byName(result.keep, "Copper Ore").result.reason)
+        WowStub.state.serverTime = ns.Valuation.LAUNCH_EPOCH + 3 * 86400
+        result = ns.Bags.Evaluate()
+        assert.equal(0, #result.mail, "launch day 3: still nothing, the price call failed")
+        assert.equal("no price", byName(result.keep, "Rough Stone").result.reason)
     end)
 
     it("/mw scan shows the workings in the copy box and sends nothing", function()

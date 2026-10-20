@@ -202,8 +202,10 @@ function BankAlt.TooltipLines(item, record, settings)
                 ns.Valuation.DURATION_HOURS[settings.duration], money(r.gain))
         elseif verdict == "b" then
             local why = tostring(r.reason):gsub("^bank: ", "")
-            text = string.format("Bank it, don't list it yet: %s. Listed today it would bring %s%s more than a vendor.",
-                why, unit and (money(unit) .. " each, ") or "", r.gain and money(r.gain) or "nothing")
+            text = "Bank it, don't list it yet: " .. why .. ". " .. (r.gain
+                and string.format("Listed today it would bring %s%s more than a vendor.", unit and (money(unit) .. " each, ") or "",
+                    money(r.gain))
+                or "No auction price yet, so the gain is unknown.")
         elseif verdict == "de" then
             text = string.format("Disenchanting today: %s, %s more than a vendor.", money(p.de), money(r.gain))
         elseif p.ah then
@@ -278,7 +280,7 @@ function BankAlt.Summary(result)
                 if v == "v" then
                     t.vendor = t.vendor + (item.result.vendor or 0)
                     local record = mailed[item.itemID]
-                    if record and record.route == "ah" then t.wasAuction = t.wasAuction + 1 end
+                    if record and (record.route == "ah" or record.listRoute == "ah") then t.wasAuction = t.wasAuction + 1 end
                 else
                     t.gain = t.gain + (item.result.gain or 0)
                 end

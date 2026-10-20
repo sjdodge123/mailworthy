@@ -17,6 +17,12 @@ local function call(fn, ...)
     return unpack(results, 2, table.maxn(results))
 end
 
+--- Like call, but says whether the call happened: ok, results...
+local function try(fn, ...)
+    if type(fn) ~= "function" then return false end
+    return pcall(fn, ...)
+end
+
 local function copper(value)
     value = tonumber(value)
     return value and value >= 0 and value or nil
@@ -65,7 +71,7 @@ function Prices.History(link)
 end
 
 --- Auction data for one item link, or nil when there's no price source at all.
---- { ah = copper per unit (last scan's minimum buyout), age = days since seen, exact = true / false /
+--- { ah = copper per unit (last scan's minimum buyout), failed = true when that call errored, age = days since seen, exact = true / false /
 ---   nil (unknown), de = copper per item, history = Prices.History(link), available = units listed
 ---   at the last scanned day }; any may be nil.
 function Prices.Lookup(link)
@@ -74,8 +80,10 @@ function Prices.Lookup(link)
     local exact = call(api.IsAuctionDataExactByItemLink, Prices.CALLER, link)
     if exact ~= nil then exact = exact == true end
     local history = Prices.History(link)
+    local ok, ah = try(api.GetAuctionPriceByItemLink, Prices.CALLER, link)
     return {
-        ah = copper(call(api.GetAuctionPriceByItemLink, Prices.CALLER, link)),
+        ah = ok and copper(ah) or nil,
+        failed = not ok or nil, -- the price call itself failed: never "no price yet" (AGENTS safety)
         age = tonumber((call(api.GetAuctionAgeByItemLink, Prices.CALLER, link))),
         exact = exact,
         de = copper(call(api.GetDisenchantPriceByItemLink, Prices.CALLER, link)),

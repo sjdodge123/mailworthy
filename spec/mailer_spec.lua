@@ -61,8 +61,22 @@ describe("mailer", function()
         assert.equal("Sent 2 mail(s), 14 stacks, to Roknua Themicrulah.", ns.Mailer.Status())
         local record = MailworthyDB.mailed[3001]
         assert.equal("ah", record.route)
+        assert.is_nil(record.listRoute)
         assert.equal("Rettana Quilwrit", record.from)
         assert.equal("Roknua Themicrulah", record.to)
+    end)
+
+    it("a banked item's record keeps the route it would have been listed for", function()
+        fillBags(1)
+        local plan = items()
+        plan[1].result.route, plan[1].result.listRoute = "bank", "ah"
+        assert.is_true(ns.Mailer.Start(plan, ns.Config.BankAlt()))
+        WowStub.runTimers()
+        ns.Fire("MAIL_SEND_SUCCESS")
+        WowStub.runTimers()
+        local record = MailworthyDB.mailed[plan[1].itemID]
+        assert.equal("bank", record.route)
+        assert.equal("ah", record.listRoute)
     end)
 
     it("re-checks each slot right before attaching and skips anything that changed", function()

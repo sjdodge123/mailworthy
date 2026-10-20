@@ -90,6 +90,19 @@ describe("bank alt view", function()
         assert.is_true(MailworthySummaryFrame:IsShown())
     end)
 
+    it("B without Auctionator: the tag stays, the tooltip says the gain is unknown", function()
+        _G.Auctionator = nil
+        WowStub.setBag(0, 5, WowStub.item(10940, "Strange Dust", { count = 10, sell = 2, subclass = 12 }))
+        combined.Items[5] = WowStub.itemButton(0, 5)
+        ns.BankAlt.Redraw()
+        combined:UpdateItems()
+        assert.equal("B", tagOf(combined.Items[5]))
+        local text = hover(WowStub.link(10940, "Strange Dust"), 10940)
+        assert.truthy(text:find("Bank it, don't list it yet: enchanting materials sell once raids open (launch day 35). "
+            .. "No auction price yet, so the gain is unknown.", 1, true), text)
+        assert.same({ stacks = 1, items = 10, gain = 0 }, ns.BankAlt.Summary(ns.BankAlt.Refresh()).b)
+    end)
+
     it("follows a lock at once (a locked item has no tag)", function()
         ns.Locks.ToggleItem(2770, "link", "spec")
         assert.is_nil(tagOf(combined.Items[1]))
@@ -136,6 +149,8 @@ describe("bank alt view", function()
         assert.same({ stacks = 1, items = 5, gain = 795 }, s.ah)
         assert.same({ stacks = 1, items = 1, gain = 950 }, s.de)
         assert.same({ stacks = 1, items = 20, vendor = 200, wasAuction = 1 }, s.v)
+        MailworthyDB.mailed = { [2589] = { route = "bank", listRoute = "ah", at = WowStub.state.serverTime } }
+        assert.equal(1, ns.BankAlt.Summary(ns.BankAlt.Refresh()).v.wasAuction, "banked for the auction house counts too")
         ns.HandleSlash("summary")
         assert.is_true(MailworthySummaryFrame:IsShown())
     end)

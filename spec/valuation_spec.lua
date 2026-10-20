@@ -197,6 +197,9 @@ describe("valuation", function()
             assert.equal("no price", V.Evaluate(stone, { ah = nil }, S).reason)
             S.serverDay = nil
             assert.equal("no price", V.Evaluate(stone, { ah = nil }, S).reason, "unknown server day: the old rule")
+            S.serverDay = 0
+            assert.equal("no price", V.Evaluate(stone, { ah = nil, failed = true }, S).reason,
+                "the price call failed: that is not 'no price yet' (AGENTS safety)")
         end)
 
         it("leaves everything else alone", function()
@@ -340,6 +343,11 @@ describe("valuation", function()
             assert.equal("ah", V.Evaluate(item(), { ah = 88, available = 100, history = history }, S).route, "no glut")
             local shallow = rows({ 88, 85 }, { 80, 85 }, { 90, 85 }, { 120 }, { 124 }, { 116 }) -- 120 < 1.5 x 85
             assert.equal("ah", V.Evaluate(item(), { ah = 88, available = 1000, history = shallow }, S).route)
+            local sword = item({ classID = 2, subclassID = 7, quality = 1, count = 1, vendor = 0 })
+            local price = { ah = 8800, available = 50, history = rows({ 8800, 6000 }, { 8000, 6000 }, { 9000, 6000 },
+                { 12000 }, { 12400 }, { 11600 }) }
+            assert.equal("ah", V.Evaluate(sword, price, S).route, "a glut of gear is listed, never banked (trade goods only)")
+            assert.is_true(V.Evaluate(sword, price, S).liquidity.glut)
         end)
     end)
 
@@ -358,6 +366,8 @@ describe("valuation", function()
             assert.equal(1000, V.MinGain(S))
             S.minGain = 0
             assert.equal(0, V.MinGain(S))
+            S.minGain, S.serverDay = 100, 62
+            assert.equal(115, V.MinGain(S), "integer arithmetic: 100 + floor(100 x 27 / 180), not floor(114.99...)")
         end)
 
         it("changes the verdict: 20 Linen at 49c mails at launch, not at launch day 90", function()
