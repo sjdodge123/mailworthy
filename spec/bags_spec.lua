@@ -14,6 +14,8 @@ describe("bag scan", function()
 
     before_each(function()
         ns = loadAddon()
+        -- launch day 20: past the fresh-realm window, so "no price" keeps (the window has its own test)
+        WowStub.state.serverTime = ns.Valuation.LAUNCH_EPOCH + 20 * 86400
         ns.Fire("PLAYER_LOGIN")
         prices = {}
         _G.Auctionator = { API = { v1 = {
@@ -48,16 +50,16 @@ describe("bag scan", function()
         local ore = byName(result.mail, "Copper Ore")
         assert.equal(25, ore.count)
         assert.equal(2, ore.stacks)
-        -- 1250 x 0.95 = 1187; deposit floor(125 x 5%) x 12 = 72; postage 2 x 30
-        assert.equal(1187 - 72 - 60, ore.result.ahNet)
-        assert.equal(1187 - 72 - 60 - 125, ore.result.gain)
+        -- 1250 x 0.95 = 1187; deposit floor(125 x 5%) x 12 = 72, half counted; postage 2 x 30
+        assert.equal(1187 - 36 - 60, ore.result.ahNet)
+        assert.equal(1187 - 36 - 60 - 125, ore.result.gain)
         assert.equal(1, #result.mail)
         assert.equal("not worth it", byName(result.keep, "Linen Cloth").result.reason)
         assert.equal("soulbound", byName(result.unmailable, "Hearthstone").result.reason)
         assert.equal("quest item", byName(result.unmailable, "Quest Thing").result.reason)
         assert.is_nil(byName(result.keep, "Hearthstone"), "never-mailable items aren't in the keep list")
         assert.equal("no price", byName(result.keep, "Rough Stone").result.reason)
-        assert.same({ items = 25, stacks = 2, mails = 1, gain = 930, postage = 60 }, result.totals)
+        assert.same({ items = 25, stacks = 2, mails = 1, gain = 966, postage = 60 }, result.totals)
     end)
 
     it("keeps locked items (every stack) and stacks the game has locked", function()
@@ -70,6 +72,54 @@ describe("bag scan", function()
         result = ns.Bags.Evaluate()
         assert.equal(20, byName(result.mail, "Copper Ore").count, "the free stack still goes")
         assert.equal("in use", byName(result.keep, "Copper Ore").result.reason)
+    end)
+
+    it("values at the 3-day median and says so in the workings", function()
+        local rows = { { rawDay = 9, maxSeen = 60, available = 400 }, { rawDay = 8, maxSeen = 65, available = 300 },
+            { rawDay = 7, maxSeen = 58 } }
+        Auctionator.Database = { GetPriceHistory = function(_, key) return key == "2589" and rows or nil end }
+        Auctionator.Utilities = { BasicDBKeyFromLink = function(l) return l:match("item:(%d+)") end }
+        local result = ns.Bags.Evaluate()
+        local linen = byName(result.mail, "Linen Cloth")
+        assert.is_not_nil(linen, "40c last scan, 60c median: mails now")
+        assert.equal(60, linen.result.ahUnit)
+        assert.equal(400, linen.price.available)
+        local report = ns.Bags.Report(result)
+        assert.truthy(report:find("AH 60c each (3-day median; last scan 40c), 0 days old", 1, true), report)
+        assert.truthy(report:find("AH 50c each, 0 days old", 1, true), "Copper Ore: no history, last scan")
+    end)
+
+    it("fresh realm (launch days 0-13): unpriced white trade goods are mailed as common items", function()
+        WowStub.state.serverTime = ns.Valuation.LAUNCH_EPOCH + 3 * 86400
+        local result = ns.Bags.Evaluate()
+        local stone = byName(result.mail, "Rough Stone")
+        assert.equal("common", stone.result.route)
+        assert.equal("common trade good (fresh realm, no price yet)", stone.result.reason)
+        assert.equal("not worth it", byName(result.keep, "Linen Cloth").result.reason, "priced items follow the numbers")
+        local report = ns.Bags.Report(result)
+        assert.truthy(report:find("prices: Auctionator (fresh realm: unpriced white trade goods are mailed)", 1, true))
+        assert.truthy(report:find("launch day 3", 1, true))
+        WowStub.state.serverTime = ns.Valuation.LAUNCH_EPOCH + 14 * 86400
+        assert.equal("no price", byName(ns.Bags.Evaluate().keep, "Rough Stone").result.reason, "day 14: over")
+    end)
+
+    it("shows the grown minimum gain once the server is old enough", function()
+        WowStub.state.serverTime = ns.Valuation.LAUNCH_EPOCH + 90 * 86400
+        local report = ns.Bags.Report(ns.Bags.Evaluate())
+        assert.truthy(report:find("min gain 5s (6s 52c at launch day 90) and 25%", 1, true), report)
+        assert.truthy(report:find("gain 9s 66c (needs 6s 52c)", 1, true), report)
+    end)
+
+    it("a late-demand item before the raids goes in the mail as BANK", function()
+        WowStub.setBag(2, 2, WowStub.item(10940, "Strange Dust", { count = 10, sell = 2, subclass = 12 }))
+        prices[WowStub.link(10940, "Strange Dust")] = 100
+        local result = ns.Bags.Evaluate()
+        local dust = byName(result.mail, "Strange Dust")
+        assert.equal("bank", dust.result.route)
+        assert.equal(3, result.totals.stacks, "banked items are mailed like the rest")
+        assert.truthy(ns.Bags.Report(result):find(
+            "MAIL BANK [Strange Dust] x10: bank: enchanting materials sell once raids open (launch day 35) - vendor 2c each",
+            1, true))
     end)
 
     it("without Auctionator: mails white items, keeps the rest", function()
@@ -116,11 +166,15 @@ describe("bag scan", function()
         assert.truthy(text:find("KEEP [Linen Cloth] x20: locked - vendor 10c each = 2s", 1, true), text)
     end)
 
-    it("a failing price call is no price, never a crash", function()
+    it("a failing price call is no price, never a crash, and never the fresh-realm default", function()
         Auctionator.API.v1.GetAuctionPriceByItemLink = function() error("boom") end
         local result = ns.Bags.Evaluate()
         assert.equal(0, #result.mail)
         assert.equal("no price", byName(result.keep, "Copper Ore").result.reason)
+        WowStub.state.serverTime = ns.Valuation.LAUNCH_EPOCH + 3 * 86400
+        result = ns.Bags.Evaluate()
+        assert.equal(0, #result.mail, "launch day 3: still nothing, the price call failed")
+        assert.equal("no price", byName(result.keep, "Rough Stone").result.reason)
     end)
 
     it("/mw scan shows the workings in the copy box and sends nothing", function()
@@ -129,17 +183,17 @@ describe("bag scan", function()
         local function has(s) assert.truthy(text:find(s, 1, true), "missing: " .. s .. "\n" .. text) end
         has("prices: Auctionator")
         has("settings: 24h listing (deposit x12), AH cut 5%, postage 30c per stack, min gain 5s and 25%, "
-            .. "disenchant off, max price age 7 days")
-        has("total: 25 items (2 stacks) in 1 mail(s), 9s 30c more than vendoring, postage 60c")
+            .. "disenchant off, max price age 7 days, launch day 20")
+        has("total: 25 items (2 stacks) in 1 mail(s), 9s 66c more than vendoring, postage 60c")
         has("MAIL AH [Copper Ore] x25 (2 stacks): auction house - vendor 5c each = 1s 25c; AH 50c each, 0 days old; "
-            .. "AH net 10s 55c (cut 5%, deposit 72c, postage 60c); gain 9s 30c (needs 5s)")
+            .. "AH net 10s 91c (cut 5%, deposit 72c counted 36c, postage 60c); gain 9s 66c (needs 5s)")
         has("KEEP [Linen Cloth] x20: not worth it - vendor 10c each = 2s; AH 40c each, 0 days old; "
-            .. "AH net 6s 10c (cut 5%, deposit 1s 20c, postage 30c); gain 4s 10c (needs 5s)")
+            .. "AH net 6s 70c (cut 5%, deposit 1s 20c counted 60c, postage 30c); gain 4s 70c (needs 5s)")
         has("NOT MAILABLE (soulbound or quest, not listed in the window): [Hearthstone] x1, [Quest Thing] x1")
         assert.same({}, WowStub.state.attached)
         assert.same({}, WowStub.state.sent)
         assert.same({}, WowStub.state.used)
         local log = table.concat(ns.Log.Lines(), "\n")
-        assert.truthy(log:find("[scan] 1 to mail (2 stacks, 1 mails, gain 9s 30c), 2 kept", 1, true), log)
+        assert.truthy(log:find("[scan] 1 to mail (2 stacks, 1 mails, gain 9s 66c), 2 kept", 1, true), log)
     end)
 end)

@@ -1,7 +1,8 @@
 -- The bank alt view (media/bank-alt-prototype.png): what each item is for,
 -- recomputed with this character's own, fresh Auctionator prices.
 --
---   * tags on bag slots: AH (list it), DE (disenchant it), V (vendor now);
+--   * tags on bag slots: AH (list it), B (bank it: it sells higher later), DE
+--     (disenchant it), V (vendor now);
 --   * tooltip lines: today's verdict with the price and its age, and why it was
 --     mailed ("Mailed for: Auction +8s 21c, Oct 14, from <main>", recorded by
 --     Mailer in MailworthyDB.mailed);
@@ -32,6 +33,7 @@ ns.BankAlt = BankAlt
 
 BankAlt.TAGS = {
     ah = { text = "AH", label = "Auction", color = { 0.2, 0.4, 0.75 } },
+    b = { text = "B", label = "Bank", color = { 0.15, 0.5, 0.45 } },
     de = { text = "DE", label = "Disenchant", color = { 0.45, 0.25, 0.65 } },
     v = { text = "V", label = "Vendor now", color = { 0.45, 0.38, 0.2 } },
 }
@@ -76,12 +78,16 @@ function BankAlt.AfterSend()
 end
 
 --- Pure: the tag for a valued item: "ah" / "de" when the auction house or
---- disenchanting beats the vendor by the minimum gain, "v" when the vendor wins,
---- nil when there's nothing to say (locked, soulbound, tool, no price...).
+--- disenchanting beats the vendor by the minimum gain, "b" when it should be banked
+--- for a later phase instead of listed, "v" when the vendor wins, nil when there's
+--- nothing to say (locked, soulbound, tool, no price...).
 function BankAlt.Verdict(item)
     local r = item.result
     if not r then return nil end
-    if r.action == "mail" then return (r.route == "ah" or r.route == "de") and r.route or nil end
+    if r.action == "mail" then
+        if r.route == "bank" then return "b" end
+        return (r.route == "ah" or r.route == "de") and r.route or nil
+    end
     if r.reason == "not worth it" and (r.vendor or 0) > 0 then return "v" end
     -- Grey junk: no auction price, but a vendor buys it.
     local unpriced = r.reason == "no price" or r.reason == "junk (no price data)"
@@ -161,7 +167,8 @@ local function redraw()
     if legend then
         local mode = ns.Features.On("bankAltTags") and BankAlt.Mode()
         legend:SetText(mode == "vendor" and "Mailworthy: |cffd0b070V|r sell to a vendor"
-            or mode and "Mailworthy: |cff6f9fffAH|r auction   |cffb080e0DE|r disenchant   |cffd0b070V|r vendor now" or "")
+            or mode and "Mailworthy: |cff6f9fffAH|r auction   |cff40b0a0B|r bank for later   |cffb080e0DE|r disenchant"
+                .. "   |cffd0b070V|r vendor now" or "")
     end
     if frame and frame:IsShown() then BankAlt.RefreshWindow() end
 end
@@ -186,16 +193,24 @@ function BankAlt.TooltipLines(item, record, settings)
     lines[1] = { "Mailworthy" .. (tag and ("  |cffffffff[" .. tag.label .. "]|r") or ""), 1, 0.82, 0 }
     if tag then
         local r, p = item.result, item.price or {}
+        local unit = r.ahUnit or p.ah
+        local basis = (r.scans or 1) > 1 and string.format(" (%d-day median)", r.scans) or ""
         local text
         if verdict == "ah" then
-            text = string.format("Auction price today: %s each%s. After the %d%% cut and the %dh deposit: %s more than a vendor.",
-                money(p.ah), ageText(p.age), math.floor(settings.cut * 100 + 0.5),
+            text = string.format("Auction price today: %s each%s%s. After the %d%% cut and the %dh deposit: %s more than a vendor.",
+                money(unit), basis, ageText(p.age), math.floor(settings.cut * 100 + 0.5),
                 ns.Valuation.DURATION_HOURS[settings.duration], money(r.gain))
+        elseif verdict == "b" then
+            local why = tostring(r.reason):gsub("^bank: ", "")
+            text = "Bank it, don't list it yet: " .. why .. ". " .. (r.gain
+                and string.format("Listed today it would bring %s%s more than a vendor.", unit and (money(unit) .. " each, ") or "",
+                    money(r.gain))
+                or "No auction price yet, so the gain is unknown.")
         elseif verdict == "de" then
             text = string.format("Disenchanting today: %s, %s more than a vendor.", money(p.de), money(r.gain))
         elseif p.ah then
-            text = string.format("Auction price today: %s each%s. After the %d%% cut and the deposit that's %s, "
-                .. "so sell it to a vendor (%s).", money(p.ah), ageText(p.age), math.floor(settings.cut * 100 + 0.5),
+            text = string.format("Auction price today: %s each%s%s. After the %d%% cut and the deposit that's %s, "
+                .. "so sell it to a vendor (%s).", money(unit), basis, ageText(p.age), math.floor(settings.cut * 100 + 0.5),
                 (r.gain or 0) > 0 and ("under your " .. money(r.threshold) .. " minimum gain") or "less than a vendor pays",
                 money(r.vendor))
         else
@@ -205,7 +220,7 @@ function BankAlt.TooltipLines(item, record, settings)
     end
     if record then
         local was = BankAlt.TAGS[record.route] and BankAlt.TAGS[record.route].label
-            or (record.route == "common" and "Common item") or tostring(record.reason)
+            or (record.route == "bank" and "Bank") or (record.route == "common" and "Common item") or tostring(record.reason)
         lines[#lines + 1] = { string.format("Mailed for: %s%s, %s, from %s", was,
             record.gain and (" +" .. money(record.gain)) or "", date("%b %d", record.at or 0), tostring(record.from)),
             0.55, 0.75, 1 }
@@ -253,8 +268,8 @@ end
 
 --- Pure: totals per verdict for the summary window.
 function BankAlt.Summary(result)
-    local s = { ah = { stacks = 0, items = 0, gain = 0 }, de = { stacks = 0, items = 0, gain = 0 },
-        v = { stacks = 0, items = 0, vendor = 0, wasAuction = 0 } }
+    local s = { ah = { stacks = 0, items = 0, gain = 0 }, b = { stacks = 0, items = 0, gain = 0 },
+        de = { stacks = 0, items = 0, gain = 0 }, v = { stacks = 0, items = 0, vendor = 0, wasAuction = 0 } }
     local mailed = type(MailworthyDB.mailed) == "table" and MailworthyDB.mailed or {}
     for _, list in ipairs({ result.mail, result.keep }) do
         for _, item in ipairs(list) do
@@ -265,7 +280,7 @@ function BankAlt.Summary(result)
                 if v == "v" then
                     t.vendor = t.vendor + (item.result.vendor or 0)
                     local record = mailed[item.itemID]
-                    if record and record.route == "ah" then t.wasAuction = t.wasAuction + 1 end
+                    if record and (record.route == "ah" or record.listRoute == "ah") then t.wasAuction = t.wasAuction + 1 end
                 else
                     t.gain = t.gain + (item.result.gain or 0)
                 end
@@ -277,6 +292,9 @@ end
 
 local ROW_TEXT = {
     ah = function(t) return string.format("%d stack%s to list", t.stacks, t.stacks == 1 and "" or "s"), "+" .. money(t.gain) end,
+    b = function(t)
+        return string.format("%d stack%s to bank for a later phase", t.stacks, t.stacks == 1 and "" or "s"), "+" .. money(t.gain)
+    end,
     de = function(t) return string.format("%d item%s to disenchant", t.items, t.items == 1 and "" or "s"), "+" .. money(t.gain) end,
     v = function(t)
         return string.format("%d stack%s to sell to a vendor%s", t.stacks, t.stacks == 1 and "" or "s",
@@ -287,7 +305,7 @@ local ROW_TEXT = {
 function BankAlt.CreateWindow()
     if frame then return frame end
     local W = ns.Widgets
-    frame = W.Window("MailworthySummaryFrame", 440, 230)
+    frame = W.Window("MailworthySummaryFrame", 440, 258)
     frame:SetPoint("CENTER")
     local title = W.Label(frame, "GameFontNormalLarge")
     title:SetPoint("TOPLEFT", 22, -18)
@@ -295,7 +313,7 @@ function BankAlt.CreateWindow()
     header = W.Label(frame, "GameFontNormal")
     header:SetPoint("TOPLEFT", 24, -50)
     rows = {}
-    for i, key in ipairs({ "ah", "de", "v" }) do
+    for i, key in ipairs({ "ah", "b", "de", "v" }) do
         local row = {}
         local y = -74 - (i - 1) * 28
         row.chipBg = frame:CreateTexture(nil, "BORDER")

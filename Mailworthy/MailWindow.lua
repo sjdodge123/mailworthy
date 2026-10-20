@@ -32,6 +32,7 @@ UI.CHIPS = {
     ah = { "Auction", 0.2, 0.4, 0.75 },
     de = { "Disenchant", 0.45, 0.25, 0.65 },
     common = { "Common", 0.4, 0.4, 0.4 },
+    bank = { "Bank", 0.15, 0.5, 0.45 },
 }
 
 function UI.Frame() return frame end

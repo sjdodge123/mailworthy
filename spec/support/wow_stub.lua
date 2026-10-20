@@ -16,7 +16,7 @@ function WowStub.item(id, name, o)
     return {
         itemID = id, hyperlink = link(id, name), stackCount = o.count or 1, quality = o.quality or 1,
         isBound = o.bound or false, hasNoValue = o.noValue or false, isLocked = false,
-        sell = o.sell or 1, class = o.class or 7, quest = o.quest or false,
+        sell = o.sell or 1, class = o.class or 7, subclass = o.subclass, quest = o.quest or false,
     }
 end
 

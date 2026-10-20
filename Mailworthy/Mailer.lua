@@ -119,7 +119,7 @@ local function record(mail)
     local now = call(GetServerTime) or time()
     for _, stack in ipairs(mail.attached or {}) do
         local r = stack.item.result or {}
-        MailworthyDB.mailed[stack.itemID] = { route = r.route, reason = r.reason, gain = r.gain, at = now,
+        MailworthyDB.mailed[stack.itemID] = { route = r.route, listRoute = r.listRoute, reason = r.reason, gain = r.gain, at = now,
             from = ns.PlayerName(), to = state.bankAlt }
     end
 end

@@ -64,6 +64,7 @@ end
 --- unmailable = {items} (soulbound / quest: never listed in the window), totals }.
 function Bags.Evaluate(settings)
     settings = settings or Bags.CurrentSettings()
+    if settings.serverDay == nil then settings.serverDay = ns.Config.ServerDay() end
     local priced = ns.Prices.Auctionator() ~= nil
     local result = { settings = settings, priced = priced, mail = {}, keep = {}, unmailable = {},
         totals = { items = 0, stacks = 0, mails = 0, gain = 0, postage = 0 } }
@@ -100,11 +101,18 @@ end
 
 local money = function(c) return ns.Valuation.Money(c) end
 
-local ROUTE = { ah = "AH", de = "DE", common = "COMMON" }
+local ROUTE = { ah = "AH", de = "DE", common = "COMMON", bank = "BANK" }
 
 local function itemName(item)
     local name = item.link:match("%[(.-)%]") or item.link
     return string.format("[%s] x%d%s", name, item.count, item.stacks > 1 and (" (" .. item.stacks .. " stacks)") or "")
+end
+
+--- "5s", or "5s (6s 52c at launch day 90)" once the server's age has grown it.
+function Bags.MinGainText(settings)
+    local effective = ns.Valuation.MinGain(settings)
+    if effective == settings.minGain then return money(settings.minGain) end
+    return string.format("%s (%s at launch day %d)", money(settings.minGain), money(effective), settings.serverDay)
 end
 
 -- The numbers behind a verdict, so it can be checked by hand.
@@ -114,12 +122,26 @@ local function workings(item, settings)
         parts[#parts + 1] = "vendor " .. money(item.vendor) .. " each = " .. money(r.vendor or item.vendor * item.count)
     end
     if p and p.ah then
-        parts[#parts + 1] = string.format("AH %s each%s%s", money(p.ah),
-            p.age and (", " .. p.age .. " days old") or "", p.exact and "" or " (not exact)")
+        local text = "AH " .. money(r.ahUnit or p.ah) .. " each"
+        if (r.scans or 1) > 1 then
+            text = text .. string.format(" (%d-day median; last scan %s)", r.scans, money(p.ah))
+        end
+        if p.age then text = text .. ", " .. p.age .. " days old" end
+        if p.exact == false then text = text .. " (not exact, -10%)" end
+        parts[#parts + 1] = text
+    end
+    local L = r.liquidity
+    if L and (L.available or L.trend) then
+        local text = "market: " .. (L.available and (L.available .. " listed") or "listed ?")
+        if L.trend then text = text .. string.format(", %+d%% vs last week", math.floor(L.trend * 100 + 0.5)) end
+        if L.glut then text = text .. " (glut: floor price, deposit counted lost)" end
+        parts[#parts + 1] = text
     end
     if r.ahNet then
+        local deposit = money(r.deposit)
+        if r.depositCounted ~= r.deposit then deposit = deposit .. " counted " .. money(r.depositCounted) end
         parts[#parts + 1] = string.format("AH net %s (cut %d%%, deposit %s, postage %s)", money(r.ahNet),
-            math.floor(settings.cut * 100 + 0.5), money(r.deposit), money(r.postage))
+            math.floor(settings.cut * 100 + 0.5), deposit, money(r.postage))
     end
     if p and p.de then parts[#parts + 1] = "disenchant " .. money(p.de) .. " each" end
     if r.deNet then parts[#parts + 1] = "DE net " .. money(r.deNet) end
@@ -132,12 +154,14 @@ function Bags.Report(result)
     local lines = {
         string.format("Mailworthy %s scan at %s (sends nothing)", ns.VERSION, date("%Y-%m-%d %H:%M")),
         "bank alt: " .. tostring(ns.Config.BankAlt() or "none set (/mw settings)"),
-        "prices: " .. (result.priced and "Auctionator" or "none (no Auctionator: mailing common items)"),
+        "prices: " .. (result.priced and "Auctionator" or "none (no Auctionator: mailing common items)")
+            .. ((result.priced and (s.serverDay or math.huge) < ns.Valuation.FRESH_REALM_DAYS)
+                and " (fresh realm: unpriced white trade goods are mailed)" or ""),
         string.format("settings: %dh listing (deposit x%d), AH cut %d%%, postage %s per stack, "
-            .. "min gain %s and %d%%, disenchant %s, max price age %d days",
+            .. "min gain %s and %d%%, disenchant %s, max price age %d days, launch day %s",
             ns.Valuation.DURATION_HOURS[s.duration], ns.Valuation.DEPOSIT_MULTIPLIER[s.duration],
-            math.floor(s.cut * 100 + 0.5), money(s.postage), money(s.minGain), math.floor(s.minGainPct * 100 + 0.5),
-            s.disenchant and "on" or "off", s.maxAgeDays),
+            math.floor(s.cut * 100 + 0.5), money(s.postage), Bags.MinGainText(s), math.floor(s.minGainPct * 100 + 0.5),
+            s.disenchant and "on" or "off", s.maxAgeDays, tostring(s.serverDay)),
         string.format("total: %d items (%d stacks) in %d mail(s), %s more than vendoring, postage %s",
             t.items, t.stacks, t.mails, money(t.gain), money(t.postage)),
     }

@@ -24,6 +24,36 @@ describe("config", function()
 
     after_each(function() _G.DisenchantryDB = nil end)
 
+    describe("server day", function()
+        it("records when the realm was first seen, once, at login", function()
+            local first = MailworthyDB.realms["Classic Beta PvP"].firstSeen
+            assert.equal(WowStub.state.serverTime, first)
+            WowStub.state.serverTime = WowStub.state.serverTime + 86400 * 3
+            ns.Fire("PLAYER_LOGIN")
+            assert.equal(first, ns.Config.FirstSeen(), "sticks")
+            WowStub.state.realm = "Other Realm"
+            assert.equal(WowStub.state.serverTime, ns.Config.FirstSeen(), "per realm")
+        end)
+
+        it("is the days since launch, or since the realm was first seen when that's earlier", function()
+            local launch = ns.Valuation.LAUNCH_EPOCH
+            MailworthyDB.realms["Classic Beta PvP"].firstSeen = launch
+            WowStub.state.serverTime = launch + 5 * 86400 + 60
+            assert.equal(5, ns.Config.ServerDay())
+            MailworthyDB.realms["Classic Beta PvP"].firstSeen = launch - 30 * 86400
+            assert.equal(35, ns.Config.ServerDay())
+        end)
+
+        it("falls back to the local clock when the server time is missing or fails", function()
+            local saved = _G.GetServerTime
+            _G.GetServerTime = nil
+            assert.equal(ns.Valuation.ServerDay(os.time(), ns.Config.FirstSeen()), ns.Config.ServerDay())
+            _G.GetServerTime = function() error("boom") end
+            assert.is_number(ns.Config.ServerDay())
+            _G.GetServerTime = saved
+        end)
+    end)
+
     describe("bank alt", function()
         it("offers known characters on this realm and faction only, not this character", function()
             local choices = ns.Config.Choices()

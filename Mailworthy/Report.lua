@@ -75,14 +75,17 @@ function Report.Frame() return reportFrame end
 function Report.Build()
     local name, realm, faction = ns.Characters.Current()
     local v = ns.Config.Values()
+    v.serverDay = ns.Config.ServerDay()
     local lines = {
         string.format("Mailworthy %s report at %s", ns.VERSION, date("%Y-%m-%d %H:%M")),
         "build: " .. strings(call(GetBuildInfo)),
         string.format("character: %s (%s, %s)%s", tostring(name), tostring(realm), tostring(faction),
             ns.BankAlt.IsBankAlt() and " - the bank alt" or ""),
         "bank alt: " .. tostring(ns.Config.BankAlt() or "none set"),
+        string.format("server: launch day %s (realm first seen %s)", tostring(ns.Config.ServerDay()),
+            date("%Y-%m-%d", ns.Config.FirstSeen())),
         string.format("settings: %dh listing, min gain %s and %d%%, disenchant %s, max price age %d days, tags %s",
-            ns.Valuation.DURATION_HOURS[v.duration], ns.Valuation.Money(v.minGain), math.floor(v.minGainPct * 100 + 0.5),
+            ns.Valuation.DURATION_HOURS[v.duration], ns.Bags.MinGainText(v), math.floor(v.minGainPct * 100 + 0.5),
             v.disenchant and "on" or "off", v.maxAgeDays,
             ns.Config.Flag("tagsEverywhere") and "every character" or "bank alt only"),
         "prices: " .. (ns.Prices.Auctionator() and "Auctionator" or "none")
