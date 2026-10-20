@@ -23,7 +23,8 @@ worth selling to your bank alt. Vendor the rest."**
 Suggested categories: Auction & Economy, Mail, Bags & Inventory.
 
 Dependencies: Auctionator and Disenchantry are **optional**. `.pkgmeta`
-(`optional-dependencies: auctionator, disenchantry`) sets the CurseForge relations
+(`optional-dependencies: auctionator`; the `disenchantry` slug was dropped on
+2026-10-20 after CurseForge rejected the v0.8.0 upload over it) sets the CurseForge relations
 on each upload; `## OptionalDeps: Auctionator, Disenchantry` in the `.toc` makes
 them load first when installed.
 

@@ -6,10 +6,13 @@ move-folders:
   Mailworthy/Mailworthy: Mailworthy
 
 # CurseForge relations (slugs), set by the packager on upload: Auctionator
-# provides prices, Disenchantry switches on the disenchant comparison.
+# provides prices. Disenchantry (which switches on the disenchant comparison)
+# is NOT listed: since 2026-10-20 CurseForge rejects the whole upload with
+# "Invalid slug in project relations: 'disenchantry' does not exist, is not
+# accessible, or belongs to an unrelated root category" (the v0.8.0 run), though
+# v0.7.0 uploaded with it on 2026-10-14. The .toc's OptionalDeps still names it.
 optional-dependencies:
   - auctionator
-  - disenchantry
 
 ignore:
   - spec
