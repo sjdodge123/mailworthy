@@ -343,6 +343,35 @@ describe("valuation", function()
         end)
     end)
 
+    describe("minimum gain over the server's life (ALGORITHM-RESEARCH 4.5)", function()
+        it("is the setting until the raids open, then grows by 1/180 a day, at most to twice", function()
+            assert.equal(500, V.MinGain(S))
+            S.serverDay = 34
+            assert.equal(500, V.MinGain(S))
+            S.serverDay = 35
+            assert.equal(500, V.MinGain(S))
+            S.serverDay = 90
+            assert.equal(652, V.MinGain(S), "500 x (1 + 55 / 180)")
+            assert.equal(652, V.Threshold(200, S))
+            assert.equal(2500, V.Threshold(10000, S), "the percentage still wins when it's more")
+            S.serverDay = 1000
+            assert.equal(1000, V.MinGain(S))
+            S.minGain = 0
+            assert.equal(0, V.MinGain(S))
+        end)
+
+        it("changes the verdict: 20 Linen at 49c mails at launch, not at launch day 90", function()
+            -- 980 x 0.95 = 931 - 60 - 30 - 200 = 6s 41c
+            assert.equal("mail", V.Evaluate(item(), { ah = 49 }, S).action)
+            S.serverDay = 90
+            local r = V.Evaluate(item(), { ah = 49 }, S)
+            assert.equal("keep", r.action)
+            assert.equal(641, r.gain)
+            assert.equal(652, r.threshold)
+            assert.equal("mail", V.Evaluate(item(), { ah = 60 }, S).action, "8s 50c still clears it")
+        end)
+    end)
+
     describe("disenchant", function()
         local green
         before_each(function()

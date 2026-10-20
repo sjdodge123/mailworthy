@@ -108,6 +108,13 @@ local function itemName(item)
     return string.format("[%s] x%d%s", name, item.count, item.stacks > 1 and (" (" .. item.stacks .. " stacks)") or "")
 end
 
+--- "5s", or "5s (6s 52c at launch day 90)" once the server's age has grown it.
+function Bags.MinGainText(settings)
+    local effective = ns.Valuation.MinGain(settings)
+    if effective == settings.minGain then return money(settings.minGain) end
+    return string.format("%s (%s at launch day %d)", money(settings.minGain), money(effective), settings.serverDay)
+end
+
 -- The numbers behind a verdict, so it can be checked by hand.
 local function workings(item, settings)
     local r, p, parts = item.result, item.price, {}
@@ -153,7 +160,7 @@ function Bags.Report(result)
         string.format("settings: %dh listing (deposit x%d), AH cut %d%%, postage %s per stack, "
             .. "min gain %s and %d%%, disenchant %s, max price age %d days, launch day %s",
             ns.Valuation.DURATION_HOURS[s.duration], ns.Valuation.DEPOSIT_MULTIPLIER[s.duration],
-            math.floor(s.cut * 100 + 0.5), money(s.postage), money(s.minGain), math.floor(s.minGainPct * 100 + 0.5),
+            math.floor(s.cut * 100 + 0.5), money(s.postage), Bags.MinGainText(s), math.floor(s.minGainPct * 100 + 0.5),
             s.disenchant and "on" or "off", s.maxAgeDays, tostring(s.serverDay)),
         string.format("total: %d items (%d stacks) in %d mail(s), %s more than vendoring, postage %s",
             t.items, t.stacks, t.mails, money(t.gain), money(t.postage)),

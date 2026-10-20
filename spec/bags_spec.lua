@@ -103,6 +103,13 @@ describe("bag scan", function()
         assert.equal("no price", byName(ns.Bags.Evaluate().keep, "Rough Stone").result.reason, "day 14: over")
     end)
 
+    it("shows the grown minimum gain once the server is old enough", function()
+        WowStub.state.serverTime = ns.Valuation.LAUNCH_EPOCH + 90 * 86400
+        local report = ns.Bags.Report(ns.Bags.Evaluate())
+        assert.truthy(report:find("min gain 5s (6s 52c at launch day 90) and 25%", 1, true), report)
+        assert.truthy(report:find("gain 9s 66c (needs 6s 52c)", 1, true), report)
+    end)
+
     it("a late-demand item before the raids goes in the mail as BANK", function()
         WowStub.setBag(2, 2, WowStub.item(10940, "Strange Dust", { count = 10, sell = 2, subclass = 12 }))
         prices[WowStub.link(10940, "Strange Dust")] = 100

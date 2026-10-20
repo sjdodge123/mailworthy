@@ -20,6 +20,8 @@ Valuation.TRADE_GOODS = 7        -- item class: cloth, ore, herbs, leather, ench
 Valuation.RAID_DAY = 35          -- Dec 9, 2026: the first raids; enchanting mats, herbs, elementals sell from here
 Valuation.BANK_UNTIL_DAY = 60    -- no Bank verdicts from this launch day on (research 4.4)
 Valuation.BANK_RECOVERY = 1.5    -- a glut is banked when last week's median was 1.5x today's floor price
+Valuation.INFLATION_DAYS = 180   -- after RAID_DAY the minimum gain grows by 1/180 per launch day (research 4.5) ...
+Valuation.INFLATION_CAP = 2      -- ... up to twice the setting: vendor prices are fixed copper, gold inflates
 Valuation.INEXACT_HAIRCUT = 0.10 -- off an inexact price (Auctionator matched a similar name)
 Valuation.TREND_DAYS = 10        -- liquidity: the 3-day median against the median of scanned days 4-10
 Valuation.GLUT_SUPPLY = 10       -- a glut: at least 10x our count listed ...
@@ -203,8 +205,16 @@ function Valuation.Liquidity(price, count)
     return L
 end
 
+--- The minimum gain in force: the setting, grown with the server's age from RAID_DAY on
+--- so the preview doesn't fill with 5s items the player no longer cares about.
+function Valuation.MinGain(settings)
+    local day = tonumber(settings.serverDay)
+    local scale = 1 + math.max(0, (day or 0) - Valuation.RAID_DAY) / Valuation.INFLATION_DAYS
+    return math.floor(settings.minGain * math.min(scale, Valuation.INFLATION_CAP))
+end
+
 function Valuation.Threshold(vendorTotal, settings)
-    return math.max(settings.minGain, math.ceil(vendorTotal * settings.minGainPct))
+    return math.max(Valuation.MinGain(settings), math.ceil(vendorTotal * settings.minGainPct))
 end
 
 local function keep(reason, extra)
