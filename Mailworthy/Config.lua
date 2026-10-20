@@ -14,6 +14,7 @@ Config.MAX_NAMES = 10
 
 local function db()
     MailworthyDB.settings = type(MailworthyDB.settings) == "table" and MailworthyDB.settings or {}
+    MailworthyDB.realms = type(MailworthyDB.realms) == "table" and MailworthyDB.realms or {}
     MailworthyDB.bankAlts = type(MailworthyDB.bankAlts) == "table" and MailworthyDB.bankAlts or {}
     MailworthyDB.names = type(MailworthyDB.names) == "table" and MailworthyDB.names or {}
     return MailworthyDB
@@ -38,6 +39,28 @@ function Config.Values()
 end
 
 function Config.Get(key) return Config.Values()[key] end
+
+local function serverTime()
+    local ok, t = pcall(GetServerTime)
+    return ok and tonumber(t) or time()
+end
+
+--- The first server time Mailworthy saw this realm (recorded at login), for Valuation.ServerDay.
+function Config.FirstSeen()
+    local _, realm = ns.Characters.Current()
+    local realms = db().realms
+    realms[tostring(realm)] = type(realms[tostring(realm)]) == "table" and realms[tostring(realm)] or {}
+    local entry = realms[tostring(realm)]
+    if type(entry.firstSeen) ~= "number" then entry.firstSeen = serverTime() end
+    return entry.firstSeen
+end
+
+--- Days since launch for the decision rule (nil when the server time is unknown).
+function Config.ServerDay()
+    return ns.Valuation.ServerDay(serverTime(), Config.FirstSeen())
+end
+
+ns.On("PLAYER_LOGIN", function() Config.FirstSeen() end)
 
 Config.FLAGS = { minimapHidden = true, tagsEverywhere = true } -- saved switches outside the decision rule
 

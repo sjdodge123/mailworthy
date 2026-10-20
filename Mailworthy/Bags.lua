@@ -64,6 +64,7 @@ end
 --- unmailable = {items} (soulbound / quest: never listed in the window), totals }.
 function Bags.Evaluate(settings)
     settings = settings or Bags.CurrentSettings()
+    if settings.serverDay == nil then settings.serverDay = ns.Config.ServerDay() end
     local priced = ns.Prices.Auctionator() ~= nil
     local result = { settings = settings, priced = priced, mail = {}, keep = {}, unmailable = {},
         totals = { items = 0, stacks = 0, mails = 0, gain = 0, postage = 0 } }
@@ -137,12 +138,14 @@ function Bags.Report(result)
     local lines = {
         string.format("Mailworthy %s scan at %s (sends nothing)", ns.VERSION, date("%Y-%m-%d %H:%M")),
         "bank alt: " .. tostring(ns.Config.BankAlt() or "none set (/mw settings)"),
-        "prices: " .. (result.priced and "Auctionator" or "none (no Auctionator: mailing common items)"),
+        "prices: " .. (result.priced and "Auctionator" or "none (no Auctionator: mailing common items)")
+            .. ((result.priced and (s.serverDay or math.huge) < ns.Valuation.FRESH_REALM_DAYS)
+                and " (fresh realm: unpriced white trade goods are mailed)" or ""),
         string.format("settings: %dh listing (deposit x%d), AH cut %d%%, postage %s per stack, "
-            .. "min gain %s and %d%%, disenchant %s, max price age %d days",
+            .. "min gain %s and %d%%, disenchant %s, max price age %d days, launch day %s",
             ns.Valuation.DURATION_HOURS[s.duration], ns.Valuation.DEPOSIT_MULTIPLIER[s.duration],
             math.floor(s.cut * 100 + 0.5), money(s.postage), money(s.minGain), math.floor(s.minGainPct * 100 + 0.5),
-            s.disenchant and "on" or "off", s.maxAgeDays),
+            s.disenchant and "on" or "off", s.maxAgeDays, tostring(s.serverDay)),
         string.format("total: %d items (%d stacks) in %d mail(s), %s more than vendoring, postage %s",
             t.items, t.stacks, t.mails, money(t.gain), money(t.postage)),
     }

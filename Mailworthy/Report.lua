@@ -81,6 +81,8 @@ function Report.Build()
         string.format("character: %s (%s, %s)%s", tostring(name), tostring(realm), tostring(faction),
             ns.BankAlt.IsBankAlt() and " - the bank alt" or ""),
         "bank alt: " .. tostring(ns.Config.BankAlt() or "none set"),
+        string.format("server: launch day %s (realm first seen %s)", tostring(ns.Config.ServerDay()),
+            date("%Y-%m-%d", ns.Config.FirstSeen())),
         string.format("settings: %dh listing, min gain %s and %d%%, disenchant %s, max price age %d days, tags %s",
             ns.Valuation.DURATION_HOURS[v.duration], ns.Valuation.Money(v.minGain), math.floor(v.minGainPct * 100 + 0.5),
             v.disenchant and "on" or "off", v.maxAgeDays,

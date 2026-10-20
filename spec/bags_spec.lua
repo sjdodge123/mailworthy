@@ -14,6 +14,8 @@ describe("bag scan", function()
 
     before_each(function()
         ns = loadAddon()
+        -- launch day 20: past the fresh-realm window, so "no price" keeps (the window has its own test)
+        WowStub.state.serverTime = ns.Valuation.LAUNCH_EPOCH + 20 * 86400
         ns.Fire("PLAYER_LOGIN")
         prices = {}
         _G.Auctionator = { API = { v1 = {
@@ -87,6 +89,20 @@ describe("bag scan", function()
         assert.truthy(report:find("AH 50c each, 0 days old", 1, true), "Copper Ore: no history, last scan")
     end)
 
+    it("fresh realm (launch days 0-13): unpriced white trade goods are mailed as common items", function()
+        WowStub.state.serverTime = ns.Valuation.LAUNCH_EPOCH + 3 * 86400
+        local result = ns.Bags.Evaluate()
+        local stone = byName(result.mail, "Rough Stone")
+        assert.equal("common", stone.result.route)
+        assert.equal("common trade good (fresh realm, no price yet)", stone.result.reason)
+        assert.equal("not worth it", byName(result.keep, "Linen Cloth").result.reason, "priced items follow the numbers")
+        local report = ns.Bags.Report(result)
+        assert.truthy(report:find("prices: Auctionator (fresh realm: unpriced white trade goods are mailed)", 1, true))
+        assert.truthy(report:find("launch day 3", 1, true))
+        WowStub.state.serverTime = ns.Valuation.LAUNCH_EPOCH + 14 * 86400
+        assert.equal("no price", byName(ns.Bags.Evaluate().keep, "Rough Stone").result.reason, "day 14: over")
+    end)
+
     it("without Auctionator: mails white items, keeps the rest", function()
         _G.Auctionator = nil
         WowStub.setBag(2, 2, WowStub.item(1000, "Grey Junk", { quality = 0 }))
@@ -144,7 +160,7 @@ describe("bag scan", function()
         local function has(s) assert.truthy(text:find(s, 1, true), "missing: " .. s .. "\n" .. text) end
         has("prices: Auctionator")
         has("settings: 24h listing (deposit x12), AH cut 5%, postage 30c per stack, min gain 5s and 25%, "
-            .. "disenchant off, max price age 7 days")
+            .. "disenchant off, max price age 7 days, launch day 20")
         has("total: 25 items (2 stacks) in 1 mail(s), 9s 30c more than vendoring, postage 60c")
         has("MAIL AH [Copper Ore] x25 (2 stacks): auction house - vendor 5c each = 1s 25c; AH 50c each, 0 days old; "
             .. "AH net 10s 55c (cut 5%, deposit 72c, postage 60c); gain 9s 30c (needs 5s)")

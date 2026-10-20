@@ -155,6 +155,53 @@ describe("valuation", function()
         end)
     end)
 
+    describe("server day and the fresh-realm default (ALGORITHM-RESEARCH 4.2)", function()
+        local LAUNCH = V.LAUNCH_EPOCH
+
+        it("counts days since Forever's launch, 0 before it", function()
+            assert.equal(1793833200, LAUNCH, "2026-11-04 15:00 PST")
+            assert.equal(0, V.ServerDay(LAUNCH - 15 * 86400))
+            assert.equal(0, V.ServerDay(LAUNCH))
+            assert.equal(0, V.ServerDay(LAUNCH + 86399))
+            assert.equal(1, V.ServerDay(LAUNCH + 86400))
+            assert.equal(35, V.ServerDay(LAUNCH + 35 * 86400 + 100), "Dec 9, first raids")
+            assert.is_nil(V.ServerDay(nil))
+        end)
+
+        it("a realm first seen before the launch date counts from when it was first seen", function()
+            assert.equal(10, V.ServerDay(LAUNCH, LAUNCH - 10 * 86400))
+            assert.equal(2, V.ServerDay(LAUNCH + 2 * 86400, LAUNCH + 86400), "a later first sight changes nothing")
+            assert.equal(2, V.ServerDay(LAUNCH + 2 * 86400, "junk"))
+        end)
+
+        it("mails an unpriced white trade good in the first 14 launch days, then keeps it", function()
+            local stone = item({ itemID = 2835, link = "[Rough Stone]", count = 10, vendor = 2 })
+            S.serverDay = 0
+            local r = V.Evaluate(stone, { ah = nil }, S)
+            assert.equal("mail", r.action)
+            assert.equal("common", r.route)
+            assert.equal("common trade good (fresh realm, no price yet)", r.reason)
+            assert.equal(20, r.vendor)
+            assert.equal(30, r.postage)
+            S.serverDay = 13
+            assert.equal("mail", V.Evaluate(stone, { ah = nil }, S).action)
+            S.serverDay = 14
+            assert.equal("no price", V.Evaluate(stone, { ah = nil }, S).reason)
+            S.serverDay = nil
+            assert.equal("no price", V.Evaluate(stone, { ah = nil }, S).reason, "unknown server day: the old rule")
+        end)
+
+        it("leaves everything else alone", function()
+            S.serverDay = 0
+            assert.equal("no price", V.Evaluate(item({ quality = 0 }), { ah = nil }, S).reason, "grey")
+            assert.equal("no price", V.Evaluate(item({ quality = 2 }), { ah = nil }, S).reason, "green")
+            assert.equal("no price", V.Evaluate(item({ classID = 4 }), { ah = nil }, S).reason, "white armor")
+            assert.equal("not worth it", V.Evaluate(item(), { ah = 40 }, S).reason, "priced: the numbers decide")
+            assert.equal("price too old (8 days)", V.Evaluate(item(), { ah = 40, age = 8 }, S).reason)
+            assert.equal("mail", V.Evaluate(item(), nil, S).action, "no Auctionator: the common rule as before")
+        end)
+    end)
+
     describe("disenchant", function()
         local green
         before_each(function()

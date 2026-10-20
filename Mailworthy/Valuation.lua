@@ -14,6 +14,9 @@ ns.Valuation = Valuation
 
 Valuation.DEPOSIT_RATE = 0.05
 Valuation.MEDIAN_DAYS = 3        -- the smoothed price: median of the last 3 scanned days
+Valuation.LAUNCH_EPOCH = 1793833200 -- Forever launch: 2026-11-04 15:00 PST (docs/ALGORITHM-RESEARCH.md)
+Valuation.FRESH_REALM_DAYS = 14  -- launch days 0-13: unpriced white trade goods are mailed
+Valuation.TRADE_GOODS = 7        -- item class: cloth, ore, herbs, leather, enchanting materials...
 Valuation.INEXACT_HAIRCUT = 0.10 -- off an inexact price (Auctionator matched a similar name)
 Valuation.DEPOSIT_MULTIPLIER = { 1, 4, 12 } -- AH durations 1 / 2 / 3 = 2h / 8h / 24h
 Valuation.DURATION_HOURS = { 2, 8, 24 }
@@ -28,6 +31,26 @@ Valuation.DEFAULTS = {
     maxAgeDays = 7,       -- older Auctionator prices don't count
     disenchant = false,   -- Valuation.Settings switches it on when Disenchantry is installed
 }
+
+--- Pure: days since the realm launched (0 before launch and on launch day). `now` is
+--- the server time; `firstSeen` the first server time Mailworthy saw this realm, which
+--- stands in for the launch of any realm that opens later than Forever's first wave.
+function Valuation.ServerDay(now, firstSeen)
+    now = tonumber(now)
+    if not now then return nil end
+    local launch = Valuation.LAUNCH_EPOCH
+    if tonumber(firstSeen) and firstSeen < launch then launch = firstSeen end
+    return math.max(0, math.floor((now - launch) / 86400))
+end
+
+--- Pure: research 4.2. With Auctionator installed but no price for this item yet, a white
+--- trade good is mailed during the first FRESH_REALM_DAYS launch days: cloth, ore, herbs and
+--- leather always sell on a fresh realm, and in launch week almost nothing has a price.
+function Valuation.FreshRealmDefault(item, price, settings)
+    return type(price) == "table" and price.ah == nil
+        and item.quality == 1 and item.classID == Valuation.TRADE_GOODS
+        and tonumber(settings.serverDay) ~= nil and settings.serverDay < Valuation.FRESH_REALM_DAYS
+end
 
 --- Settings for a scan: saved values over the defaults. The disenchant default
 --- follows Disenchantry until the player sets it (then their choice sticks).
@@ -149,6 +172,10 @@ function Valuation.Evaluate(item, price, settings)
     end
     if r.ahNet == nil and r.deNet == nil then
         if stale then return keep(string.format("price too old (%d days)", price.age), r) end
+        if Valuation.FreshRealmDefault(item, price, settings) then
+            return { action = "mail", route = "common", reason = "common trade good (fresh realm, no price yet)",
+                vendor = vendor, postage = postage }
+        end
         return keep("no price", r)
     end
 
