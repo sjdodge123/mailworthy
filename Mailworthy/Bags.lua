@@ -114,8 +114,13 @@ local function workings(item, settings)
         parts[#parts + 1] = "vendor " .. money(item.vendor) .. " each = " .. money(r.vendor or item.vendor * item.count)
     end
     if p and p.ah then
-        parts[#parts + 1] = string.format("AH %s each%s%s", money(p.ah),
-            p.age and (", " .. p.age .. " days old") or "", p.exact and "" or " (not exact)")
+        local text = "AH " .. money(r.ahUnit or p.ah) .. " each"
+        if (r.scans or 1) > 1 then
+            text = text .. string.format(" (%d-day median; last scan %s)", r.scans, money(p.ah))
+        end
+        if p.age then text = text .. ", " .. p.age .. " days old" end
+        if p.exact == false then text = text .. " (not exact, -10%)" end
+        parts[#parts + 1] = text
     end
     if r.ahNet then
         parts[#parts + 1] = string.format("AH net %s (cut %d%%, deposit %s, postage %s)", money(r.ahNet),

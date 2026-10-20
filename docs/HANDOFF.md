@@ -25,6 +25,7 @@ must never break the game.
 |---|---|
 | Repo | `~/Documents/Projects/mailworthy`, GitHub `sjdodge123/mailworthy` (private), `main` |
 | Design + phases + decision rule | [docs/PLAN.md](PLAN.md) |
+| Decision-rule research (bank category, server age, competition; beta build check 2026-10-20) | [docs/ALGORITHM-RESEARCH.md](ALGORITHM-RESEARCH.md) |
 | Blizzard source findings + **taint rules** | [docs/FOREVER-UI-NOTES.md](FOREVER-UI-NOTES.md) |
 | In-game discovery history (U1-U20 results, rerun scripts) | [docs/DISCOVERY-SESSION-2.md](DISCOVERY-SESSION-2.md) |
 | CurseForge setup, assets, path to v1.0 | [docs/CURSEFORGE.md](CURSEFORGE.md) |
@@ -206,6 +207,7 @@ call `SendMail` anyway. Every Mailer timer checks the run id and `busy`.
 2. **Run the v1.0 check** with the operator (DISCOVERY-SESSION-2.md "v1.0 check"); fix
    what fails in its own PR first.
 3. **Tag `v1.0.0`** when the operator says so.
-4. After 1.0: the AH cut from a sale mail (`[invoice]` lines in `/mw report`),
+4. After 1.0: the decision-rule changes in ALGORITHM-RESEARCH.md section 5 (smoothed price,
+   fresh-realm default before Nov 4, liquidity, Bank category); the AH cut from a sale mail (`[invoice]` lines in `/mw report`),
    disenchant values for green items, ForeverMail compatibility.
 5. README "Beta unknowns" table and PLAN's "Still open" list kept current after each report.

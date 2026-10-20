@@ -13,6 +13,8 @@ local Valuation = {}
 ns.Valuation = Valuation
 
 Valuation.DEPOSIT_RATE = 0.05
+Valuation.MEDIAN_DAYS = 3        -- the smoothed price: median of the last 3 scanned days
+Valuation.INEXACT_HAIRCUT = 0.10 -- off an inexact price (Auctionator matched a similar name)
 Valuation.DEPOSIT_MULTIPLIER = { 1, 4, 12 } -- AH durations 1 / 2 / 3 = 2h / 8h / 24h
 Valuation.DURATION_HOURS = { 2, 8, 24 }
 
@@ -71,6 +73,29 @@ function Valuation.CanDisenchant(item)
     return (item.classID == 2 or item.classID == 4) and (item.quality or 0) >= 2
 end
 
+--- The unit price an item is valued at (docs/ALGORITHM-RESEARCH.md 4.1 / 4.7): the median
+--- of the highest minimum buyout over the last MEDIAN_DAYS scanned days, so one 1c undercut
+--- in the latest scan can't flip a verdict; the last scan's price when there are fewer than
+--- two days of history. An inexact price loses INEXACT_HAIRCUT. Returns copper (nil without
+--- a price) and the number of scanned days behind it (1 = the last scan alone).
+function Valuation.SmoothedPrice(price)
+    if type(price) ~= "table" or price.ah == nil then return nil, 0 end
+    local days = {}
+    for _, row in ipairs(type(price.history) == "table" and price.history or {}) do
+        if type(row) == "table" and row.maxSeen then days[#days + 1] = row.maxSeen end
+        if #days == Valuation.MEDIAN_DAYS then break end
+    end
+    local unit, scans = price.ah, 1
+    local n = #days
+    if n >= 2 then
+        table.sort(days)
+        unit = n % 2 == 1 and days[(n + 1) / 2] or math.floor((days[n / 2] + days[n / 2 + 1]) / 2)
+        scans = n
+    end
+    if price.exact == false then unit = math.floor(unit * (1 - Valuation.INEXACT_HAIRCUT)) end
+    return unit, scans
+end
+
 function Valuation.Threshold(vendorTotal, settings)
     return math.max(settings.minGain, math.ceil(vendorTotal * settings.minGainPct))
 end
@@ -85,8 +110,10 @@ end
 ---   loaded yet), bound, quest, inUse (locked by the game), locked (Mailworthy lock) }
 --- price: nil when there's no price source at all (no Auctionator); else
 ---   { ah = copper per unit or nil, age = days or nil, de = copper per item or nil }
+---   history = Prices.History rows (optional), exact = true / false / nil }
 --- Returns { action = "mail" | "keep", route = "ah" | "de" | "common" (mail only), reason,
----   vendor, deposit, postage, ahNet, deNet, gain, threshold } (copper, totals for the item).
+---   vendor, deposit, postage, ahUnit (the smoothed unit price), scans (days behind it),
+---   ahNet, deNet, gain, threshold } (copper, totals for the item).
 function Valuation.Evaluate(item, price, settings)
     settings = settings or Valuation.DEFAULTS
     if item.locked then return keep("locked") end
@@ -113,8 +140,9 @@ function Valuation.Evaluate(item, price, settings)
     local r = { vendor = vendor, postage = postage }
     local stale = price.ah ~= nil and price.age ~= nil and price.age > settings.maxAgeDays
     if price.ah ~= nil and not stale then
+        r.ahUnit, r.scans = Valuation.SmoothedPrice(price)
         r.deposit = Valuation.Deposit(item.vendor, n, settings.duration)
-        r.ahNet = math.floor(price.ah * n * (1 - settings.cut)) - math.floor(r.deposit * settings.relistFactor) - postage
+        r.ahNet = math.floor(r.ahUnit * n * (1 - settings.cut)) - math.floor(r.deposit * settings.relistFactor) - postage
     end
     if settings.disenchant and price.de ~= nil and Valuation.CanDisenchant(item) then
         r.deNet = math.floor(price.de * n) - postage

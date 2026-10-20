@@ -100,6 +100,61 @@ describe("valuation", function()
         end)
     end)
 
+    describe("smoothed price (ALGORITHM-RESEARCH 4.1 / 4.7)", function()
+        -- Prices.History rows: newest first, maxSeen = the day's highest minimum buyout.
+        local function hist(...)
+            local rows, day = {}, 100
+            for _, v in ipairs({ ... }) do
+                rows[#rows + 1] = { day = day, minSeen = v, maxSeen = v, available = 500 }
+                day = day - 1
+            end
+            return rows
+        end
+
+        it("is the last scan's price without history, or with a single day", function()
+            assert.same({ 60, 1 }, { V.SmoothedPrice({ ah = 60 }) })
+            assert.same({ 60, 1 }, { V.SmoothedPrice({ ah = 60, history = hist(55) }) })
+            assert.same({ nil, 0 }, { V.SmoothedPrice({ ah = nil, history = hist(55, 56) }) })
+            assert.same({ nil, 0 }, { V.SmoothedPrice(nil) })
+        end)
+
+        it("is the median of the last three scanned days (two days: their mean)", function()
+            assert.same({ 60, 3 }, { V.SmoothedPrice({ ah = 40, history = hist(40, 60, 65) }) })
+            assert.same({ 60, 3 }, { V.SmoothedPrice({ ah = 40, history = hist(40, 60, 65, 5, 5) }) }, "older days don't count")
+            assert.same({ 50, 2 }, { V.SmoothedPrice({ ah = 40, history = hist(40, 61) }) })
+        end)
+
+        it("skips days without a price and tolerates odd rows", function()
+            local rows = hist(40, 60, 65)
+            rows[2].maxSeen = nil
+            assert.same({ 52, 2 }, { V.SmoothedPrice({ ah = 40, history = rows }) })
+            assert.same({ 40, 1 }, { V.SmoothedPrice({ ah = 40, history = "junk" }) })
+        end)
+
+        it("takes 10% off an inexact price; an unknown exactness is left alone", function()
+            assert.same({ 54, 1 }, { V.SmoothedPrice({ ah = 60, exact = false }) })
+            assert.same({ 60, 1 }, { V.SmoothedPrice({ ah = 60, exact = true }) })
+            assert.same({ 60, 1 }, { V.SmoothedPrice({ ah = 60 }) })
+            assert.same({ 54, 3 }, { V.SmoothedPrice({ ah = 40, exact = false, history = hist(40, 60, 65) }) })
+        end)
+
+        it("one undercut in the latest scan doesn't flip the verdict", function()
+            -- 20 Linen Cloth: 40c each is "not worth it" (PLAN's example), 60c mails.
+            assert.equal("keep", V.Evaluate(item(), { ah = 40, age = 0 }, S).action)
+            local r = V.Evaluate(item(), { ah = 40, age = 0, history = hist(40, 60, 65) }, S)
+            assert.equal("mail", r.action)
+            assert.equal(60, r.ahUnit)
+            assert.equal(3, r.scans)
+            assert.equal(1140 - 120 - 30, r.ahNet)
+            -- and one spike doesn't make a dud mailworthy
+            assert.equal("keep", V.Evaluate(item(), { ah = 60, age = 0, history = hist(60, 40, 40) }, S).action)
+        end)
+
+        it("the age gate still uses the last scan's age", function()
+            assert.equal("price too old (8 days)", V.Evaluate(item(), { ah = 40, age = 8, history = hist(40, 60, 65) }, S).reason)
+        end)
+    end)
+
     describe("disenchant", function()
         local green
         before_each(function()

@@ -186,16 +186,18 @@ function BankAlt.TooltipLines(item, record, settings)
     lines[1] = { "Mailworthy" .. (tag and ("  |cffffffff[" .. tag.label .. "]|r") or ""), 1, 0.82, 0 }
     if tag then
         local r, p = item.result, item.price or {}
+        local unit = r.ahUnit or p.ah
+        local basis = (r.scans or 1) > 1 and string.format(" (%d-day median)", r.scans) or ""
         local text
         if verdict == "ah" then
-            text = string.format("Auction price today: %s each%s. After the %d%% cut and the %dh deposit: %s more than a vendor.",
-                money(p.ah), ageText(p.age), math.floor(settings.cut * 100 + 0.5),
+            text = string.format("Auction price today: %s each%s%s. After the %d%% cut and the %dh deposit: %s more than a vendor.",
+                money(unit), basis, ageText(p.age), math.floor(settings.cut * 100 + 0.5),
                 ns.Valuation.DURATION_HOURS[settings.duration], money(r.gain))
         elseif verdict == "de" then
             text = string.format("Disenchanting today: %s, %s more than a vendor.", money(p.de), money(r.gain))
         elseif p.ah then
-            text = string.format("Auction price today: %s each%s. After the %d%% cut and the deposit that's %s, "
-                .. "so sell it to a vendor (%s).", money(p.ah), ageText(p.age), math.floor(settings.cut * 100 + 0.5),
+            text = string.format("Auction price today: %s each%s%s. After the %d%% cut and the deposit that's %s, "
+                .. "so sell it to a vendor (%s).", money(unit), basis, ageText(p.age), math.floor(settings.cut * 100 + 0.5),
                 (r.gain or 0) > 0 and ("under your " .. money(r.threshold) .. " minimum gain") or "less than a vendor pays",
                 money(r.vendor))
         else

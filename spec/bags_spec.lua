@@ -72,6 +72,21 @@ describe("bag scan", function()
         assert.equal("in use", byName(result.keep, "Copper Ore").result.reason)
     end)
 
+    it("values at the 3-day median and says so in the workings", function()
+        local rows = { { rawDay = 9, maxSeen = 60, available = 400 }, { rawDay = 8, maxSeen = 65, available = 300 },
+            { rawDay = 7, maxSeen = 58 } }
+        Auctionator.Database = { GetPriceHistory = function(_, key) return key == "2589" and rows or nil end }
+        Auctionator.Utilities = { BasicDBKeyFromLink = function(l) return l:match("item:(%d+)") end }
+        local result = ns.Bags.Evaluate()
+        local linen = byName(result.mail, "Linen Cloth")
+        assert.is_not_nil(linen, "40c last scan, 60c median: mails now")
+        assert.equal(60, linen.result.ahUnit)
+        assert.equal(400, linen.price.available)
+        local report = ns.Bags.Report(result)
+        assert.truthy(report:find("AH 60c each (3-day median; last scan 40c), 0 days old", 1, true), report)
+        assert.truthy(report:find("AH 50c each, 0 days old", 1, true), "Copper Ore: no history, last scan")
+    end)
+
     it("without Auctionator: mails white items, keeps the rest", function()
         _G.Auctionator = nil
         WowStub.setBag(2, 2, WowStub.item(1000, "Grey Junk", { quality = 0 }))

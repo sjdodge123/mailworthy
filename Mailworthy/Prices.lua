@@ -35,16 +35,52 @@ function Prices.DisenchantryInstalled()
     return rawget(_G, "DisenchantryDB") ~= nil
 end
 
+Prices.HISTORY_DAYS = 21 -- Auctionator's default PRICE_HISTORY_DAYS
+
+--- Auctionator's per-day history for one link: { { day, minSeen, maxSeen, available }, ... },
+--- newest first, at most HISTORY_DAYS entries; nil when there is none. minSeen / maxSeen
+--- are the lowest and highest "minimum buyout" its scans saw that day, available the units
+--- listed at the day's biggest scan. This is NOT Auctionator's stable API
+--- (Database:GetPriceHistory, Utilities.BasicDBKeyFromLink; README "Beta unknowns"), so
+--- every step is guarded and anything odd means "no history".
+function Prices.History(link)
+    local a = rawget(_G, "Auctionator")
+    if type(a) ~= "table" or type(a.Database) ~= "table" or type(a.Utilities) ~= "table" then return nil end
+    local key = call(a.Utilities.BasicDBKeyFromLink, link)
+    if type(key) ~= "string" and type(key) ~= "number" then return nil end
+    local rows = call(a.Database.GetPriceHistory, a.Database, key)
+    if type(rows) ~= "table" then return nil end
+    local history = {}
+    for _, row in ipairs(rows) do
+        local day = type(row) == "table" and tonumber(row.rawDay)
+        if day then
+            history[#history + 1] = { day = day, minSeen = copper(row.minSeen), maxSeen = copper(row.maxSeen),
+                available = tonumber(row.available) }
+        end
+    end
+    if #history == 0 then return nil end
+    table.sort(history, function(x, y) return x.day > y.day end)
+    while #history > Prices.HISTORY_DAYS do history[#history] = nil end
+    return history
+end
+
 --- Auction data for one item link, or nil when there's no price source at all.
---- { ah = copper per unit, age = days since seen, exact = bool, de = copper per item }; any may be nil.
+--- { ah = copper per unit (last scan's minimum buyout), age = days since seen, exact = true / false /
+---   nil (unknown), de = copper per item, history = Prices.History(link), available = units listed
+---   at the last scanned day }; any may be nil.
 function Prices.Lookup(link)
     local api = Prices.Auctionator()
     if not api then return nil end
+    local exact = call(api.IsAuctionDataExactByItemLink, Prices.CALLER, link)
+    if exact ~= nil then exact = exact == true end
+    local history = Prices.History(link)
     return {
         ah = copper(call(api.GetAuctionPriceByItemLink, Prices.CALLER, link)),
         age = tonumber((call(api.GetAuctionAgeByItemLink, Prices.CALLER, link))),
-        exact = call(api.IsAuctionDataExactByItemLink, Prices.CALLER, link) == true,
+        exact = exact,
         de = copper(call(api.GetDisenchantPriceByItemLink, Prices.CALLER, link)),
+        history = history,
+        available = history and history[1].available or nil,
         source = "Auctionator",
     }
 end
