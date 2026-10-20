@@ -21,9 +21,16 @@ than at the vendor goes to your bank alt. The rest stays in your bags to vendor.
 - **Lock items** you never want mailed: Alt+click (mouse), L3 in your bags (controller),
   or press the item in the Mailworthy window. Locked items glow blue and stay locked
   wherever they move.
-- **On your bank alt:** bag slots carry **AH / DE / V** tags (list it, disenchant it,
-  vendor it now) recomputed with that character's own prices; tooltips show today's
-  verdict and why the item was mailed; the Mailworthy button (or `/mw summary`) sums it up.
+- **On your bank alt:** bag slots carry **AH / B / DE / V** tags (list it, bank it for a
+  later phase, disenchant it, vendor it now) recomputed with that character's own prices;
+  tooltips show today's verdict and why the item was mailed; the Mailworthy button (or
+  `/mw summary`) sums it up.
+- **No math needed:** prices are the 3-day median of Auctionator's scans (one undercut
+  can't flip a verdict), half the deposit counts (the game refunds it on a sale), a flooded
+  market is valued at its floor, and the rule knows the realm's launch day: in launch week
+  unpriced white trade goods are mailed, before the first raids enchanting materials, herbs
+  and elementals are tagged **B** (bank them, they sell higher later), and later the
+  minimum gain grows with the gold supply. Details: `docs/PLAN.md` "Decision rule".
 - **After sending:** your main's bags tag what's left for the vendor with **V** (grey
   junk too) for the rest of the session. Lock an item to keep it and its V goes.
 - Profession tools (fishing poles, Mining Pick, Blacksmith Hammer, Skinning Knife, ...)
@@ -51,6 +58,9 @@ each in-game round are in [docs/DISCOVERY-SESSION-2.md](docs/DISCOVERY-SESSION-2
 | `## Interface: 16001` | addon loads without "out of date" | confirmed for LedgerLink (build 1.60.1.70205) |
 | Auctionator `API.v1` on Forever | S5 | **confirmed** (Auctionator 340; price, age, exactness, disenchant calls) |
 | Real AH prices for bag items | `/mw scan` after an Auctionator scan | **seen** (v0.2.0 scan: Copper Ore 1s 74c, Fishing Pole 9s, all age 0); per unit still to confirm against the tooltip; Mailworthy assumes `GetAuctionPriceByItemLink` is per unit and `GetAuctionAgeByItemLink` is in days (Auctionator's convention; S5 saw age 0) |
+| Auctionator's history: `Auctionator.Database:GetPriceHistory(key)` rows `{ rawDay, minSeen, maxSeen, available }` and `Auctionator.Utilities.BasicDBKeyFromLink(link)` (not its stable API; guarded, nil = last scan's price only) | `/mw scan` workings show "(3-day median; last scan ...)" and "market: N listed" | open |
+| `GetServerTime()` as the launch-day anchor (`Valuation.LAUNCH_EPOCH` = Nov 4, 2026 15:00 PST) | `/mw report` "server: launch day N" | open |
+| Trade-goods subclass numbers on Forever (`GetItemInfoInstant`: 7 metal, 9 herb, 10 elemental, 12 enchanting) | a Strange Dust / Bruiseweed stack shows **B** before Dec 9 | open |
 | Controller in the settings window away from the mailbox (our own D-pad / Cross / Circle bindings with no Blizzard window focused) | v0.4.0 report | **works**, no blocked actions |
 | Tooltip lines through `TooltipDataProcessor.AddTooltipPostCall` (item tooltips, bags and controller) | Phase 4c check | open |
 | Disenchantry installed | `C_AddOns.IsAddOnLoaded("Disenchantry")` (in Forever's API docs), else `DisenchantryDB` exists | open |

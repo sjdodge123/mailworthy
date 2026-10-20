@@ -146,18 +146,38 @@ item never splits into "mail 20, keep 3" (`Valuation.lua`):
 
 ```
 vendor  = v * n
+a       = median of the last 3 scanned days' highest minimum buyout (Auctionator's history),
+          the last scan's price with under 2 days of history; -10% when the price is inexact
 deposit = floor(v * n * 0.05) * 12      -- 24h listing (x1 / x4 for 2h / 8h)
-ahNet   = a * n * (1 - cut) - deposit * relistFactor - postage
+counted = deposit * relistFactor        -- 0.5: the game refunds it on a sale; a glut counts it in full
+ahNet   = a * n * (1 - cut) - counted - postage
 deNet   = d * n - postage               -- only when disenchant is enabled and the item can be disenchanted
 postage = 30c x stacks                  -- 30c per attached stack, so no batching needed
 best    = max(ahNet, deNet)
+minGain = setting x (1 + max(0, day - 35) / 180), at most 2x   -- day = launch day (Nov 4, 2026 = 0)
 mail    = best - vendor >= max(minGain, vendor * minGainPct)
 ```
 
-The deposit counts as a full cost (relist factor 1.0): conservative, since the
-game refunds it when the item sells. Example: 20 Linen Cloth, vendor 10c, AH
-40c each: vendor 2s, deposit floor(200 x 5%) x 12 = 1s 20c, ahNet = 7s 60c -
-1s 20c - 30c = 6s 10c, gain 4s 10c: under the 5s minimum, so it stays.
+Example: 20 Linen Cloth, vendor 10c, AH 40c each: vendor 2s, deposit floor(200 x 5%)
+x 12 = 1s 20c (60c counted), ahNet = 7s 60c - 60c - 30c = 6s 70c, gain 4s 70c: under
+the 5s minimum, so it stays. At 60c each it mails (gain 8s 50c).
+
+**Market (research 4.3):** Auctionator's history also gives the units listed and a
+trend (3-day median against the previous week). A **glut** (10x our count listed and
+the price down 25% or more) is valued at the floor of the market (median of the daily
+minimums) with the deposit counted lost.
+
+**Fresh realm (research 4.2):** with Auctionator installed but no price for an item
+yet, a white trade good (class 7) is mailed as a common item during launch days 0-13.
+
+**Bank (research 4.4):** an item that would be mailed for the auction house (or as a
+common item) is mailed as **bank** instead, meaning "hold it on the alt": before launch
+day 35 (the first raids) when it is enchanting material, a herb past the six starters,
+elemental material or Mithril+ metal; until day 60 when it is a glut whose previous-week
+median was 1.5x today's floor. Disenchanting is never banked; the gain shown is what
+listing it today would bring. The bank alt tags it **B**.
+
+The full research, sources and ranking: [ALGORITHM-RESEARCH.md](ALGORITHM-RESEARCH.md).
 
 **Without Auctionator** (no price source) there's nothing to compare, so the rule
 is simple: mail every tradeable **white (common, quality 1)** item that isn't
@@ -286,6 +306,9 @@ bank alt's own, fresh Auctionator data** ([media/bank-alt-prototype.png](../medi
   V = the vendor wins today; the Mailworthy button (Triangle) on the bank alt opens the
   summary, also `/mw summary` and the settings' "Bank alt summary" button; switches
   `bankAltTags`, `tooltipLines`; setting "AH / DE / V tags: every character".
+- **B (bank)** (2026-10-20): the fourth tag and summary row, for items the rule says to
+  hold for a later phase (decision rule above); the tooltip says why and what listing
+  it today would bring. Tags are advice: the bank alt can list a B item any time.
 
 ## Release and CurseForge
 

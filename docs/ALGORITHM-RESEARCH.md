@@ -1,5 +1,8 @@
 # Decision algorithm research (2026-10-20)
 
+**Status:** sections 4.1-4.5 are built (decision rule v2, PLAN "Decision rule"); the
+beta build check is in section 1.
+
 Goal (operator): **the most gold while leveling, with the player doing no math.**
 Every factor below has to work with the defaults and no new setting the player must
 understand. This doc covers two things: whether the current beta build needs an
@@ -150,7 +153,7 @@ Days since launch feeds three small things, no new setting:
 |---|---|
 | 0-13 | 4.2 fresh-realm default on; min gain stays 5s / 25% |
 | 14-34 | 4.4 phase list active; glut detection has enough history to work |
-| 35+ | enchanting / herb / elemental B items switch to AH; vendor gets relatively worse as gold inflates: scale `minGain` by `1 + day / 180` (5s at launch, 7s 30c at day 90) so the preview does not fill with 5s items the player no longer cares about |
+| 35+ | enchanting / herb / elemental B items switch to AH; vendor gets relatively worse as gold inflates: grow `minGain` by 1/180 per day past day 35, capped at 2x (5s until day 35, 6s 52c at day 90) so the preview does not fill with 5s items the player no longer cares about |
 
 Low code, medium value; mostly it keeps the preview short later on.
 
