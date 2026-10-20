@@ -103,6 +103,18 @@ describe("bag scan", function()
         assert.equal("no price", byName(ns.Bags.Evaluate().keep, "Rough Stone").result.reason, "day 14: over")
     end)
 
+    it("a late-demand item before the raids goes in the mail as BANK", function()
+        WowStub.setBag(2, 2, WowStub.item(10940, "Strange Dust", { count = 10, sell = 2, subclass = 12 }))
+        prices[WowStub.link(10940, "Strange Dust")] = 100
+        local result = ns.Bags.Evaluate()
+        local dust = byName(result.mail, "Strange Dust")
+        assert.equal("bank", dust.result.route)
+        assert.equal(3, result.totals.stacks, "banked items are mailed like the rest")
+        assert.truthy(ns.Bags.Report(result):find(
+            "MAIL BANK [Strange Dust] x10: bank: enchanting materials sell once raids open (launch day 35) - vendor 2c each",
+            1, true))
+    end)
+
     it("without Auctionator: mails white items, keeps the rest", function()
         _G.Auctionator = nil
         WowStub.setBag(2, 2, WowStub.item(1000, "Grey Junk", { quality = 0 }))

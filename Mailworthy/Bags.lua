@@ -101,7 +101,7 @@ end
 
 local money = function(c) return ns.Valuation.Money(c) end
 
-local ROUTE = { ah = "AH", de = "DE", common = "COMMON" }
+local ROUTE = { ah = "AH", de = "DE", common = "COMMON", bank = "BANK" }
 
 local function itemName(item)
     local name = item.link:match("%[(.-)%]") or item.link

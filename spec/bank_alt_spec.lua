@@ -73,6 +73,23 @@ describe("bank alt view", function()
         assert.equal(826 - 6 - 25, item.result.gain)
     end)
 
+    it("B: bank it for a later phase, with the tooltip and a summary row", function()
+        WowStub.setBag(0, 5, WowStub.item(10940, "Strange Dust", { count = 10, sell = 2, subclass = 12 }))
+        prices[WowStub.link(10940, "Strange Dust")] = { ah = 100 }
+        combined.Items[5] = WowStub.itemButton(0, 5)
+        ns.BankAlt.Redraw()
+        combined:UpdateItems()
+        assert.equal("B", tagOf(combined.Items[5]))
+        local text = hover(WowStub.link(10940, "Strange Dust"), 10940)
+        assert.truthy(text:find("Mailworthy  |cffffffff[Bank]|r", 1, true), text)
+        -- no postage here: 950 - 6 (half the deposit) - 20 vendor = 9s 24c
+        assert.truthy(text:find("Bank it, don't list it yet: enchanting materials sell once raids open (launch day 35). "
+            .. "Listed today it would bring 1s each, 9s 24c more than a vendor.", 1, true), text)
+        assert.same({ stacks = 1, items = 10, gain = 924 }, ns.BankAlt.Summary(ns.BankAlt.Refresh()).b)
+        ns.HandleSlash("summary")
+        assert.is_true(MailworthySummaryFrame:IsShown())
+    end)
+
     it("follows a lock at once (a locked item has no tag)", function()
         ns.Locks.ToggleItem(2770, "link", "spec")
         assert.is_nil(tagOf(combined.Items[1]))

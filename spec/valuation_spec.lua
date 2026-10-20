@@ -263,6 +263,86 @@ describe("valuation", function()
         end)
     end)
 
+    describe("bank (ALGORITHM-RESEARCH 4.4)", function()
+        local function dust(o)
+            local t = item({ itemID = 10940, link = "[Strange Dust]", subclassID = 12, count = 10, vendor = 2 })
+            for k, v in pairs(o or {}) do t[k] = v end
+            return t
+        end
+
+        it("knows which trade goods sell later: enchanting, herbs past the starters, elementals, high metals", function()
+            assert.equal("enchanting materials", V.LateDemand(dust()))
+            assert.equal("herbs", V.LateDemand(item({ itemID = 2453, subclassID = 9 })), "Bruiseweed")
+            assert.is_nil(V.LateDemand(item({ itemID = 2447, subclassID = 9 })), "Peacebloom sells now")
+            assert.equal("elemental materials", V.LateDemand(item({ itemID = 7067, subclassID = 10 })))
+            assert.equal("high-level metal", V.LateDemand(item({ itemID = 3858, subclassID = 7 })), "Mithril Ore")
+            assert.is_nil(V.LateDemand(item({ itemID = 2770, subclassID = 7 })), "Copper Ore")
+            assert.is_nil(V.LateDemand(item({ subclassID = 5 })), "cloth")
+            assert.is_nil(V.LateDemand(item({ classID = 4, subclassID = 12 })), "armor")
+        end)
+
+        it("banks a late-demand item that would be mailed for the auction house, until the raids open", function()
+            S.serverDay = 10
+            local r = V.Evaluate(dust(), { ah = 100 }, S)
+            assert.equal("mail", r.action)
+            assert.equal("bank", r.route)
+            assert.equal("ah", r.listRoute)
+            assert.equal("bank: enchanting materials sell once raids open (launch day 35)", r.reason)
+            assert.equal(950 - 6 - 30 - 20, r.gain, "the gain it would bring listed today")
+            S.serverDay = 34
+            assert.equal("bank", V.Evaluate(dust(), { ah = 100 }, S).route)
+            S.serverDay = 35
+            assert.equal("ah", V.Evaluate(dust(), { ah = 100 }, S).route)
+            S.serverDay = nil
+            assert.equal("ah", V.Evaluate(dust(), { ah = 100 }, S).route, "unknown server day: never")
+        end)
+
+        it("only what would be mailed anyway: a dud stays, disenchanting is never banked", function()
+            S.serverDay = 10
+            assert.equal("not worth it", V.Evaluate(dust(), { ah = 5 }, S).reason)
+            assert.equal("locked", V.Evaluate(dust({ locked = true }), { ah = 100 }, S).reason)
+            S = V.Settings(nil, true)
+            S.serverDay = 10
+            local green = item({ count = 1, quality = 2, classID = 4, subclassID = 12, vendor = 50 })
+            assert.equal("de", V.Evaluate(green, { ah = 100, de = 1000 }, S).route)
+        end)
+
+        it("banks common items too (no Auctionator, or the fresh-realm default)", function()
+            S.serverDay = 10
+            local r = V.Evaluate(dust(), nil, S)
+            assert.equal("bank", r.route)
+            assert.equal("common", r.listRoute)
+            assert.equal("bank", V.Evaluate(dust(), { ah = nil }, S).route, "fresh realm, no price yet")
+            S.serverDay = 40
+            assert.equal("common", V.Evaluate(dust(), nil, S).route)
+            assert.equal("no price", V.Evaluate(dust(), { ah = nil }, S).reason)
+        end)
+
+        it("banks a flooded market that was worth 1.5x more last week, until launch day 60", function()
+            local function rows(...)
+                local list, day = {}, 100
+                for _, pair in ipairs({ ... }) do
+                    list[#list + 1] = { day = day, maxSeen = pair[1], minSeen = pair[2] or pair[1] }
+                    day = day - 1
+                end
+                return list
+            end
+            local history = rows({ 88, 60 }, { 80, 60 }, { 90, 60 }, { 120 }, { 124 }, { 116 })
+            S.serverDay = 20
+            -- glut: floor 60c x 20 = 12s x 0.95 = 11s 40c - 1s 20c - 30c = 9s 90c, gain 7s 90c: mails; 120c >= 1.5 x 60c
+            local r = V.Evaluate(item(), { ah = 88, available = 1000, history = history }, S)
+            assert.equal("bank", r.route)
+            assert.equal("bank: the market is flooded (1000 listed, -27% vs last week)", r.reason)
+            assert.equal(790, r.gain)
+            S.serverDay = 60
+            assert.equal("ah", V.Evaluate(item(), { ah = 88, available = 1000, history = history }, S).route)
+            S.serverDay = 20
+            assert.equal("ah", V.Evaluate(item(), { ah = 88, available = 100, history = history }, S).route, "no glut")
+            local shallow = rows({ 88, 85 }, { 80, 85 }, { 90, 85 }, { 120 }, { 124 }, { 116 }) -- 120 < 1.5 x 85
+            assert.equal("ah", V.Evaluate(item(), { ah = 88, available = 1000, history = shallow }, S).route)
+        end)
+    end)
+
     describe("disenchant", function()
         local green
         before_each(function()

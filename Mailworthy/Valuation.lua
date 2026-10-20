@@ -17,6 +17,9 @@ Valuation.MEDIAN_DAYS = 3        -- the smoothed price: median of the last 3 sca
 Valuation.LAUNCH_EPOCH = 1793833200 -- Forever launch: 2026-11-04 15:00 PST (docs/ALGORITHM-RESEARCH.md)
 Valuation.FRESH_REALM_DAYS = 14  -- launch days 0-13: unpriced white trade goods are mailed
 Valuation.TRADE_GOODS = 7        -- item class: cloth, ore, herbs, leather, enchanting materials...
+Valuation.RAID_DAY = 35          -- Dec 9, 2026: the first raids; enchanting mats, herbs, elementals sell from here
+Valuation.BANK_UNTIL_DAY = 60    -- no Bank verdicts from this launch day on (research 4.4)
+Valuation.BANK_RECOVERY = 1.5    -- a glut is banked when last week's median was 1.5x today's floor price
 Valuation.INEXACT_HAIRCUT = 0.10 -- off an inexact price (Auctionator matched a similar name)
 Valuation.TREND_DAYS = 10        -- liquidity: the 3-day median against the median of scanned days 4-10
 Valuation.GLUT_SUPPLY = 10       -- a glut: at least 10x our count listed ...
@@ -54,6 +57,50 @@ function Valuation.FreshRealmDefault(item, price, settings)
     return type(price) == "table" and price.ah == nil
         and item.quality == 1 and item.classID == Valuation.TRADE_GOODS
         and tonumber(settings.serverDay) ~= nil and settings.serverDay < Valuation.FRESH_REALM_DAYS
+end
+
+-- Research 4.4: trade goods whose demand comes with the level-60 crowd and the first
+-- raids, not while everyone levels. Subclasses use the modern client's numbering.
+Valuation.SUBCLASS = { METAL = 7, HERB = 9, ELEMENTAL = 10, ENCHANTING = 12 }
+Valuation.STARTER_HERBS = { -- sold now: levelling alchemists want them, and the player needs the gold
+    [2447] = "Peacebloom", [765] = "Silverleaf", [2449] = "Earthroot", [785] = "Mageroyal",
+    [2450] = "Briarthorn", [3820] = "Stranglekelp",
+}
+Valuation.LATE_METALS = {
+    [3858] = "Mithril Ore", [3860] = "Mithril Bar", [7911] = "Truesilver Ore", [6037] = "Truesilver Bar",
+    [10620] = "Thorium Ore", [12359] = "Thorium Bar", [11370] = "Dark Iron Ore", [11371] = "Dark Iron Bar",
+    [12360] = "Arcanite Bar",
+}
+
+--- Pure: what kind of late-demand item this is ("enchanting materials", "herbs", "elemental
+--- materials", "high-level metal"), or nil for everything that sells now.
+function Valuation.LateDemand(item)
+    if item.classID ~= Valuation.TRADE_GOODS then return nil end
+    local sub = item.subclassID
+    if sub == Valuation.SUBCLASS.ENCHANTING then return "enchanting materials" end
+    if sub == Valuation.SUBCLASS.ELEMENTAL then return "elemental materials" end
+    if sub == Valuation.SUBCLASS.HERB and not Valuation.STARTER_HERBS[item.itemID] then return "herbs" end
+    if Valuation.LATE_METALS[item.itemID] then return "high-level metal" end
+    return nil
+end
+
+--- Pure: for an item that is being mailed for the auction house (or as a common item):
+--- the reason to bank it on the alt instead of listing it now, or nil. Before the first
+--- raids, late-demand trade goods; until BANK_UNTIL_DAY, a glut that was worth 1.5x more
+--- last week. Never without a known server day, never for disenchanting.
+function Valuation.BankReason(item, r, settings)
+    local day = tonumber(settings and settings.serverDay)
+    if day == nil or day >= Valuation.BANK_UNTIL_DAY then return nil end
+    if day < Valuation.RAID_DAY then
+        local what = Valuation.LateDemand(item)
+        if what then return string.format("bank: %s sell once raids open (launch day %d)", what, Valuation.RAID_DAY) end
+    end
+    local L = r and r.liquidity
+    if L and L.glut and L.older and r.ahUnit and L.older >= Valuation.BANK_RECOVERY * r.ahUnit then
+        return string.format("bank: the market is flooded (%d listed, %+d%% vs last week)", L.available,
+            math.floor(L.trend * 100 + 0.5))
+    end
+    return nil
 end
 
 --- Settings for a scan: saved values over the defaults. The disenchant default
@@ -166,12 +213,23 @@ local function keep(reason, extra)
     return r
 end
 
+--- A mail verdict; an auction / common route may turn into "bank" (listRoute keeps the original).
+local function mail(route, reason, r, item, settings)
+    r.action, r.route, r.reason = "mail", route, reason
+    if route == "ah" or route == "common" then
+        local why = Valuation.BankReason(item, r, settings)
+        if why then r.listRoute, r.route, r.reason = route, "bank", why end
+    end
+    return r
+end
+
 --- item: { link, itemID, count, stacks, quality, classID, vendor (copper per unit; nil = not
 ---   loaded yet), bound, quest, inUse (locked by the game), locked (Mailworthy lock) }
 --- price: nil when there's no price source at all (no Auctionator); else
 ---   { ah = copper per unit or nil, age = days or nil, de = copper per item or nil }
 ---   history = Prices.History rows (optional), exact = true / false / nil }
---- Returns { action = "mail" | "keep", route = "ah" | "de" | "common" (mail only), reason,
+--- Returns { action = "mail" | "keep", route = "ah" | "de" | "common" | "bank" (mail only; bank =
+---   mail it and hold it, listRoute = the route it would have had), reason,
 ---   vendor, deposit, depositCounted, postage, ahUnit (the smoothed unit price), scans (days
 ---   behind it), liquidity (Valuation.Liquidity), ahNet, deNet, gain, threshold } (copper, totals).
 function Valuation.Evaluate(item, price, settings)
@@ -190,8 +248,7 @@ function Valuation.Evaluate(item, price, settings)
     if price == nil then
         -- No price source: mail plain white (common) items, keep the rest (operator, 2026-10-13).
         if item.quality == 1 then
-            return { action = "mail", route = "common", reason = "common item (no price data)",
-                vendor = vendor, postage = postage }
+            return mail("common", "common item (no price data)", { vendor = vendor, postage = postage }, item, settings)
         end
         return keep(item.quality == 0 and "junk (no price data)" or "uncommon or better (no price data)",
             { vendor = vendor })
@@ -212,8 +269,8 @@ function Valuation.Evaluate(item, price, settings)
     if r.ahNet == nil and r.deNet == nil then
         if stale then return keep(string.format("price too old (%d days)", price.age), r) end
         if Valuation.FreshRealmDefault(item, price, settings) then
-            return { action = "mail", route = "common", reason = "common trade good (fresh realm, no price yet)",
-                vendor = vendor, postage = postage }
+            return mail("common", "common trade good (fresh realm, no price yet)", { vendor = vendor, postage = postage },
+                item, settings)
         end
         return keep("no price", r)
     end
@@ -223,9 +280,7 @@ function Valuation.Evaluate(item, price, settings)
     r.gain = best - vendor
     r.threshold = Valuation.Threshold(vendor, settings)
     if r.gain >= r.threshold then
-        r.action, r.route = "mail", route
-        r.reason = route == "ah" and "auction house" or "disenchant"
-        return r
+        return mail(route, route == "ah" and "auction house" or "disenchant", r, item, settings)
     end
     return keep("not worth it", r)
 end
