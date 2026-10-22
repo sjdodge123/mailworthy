@@ -1,5 +1,5 @@
 -- The settings window: bank alt, minimum gain, disenchant, listing length,
--- tags, locked-item glow, minimap button. Keyboard/mouse: click. Controller: the D-pad moves Mailworthy's
+-- tags, locked-item glow, profession materials, minimap button. Keyboard/mouse: click. Controller: the D-pad moves Mailworthy's
 -- own highlight, Cross presses, Circle closes (PadKey "settings" set, Nav); every
 -- setting is a button, so nothing needs typing. The name box is an optional
 -- fallback the player clicks into (the game never moves focus: no SetFocus).
@@ -14,11 +14,11 @@ local UI = {}
 ns.SettingsUI = UI
 
 UI.MAX_CHOICES = 6
-local WIDTH, HEIGHT, ROW = 420, 612, 26
+local WIDTH, HEIGHT, ROW = 420, 644, 26
 
 local frame, nameBox, nameHint, current, emptyHint, legend
 local choiceRows = {}
-local amountLabel, pctLabel, disenchantButton, minimapButton, tagsButton, glowButton
+local amountLabel, pctLabel, disenchantButton, minimapButton, tagsButton, glowButton, matsButton
 local durationButtons = {}
 local pendingUnknown -- a typed name Mailworthy hasn't seen, waiting for a second press
 
@@ -183,6 +183,12 @@ function UI.Create()
         UI.Refresh()
     end, "MailworthySettingsGlow")
     glowButton:SetPoint("TOPLEFT", 24, -542)
+    matsButton = W.Button(frame, "", 364, function()
+        ns.Config.Set("keepProfessionMats", not ns.Config.Get("keepProfessionMats"))
+        if ns.BankAlt then ns.BankAlt.Redraw() end
+        UI.Refresh()
+    end, "MailworthySettingsMats")
+    matsButton:SetPoint("TOPLEFT", 24, -574)
     W.Button(frame, "Done", 100, function() frame:Hide() end, "MailworthySettingsDone")
         :SetPoint("TOPRIGHT", -24, -510)
     legend = W.Label(frame, "GameFontHighlightSmall")
@@ -227,6 +233,12 @@ function UI.Refresh()
     minimapButton:SetText("Minimap button: " .. (ns.Config.MinimapShown() and "shown" or "hidden"))
     tagsButton:SetText("AH / DE / V tags: " .. (ns.Config.Flag("tagsEverywhere") and "every character" or "bank alt only"))
     glowButton:SetText("Locked items glow blue: " .. (ns.Config.Flag("glowEverywhere") and "always" or "at the mailbox only"))
+    local crafting = {}
+    for _, p in ipairs(ns.Valuation.CraftingProfessions(ns.Characters.Professions())) do
+        crafting[#crafting + 1] = p.name .. " (" .. p.mats .. ")"
+    end
+    matsButton:SetText(string.format("Keep my professions' materials: %s%s", v.keepProfessionMats and "on" or "off",
+        #crafting > 0 and (" - " .. table.concat(crafting, ", ")) or " - no crafting profession here"))
     legend:SetText(ns.MailButton.GamepadUI() and W.Legend() or "")
 end
 

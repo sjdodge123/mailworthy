@@ -197,6 +197,28 @@ describe("bag scan", function()
         assert.equal(6, byName(ns.Bags.Evaluate().mail, "Copper Ore").result.deposit)
     end)
 
+    it("keeps the materials this character's professions use; the setting lets them go", function()
+        WowStub.state.bags[0][2].subclass = 5 -- Linen Cloth: trade goods, cloth
+        WowStub.state.bags[0][1].subclass = 7 -- Copper Ore: metal & stone
+        prices[WowStub.link(2589, "Linen Cloth")] = 1000
+        local result = ns.Bags.Evaluate()
+        assert.truthy(byName(result.mail, "Linen Cloth"), "a miner mails cloth")
+        assert.truthy(byName(result.mail, "Copper Ore"), "and ore: Mining gathers, it doesn't need it")
+        WowStub.state.professions = { { index = 6, name = "Mining", rank = 12, maxRank = 75, skillLine = 186 },
+            { index = 7, name = "Tailoring", rank = 40, maxRank = 75, skillLine = 197 } }
+        result = ns.Bags.Evaluate()
+        assert.equal("your Tailoring needs it", byName(result.keep, "Linen Cloth").result.reason)
+        assert.truthy(byName(result.mail, "Copper Ore"))
+        local report = ns.Bags.Report(result)
+        assert.truthy(report:find("profession materials kept for Tailoring", 1, true), report)
+        assert.truthy(report:find("KEEP [Linen Cloth] x20: your Tailoring needs it - vendor 10c each = 2s", 1, true), report)
+        assert.truthy(ns.Report.Build():find(", profession materials kept for Tailoring", 1, true))
+        ns.Config.Set("keepProfessionMats", false)
+        result = ns.Bags.Evaluate()
+        assert.truthy(byName(result.mail, "Linen Cloth"))
+        assert.truthy(ns.Bags.Report(result):find("profession materials mailed", 1, true))
+    end)
+
     it("keeps profession tools whatever they'd sell for (v0.2.0 listed a Fishing Pole)", function()
         WowStub.setBag(2, 2, WowStub.item(2901, "Mining Pick", { sell = 2 }))
         WowStub.setBag(2, 3, WowStub.item(6365, "Strong Fishing Pole", { sell = 50, class = 2 }))

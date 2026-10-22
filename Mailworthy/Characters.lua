@@ -35,6 +35,9 @@ local function professions()
     return list
 end
 
+--- This character's professions right now: { { name, rank, maxRank, skillLine }, ... }.
+function Characters.Professions() return professions() end
+
 function Characters.Describe(entry)
     local profs = {}
     for _, p in ipairs(entry.professions or {}) do

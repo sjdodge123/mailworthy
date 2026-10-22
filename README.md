@@ -38,9 +38,15 @@ than at the vendor goes to your bank alt. The rest stays in your bags to vendor.
   junk too) for the rest of the session. Lock an item to keep it and its V goes.
 - Profession tools (fishing poles, Mining Pick, Blacksmith Hammer, Skinning Knife, ...)
   always stay. Gold is never attached.
+- **Your professions' materials stay** (on by default, a setting turns it off): cloth for
+  a tailor or first-aider, leather for a leatherworker, metal and stone for a blacksmith
+  or engineer (plus parts, explosives and devices), herbs for an alchemist, dust, essences
+  and shards for an enchanter, meat and fish for a cook. Gathering professions keep
+  nothing: what they gather is what gets sold. Elemental materials are still mailed
+  (lock them to keep them).
 
 ```
-/mw                   settings: bank alt, minimum gain, disenchant, listing length, tags, lock glow, minimap button
+/mw                   settings: bank alt, minimum gain, disenchant, listing length, tags, lock glow, profession materials, minimap button
 /mw scan              what Mailworthy would mail and why, with the numbers (sends nothing)
 /mw summary           on your bank alt: what to list, disenchant or vendor
 /mw locks             this character's locked items
@@ -67,6 +73,7 @@ each in-game round are in [docs/DISCOVERY-SESSION-2.md](docs/DISCOVERY-SESSION-2
 | Controller in the settings window away from the mailbox (our own D-pad / Cross / Circle bindings with no Blizzard window focused) | v0.4.0 report | **works**, no blocked actions |
 | Tooltip lines through `TooltipDataProcessor.AddTooltipPostCall` (item tooltips, bags and controller) | Phase 4c check | open |
 | Disenchantry installed | `C_AddOns.IsAddOnLoaded("Disenchantry")` (in Forever's API docs), else `DisenchantryDB` exists | open (its CurseForge project is gone; still honoured as the switch) |
+| Profession materials: `GetProfessionInfo` 7th return is the skill line ID (Tailoring 197, Enchanting 333, ...) and trade goods use the modern subclass numbering (cloth 5, leather 6, metal & stone 7, meat 8, herb 9, enchanting 12) | a tailor's cloth or an enchanter's dust in `/mw scan`: "KEEP ... your Tailoring needs it"; the settings window names the profession with its materials | open (2026-10-22; the subclass numbers match the decision rule's, seen for ore / herbs / enchanting materials) |
 | Siz DisenchantValue: `DisenchantValueAPI.GetValue(link)` returns copper per item for a green or blue weapon / armor piece (its documented API for addons) | a green item in the bags with Siz DisenchantValue and Auctionator installed: `/mw scan` shows "disenchant Xc each" and a DE verdict matching the item's tooltip | open (2026-10-22; the addon folder name `DisenchantValue` in `## OptionalDeps` is a guess from its zip name and only affects load order) |
 | Adding "Lock slot" to the bag item menu (Triangle) | alpha1 + alpha2 | **taints controller input even unclicked**: removed; Alt+click, L3 and the Mailworthy window's rows instead |
 | Our own Triangle binding at the mailbox | alpha3/alpha4 self-test | **works**, no blocked actions |

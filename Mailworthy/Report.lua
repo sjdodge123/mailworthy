@@ -85,11 +85,12 @@ function Report.Build()
         string.format("server: launch day %s (realm first seen %s)", tostring(ns.Config.ServerDay()),
             date("%Y-%m-%d", ns.Config.FirstSeen())),
         string.format("settings: %dh listing, min gain %s and %d%%, disenchant %s, max price age %d days, tags %s, "
-            .. "lock glow %s, bags 0-%d",
+            .. "lock glow %s, bags 0-%d, profession materials %s",
             ns.Valuation.DURATION_HOURS[v.duration], ns.Bags.MinGainText(v), math.floor(v.minGainPct * 100 + 0.5),
             v.disenchant and "on" or "off", v.maxAgeDays,
             ns.Config.Flag("tagsEverywhere") and "every character" or "bank alt only",
-            ns.Config.Flag("glowEverywhere") and "always" or "at the mailbox", ns.Bags.LastBag()),
+            ns.Config.Flag("glowEverywhere") and "always" or "at the mailbox", ns.Bags.LastBag(),
+            ns.Bags.ProfessionMatsText(ns.Bags.Evaluate(v).settings)),
         "prices: " .. (ns.Prices.Auctionator() and "Auctionator" or "none")
             .. (ns.Prices.DisenchantAddon() and (", " .. ns.Prices.DisenchantAddon() .. " installed") or ""),
         string.format("controller: %s, labelStyle=%s", ns.MailButton.GamepadUI() and "on" or "off",

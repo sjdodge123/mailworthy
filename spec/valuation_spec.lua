@@ -433,10 +433,52 @@ describe("valuation", function()
         assert.equal("locked", V.Evaluate(item({ locked = true }), nil, S).reason, "also without Auctionator")
     end)
 
+    describe("profession materials", function()
+        local cloth = { link = "[Linen Cloth]", itemID = 2589, count = 20, stacks = 1, quality = 1, classID = 7,
+            subclassID = 5, vendor = 10 }
+
+        it("knows the crafting professions by skill line, and ignores gathering ones", function()
+            local list = V.CraftingProfessions({ 186, { skillLine = 197 }, 333, 999, "junk" })
+            assert.equal(2, #list)
+            assert.equal("Tailoring", list[1].name)
+            assert.equal("cloth", list[1].mats)
+            assert.equal("Enchanting", list[2].name)
+            assert.same({}, V.CraftingProfessions(nil))
+        end)
+
+        it("names the profession that needs a trade good, by its subclass", function()
+            assert.equal("Tailoring", V.NeededBy(cloth, { 197 }))
+            assert.equal("First Aid", V.NeededBy(cloth, { 129 }))
+            assert.is_nil(V.NeededBy(cloth, { 164, 186 }), "a blacksmith miner doesn't need cloth")
+            assert.equal("Blacksmithing", V.NeededBy({ classID = 7, subclassID = 7 }, { 164 }))
+            assert.equal("Engineering", V.NeededBy({ classID = 7, subclassID = 1 }, { 202 }))
+            assert.equal("Enchanting", V.NeededBy({ classID = 7, subclassID = 12 }, { 333 }))
+            assert.equal("Alchemy", V.NeededBy({ classID = 7, subclassID = 9 }, { 171 }))
+            assert.is_nil(V.NeededBy({ classID = 7, subclassID = 10 }, { 164, 171, 202 }), "elementals stay mailable")
+            assert.is_nil(V.NeededBy({ classID = 4, subclassID = 5 }, { 197 }), "cloth armour isn't a material")
+            assert.is_nil(V.NeededBy(cloth, nil))
+        end)
+
+        it("keeps the materials before any pricing, unless the setting is off", function()
+            S.professions = { 197 }
+            local rich = { ah = 1000, exact = true, age = 0 }
+            local r = V.Evaluate(cloth, rich, S)
+            assert.equal("keep", r.action)
+            assert.equal("your Tailoring needs it", r.reason)
+            S.keepProfessionMats = false
+            assert.equal("mail", V.Evaluate(cloth, rich, S).action)
+            S.keepProfessionMats = true
+            S.professions = { 186 }
+            assert.equal("mail", V.Evaluate(cloth, rich, S).action, "a miner mails cloth")
+            assert.equal("locked", V.Evaluate({ locked = true, classID = 7, subclassID = 5 }, rich, S).reason,
+                "a lock is still the first reason")
+        end)
+    end)
+
     describe("settings", function()
         it("defaults: 24h, 5% cut, 30c postage, 5s and 25%, 7 days", function()
             assert.same({ duration = 3, relistFactor = 0.5, cut = 0.05, postage = 30, minGain = 500, minGainPct = 0.25,
-                maxAgeDays = 7, disenchant = false }, S)
+                maxAgeDays = 7, disenchant = false, keepProfessionMats = true }, S)
         end)
 
         it("disenchant follows Disenchantry until the player sets it", function()

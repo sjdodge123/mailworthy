@@ -89,6 +89,12 @@ describe("settings window", function()
         _G.MailworthySettingsGlow:Click()
         assert.is_true(ns.Config.Flag("glowEverywhere"))
         assert.equal("Locked items glow blue: always", _G.MailworthySettingsGlow:GetText())
+        assert.equal("Keep my professions' materials: on - no crafting profession here", _G.MailworthySettingsMats:GetText())
+        WowStub.state.professions[2] = { index = 9, name = "Enchanting", rank = 1, maxRank = 75, skillLine = 333 }
+        _G.MailworthySettingsMats:Click()
+        assert.is_false(ns.Config.Get("keepProfessionMats"))
+        assert.equal("Keep my professions' materials: off - Enchanting (dust, essences and shards)",
+            _G.MailworthySettingsMats:GetText())
     end)
 
     it("the minimap button toggles the window", function()
