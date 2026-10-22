@@ -5,7 +5,10 @@
 -- and kept in our own weak table: no field is ever written on a Blizzard frame.
 -- Buttons are pooled, so every refresh recomputes from GetBagID / GetID.
 -- Refreshed by a post-hook on each container frame's UpdateItems (combined bags
--- and the individual bag frames) and whenever a lock changes.
+-- and the individual bag frames), whenever a lock changes, and when a mailbox
+-- opens or closes: the glow shows only while a mailbox is open (a CurseForge
+-- user, 2026-10-21: the blue hue in the bags all the time was noise), unless the
+-- "glow everywhere" setting is on.
 local _, ns = ...
 
 local Border = {}
@@ -19,6 +22,7 @@ Border.GLOW_ALPHA = 0.7
 
 local borders = setmetatable({}, { __mode = "k" }) -- button -> { textures }
 local frames = {}
+local atMailbox = false -- MAIL_SHOW .. MAIL_CLOSED
 local decorators = {} -- fn(button, bag, slot): more per-slot drawing (bank alt tags)
 
 --- Draw more on every bag button after each refresh (same hooks, same rules).
@@ -52,15 +56,32 @@ function Border.Show(button, shown)
     end
 end
 
+--- Is a mailbox open (MAIL_SHOW seen, or Blizzard's mail window shown)?
+function Border.AtMailbox()
+    if atMailbox then return true end
+    local mail = rawget(_G, "MailFrame")
+    if type(mail) ~= "table" or type(mail.IsShown) ~= "function" then return false end
+    local ok, shown = pcall(mail.IsShown, mail)
+    return ok and shown == true
+end
+
+--- Should locked items glow in the bags right now?
+function Border.Wanted()
+    return ns.Features.On("slotBorder") and (Border.AtMailbox() or ns.Config.Flag("glowEverywhere"))
+end
+
 function Border.RefreshFrame(frame)
     if type(frame) ~= "table" or type(frame.EnumerateValidItems) ~= "function" then return end
     local ok, iter, state, start = pcall(frame.EnumerateValidItems, frame)
     if not ok or type(iter) ~= "function" then return end
+    local wanted = Border.Wanted()
     for _, button in iter, state, start do
         local okBag, bag = pcall(button.GetBagID, button)
         local okSlot, slot = pcall(button.GetID, button)
         local valid = okBag and okSlot
-        if ns.Features.On("slotBorder") then Border.Show(button, valid and ns.Locks.IsLocked(bag, slot)) end
+        if ns.Features.On("slotBorder") then
+            Border.Show(button, wanted and valid and ns.Locks.IsLocked(bag, slot))
+        end
         for _, fn in ipairs(decorators) do
             local okDecorate, err = pcall(fn, button, valid and bag or nil, valid and slot or nil)
             if not okDecorate then ns.Log.Add("border", "decorator error: %s", tostring(err)) end
@@ -108,3 +129,11 @@ function Border.Install()
 end
 
 ns.On("PLAYER_LOGIN", function() Border.Install() end)
+ns.On("MAIL_SHOW", function()
+    atMailbox = true
+    Border.RefreshAll()
+end)
+ns.On("MAIL_CLOSED", function()
+    atMailbox = false
+    Border.RefreshAll()
+end)

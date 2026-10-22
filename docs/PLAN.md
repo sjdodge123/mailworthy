@@ -271,6 +271,8 @@ preview shows which source priced each line.
   "More" menu: entries there taint controller input (alpha1/alpha2).
 - **Visible:** locked items glow blue: Blizzard's quest-item border
   (`UI-Icon-QuestBorder`) desaturated and tinted blue, plus an additive copy.
+  Only while a mailbox is open (a CurseForge user, 2026-10-21: the blue hue in
+  the bags all the time was noise); the "glow everywhere" setting keeps it on.
 
 ## Bank alt view (operator, 2026-10-13)
 
@@ -361,7 +363,9 @@ realm+faction, name history, settings, blocked actions) and
 - `C_Container.GetContainerItemInfo` gives `isBound`, `hasNoValue`, `isLocked`,
   `quality`, `stackCount`, `itemID`, `hyperlink`; quest items via
   `GetContainerItemQuestInfo`; sell price is `GetItemInfo`'s 11th return.
-- Backpack has 20 slots; `NUM_BAG_SLOTS` is 4.
+- Backpack has 20 slots; `NUM_BAG_SLOTS` is 4; the reagent bag is bag 5
+  (`NUM_TOTAL_EQUIPPED_BAG_SLOTS` = 5, source-backed; a user had one, 2026-10-21),
+  so the scan, locks and sending cover bags 0-5. Profession bags sit in 1-4.
 - `ATTACHMENTS_MAX_SEND` 12; `GetSendMailPrice()` 30 with nothing attached;
   `C_Mail.IsCommandPending` exists (useful for sending mails in a row).
 - The AH is the modern `C_AuctionHouse` (commodities); no classic AH functions.

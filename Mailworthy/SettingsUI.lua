@@ -1,5 +1,5 @@
 -- The settings window: bank alt, minimum gain, disenchant, listing length,
--- minimap button. Keyboard/mouse: click. Controller: the D-pad moves Mailworthy's
+-- tags, locked-item glow, minimap button. Keyboard/mouse: click. Controller: the D-pad moves Mailworthy's
 -- own highlight, Cross presses, Circle closes (PadKey "settings" set, Nav); every
 -- setting is a button, so nothing needs typing. The name box is an optional
 -- fallback the player clicks into (the game never moves focus: no SetFocus).
@@ -14,11 +14,11 @@ local UI = {}
 ns.SettingsUI = UI
 
 UI.MAX_CHOICES = 6
-local WIDTH, HEIGHT, ROW = 420, 580, 26
+local WIDTH, HEIGHT, ROW = 420, 612, 26
 
 local frame, nameBox, nameHint, current, emptyHint, legend
 local choiceRows = {}
-local amountLabel, pctLabel, disenchantButton, minimapButton, tagsButton
+local amountLabel, pctLabel, disenchantButton, minimapButton, tagsButton, glowButton
 local durationButtons = {}
 local pendingUnknown -- a typed name Mailworthy hasn't seen, waiting for a second press
 
@@ -177,6 +177,12 @@ function UI.Create()
     W.Button(frame, "Bank alt summary", 140, function()
         if ns.BankAlt then ns.BankAlt.ShowWindow() end
     end, "MailworthySettingsSummary"):SetPoint("TOPRIGHT", -24, -478)
+    glowButton = W.Button(frame, "", 364, function()
+        ns.Config.Set("glowEverywhere", not ns.Config.Flag("glowEverywhere"))
+        if ns.Border then ns.Border.RefreshAll() end
+        UI.Refresh()
+    end, "MailworthySettingsGlow")
+    glowButton:SetPoint("TOPLEFT", 24, -542)
     W.Button(frame, "Done", 100, function() frame:Hide() end, "MailworthySettingsDone")
         :SetPoint("TOPRIGHT", -24, -510)
     legend = W.Label(frame, "GameFontHighlightSmall")
@@ -220,6 +226,7 @@ function UI.Refresh()
     end
     minimapButton:SetText("Minimap button: " .. (ns.Config.MinimapShown() and "shown" or "hidden"))
     tagsButton:SetText("AH / DE / V tags: " .. (ns.Config.Flag("tagsEverywhere") and "every character" or "bank alt only"))
+    glowButton:SetText("Locked items glow blue: " .. (ns.Config.Flag("glowEverywhere") and "always" or "at the mailbox only"))
     legend:SetText(ns.MailButton.GamepadUI() and W.Legend() or "")
 end
 

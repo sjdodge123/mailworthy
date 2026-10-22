@@ -84,10 +84,12 @@ function Report.Build()
         "bank alt: " .. tostring(ns.Config.BankAlt() or "none set"),
         string.format("server: launch day %s (realm first seen %s)", tostring(ns.Config.ServerDay()),
             date("%Y-%m-%d", ns.Config.FirstSeen())),
-        string.format("settings: %dh listing, min gain %s and %d%%, disenchant %s, max price age %d days, tags %s",
+        string.format("settings: %dh listing, min gain %s and %d%%, disenchant %s, max price age %d days, tags %s, "
+            .. "lock glow %s, bags 0-%d",
             ns.Valuation.DURATION_HOURS[v.duration], ns.Bags.MinGainText(v), math.floor(v.minGainPct * 100 + 0.5),
             v.disenchant and "on" or "off", v.maxAgeDays,
-            ns.Config.Flag("tagsEverywhere") and "every character" or "bank alt only"),
+            ns.Config.Flag("tagsEverywhere") and "every character" or "bank alt only",
+            ns.Config.Flag("glowEverywhere") and "always" or "at the mailbox", ns.Bags.LastBag()),
         "prices: " .. (ns.Prices.Auctionator() and "Auctionator" or "none")
             .. (ns.Prices.DisenchantryInstalled() and ", Disenchantry installed" or ""),
         string.format("controller: %s, labelStyle=%s", ns.MailButton.GamepadUI() and "on" or "off",
