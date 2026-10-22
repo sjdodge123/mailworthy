@@ -190,6 +190,8 @@ _G.UISpecialFrames = {}
 _G.ChatFontNormal = {}
 _G.SlashCmdList = {}
 _G.NUM_BAG_SLOTS = 4
+_G.NUM_REAGENTBAG_SLOTS = 1
+_G.NUM_TOTAL_EQUIPPED_BAG_SLOTS = 5 -- bags 0-4 + the reagent bag (Enum.BagIndex.ReagentBag = 5)
 _G.ATTACHMENTS_MAX_SEND = 12
 
 _G.hooksecurefunc = function(t, method, hook)

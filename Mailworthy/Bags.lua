@@ -1,6 +1,8 @@
--- Bag scan: every stack in the backpack and bags 1-4 becomes item facts,
--- grouped per item link (all stacks of an item go or stay together), then
--- valued by Valuation. `/mw scan` shows the result and sends nothing.
+-- Bag scan: every stack in the backpack, bags 1-4 and the reagent bag (bag 5)
+-- becomes item facts, grouped per item link (all stacks of an item go or stay
+-- together), then valued by Valuation. `/mw scan` shows the result and sends
+-- nothing. Profession bags (herb, enchanting, soul, quiver...) sit in bag slots
+-- 1-4, so they are covered; the keyring (-1) and the bank are not bags here.
 local _, ns = ...
 
 local Bags = {}
@@ -15,11 +17,25 @@ local function call(fn, ...)
     return unpack(results, 2, table.maxn(results))
 end
 
+--- The last equipped bag ID: the reagent bag (Enum.BagIndex.ReagentBag = 5 on
+--- Forever, Blizzard_FrameXMLBase/Constants.lua: NUM_TOTAL_EQUIPPED_BAG_SLOTS =
+--- NUM_BAG_SLOTS + NUM_REAGENTBAG_SLOTS). Bag IDs above it are bank tabs.
+function Bags.LastBag()
+    local total = tonumber(NUM_TOTAL_EQUIPPED_BAG_SLOTS)
+    if total then return total end
+    return (tonumber(NUM_BAG_SLOTS) or 4) + (tonumber(NUM_REAGENTBAG_SLOTS) or 1)
+end
+
+--- Is this a bag the player carries (backpack, bags 1-4, reagent bag)?
+function Bags.IsBag(bag)
+    return type(bag) == "number" and bag >= 0 and bag <= Bags.LastBag()
+end
+
 --- One entry per occupied bag slot.
 function Bags.Slots()
     local slots = {}
     local container = C_Container or {}
-    for bag = 0, tonumber(NUM_BAG_SLOTS) or 4 do
+    for bag = 0, Bags.LastBag() do
         for slot = 1, tonumber((call(container.GetContainerNumSlots, bag))) or 0 do
             local info = call(container.GetContainerItemInfo, bag, slot)
             if type(info) == "table" and info.hyperlink then

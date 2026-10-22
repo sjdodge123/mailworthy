@@ -53,14 +53,14 @@ must never break the game.
 | `Characters.lua` | known characters (name "First Surname", realm, faction, class, level, professions); `Mailable()` = same realm+faction; SavedVariables marker per login/reload |
 | `Gamepad.lua` | read-only helpers: button symbols (`labelStyle`, `CreateAtlasMarkup`), API presence |
 | `Locks.lua` | **item locks** (by item ID, per character; follow the item; slot locks migrate); Alt+click via `hooksecurefunc("HandleModifiedItemClick")`; L3 via read-only `SmartNavigation:GetCurrentButton()` |
-| `Border.lua` | blue glow on locked items: Blizzard's quest border texture tinted blue, on bag buttons via `hooksecurefunc(frame, "UpdateItems")` on combined + individual bag frames |
+| `Border.lua` | blue glow on locked items: Blizzard's quest border texture tinted blue, on bag buttons via `hooksecurefunc(frame, "UpdateItems")` on combined + individual bag frames; shown only while a mailbox is open (`MAIL_SHOW` / `MAIL_CLOSED`, `MailFrame:IsShown()`) unless the `glowEverywhere` flag is set; a fresh lock flashes `Border.FLASH` (3 s) anywhere, via `Locks.OnChanged(itemID, locked)` |
 | `MailButton.lua` | "Mailworthy" button under the mail window on both tabs (children of InboxFrame / SendMailFrame, created at login); `Activate` toggles the window; controller on the Inbox gets an "R1 first" hint (we never switch tabs) |
 | `Nav.lua` | Mailworthy's **own** controller navigation for its window: nearest button within 45 degrees, top-left start, gold highlight |
 | `PadKey.lua` | Mailworthy's **own override bindings** (watcher every 0.1 s, re-apply when replaced, clear on focus loss and at `PLAYER_REGEN_DISABLED`): set `mail` (Triangle), `window` (Triangle, D-pad, Cross, Circle), `bags` (L3 lock) |
 | `Prices.lua` | Auctionator adapter (`Lookup`: AH price per unit, age in days, exact, disenchant; nil without Auctionator), vendor price (`GetItemInfo` 11th return), class ID, `DisenchantryInstalled` |
 | `Valuation.lua` | **pure** decision rule: settings (defaults + saved, disenchant follows Disenchantry), deposit, thresholds, keep reasons, no-Auctionator rule, `Money` formatting |
-| `Bags.lua` | scan bags 0-4 -> slots -> items (grouped per link + bound + in-use), locks, prices, verdicts, totals; `/mw scan` report in the copy box (sends nothing) |
-| `Config.lua` | saved settings (`MailworthyDB.settings` only what the player touched, `bankAlts[realm|faction]`, `names` history); choices, auto-complete, steppers |
+| `Bags.lua` | scan bags 0-5 (`LastBag()` = `NUM_TOTAL_EQUIPPED_BAG_SLOTS`: backpack, bags 1-4, reagent bag; `IsBag()` shared with Locks) -> slots -> items (grouped per link + bound + in-use), locks, prices, verdicts, totals; `/mw scan` report in the copy box (sends nothing) |
+| `Config.lua` | saved settings (`MailworthyDB.settings` only what the player touched, `bankAlts[realm|faction]`, `names` history); flags `minimapHidden`, `tagsEverywhere`, `glowEverywhere`; choices, auto-complete, steppers |
 | `Widgets.lua` | window / button / label / legend helpers shared by all windows |
 | `Mailer.lua` | sending: plan 12 stacks per mail, re-check each slot, attach, zero money/COD, `SendMail`, chain on `MAIL_SEND_SUCCESS`; stops on failure / close / combat / 10 s; a run id kills a stopped run's timers; records `MailworthyDB.mailed` (30 days) |
 | `MailWindow.lua` | the window at the mailbox (`media/ui-prototype.png`): To, Mailing rows (chip + gain), Staying rows (reason), total, Send / Settings / Close; rows toggle item locks; pages of 8 / 5 |
@@ -93,7 +93,8 @@ Guard spec `no_gamepad_taint_spec.lua`: Mailworthy may only *read*
   `ClearSendMail()` returns items; `SendMail(name, subject, "")` to "First Surname"
   works; mail 2 chained after `MAIL_SEND_SUCCESS` with no press works; mails were in
   the bank alt's inbox 89 s later.
-- Bags: backpack 20 slots, `NUM_BAG_SLOTS` 4; `GetContainerItemInfo` gives
+- Bags: backpack 20 slots, `NUM_BAG_SLOTS` 4, reagent bag = bag 5 (`NUM_TOTAL_EQUIPPED_BAG_SLOTS` 5, source;
+  a CurseForge user had items there that v0.5.1 ignored, 2026-10-21); `GetContainerItemInfo` gives
   `isBound, hasNoValue, isLocked, quality, stackCount, itemID, hyperlink, iconFileID`;
   quest via `GetContainerItemQuestInfo`; sell price = `GetItemInfo` 11th return.
 - Settings API: `Settings.RegisterCanvasLayoutCategory` (no `InterfaceOptions_AddCategory`); not used (taint risk).
@@ -192,6 +193,11 @@ call `SendMail` anyway. Every Mailer timer checks the run id and `busy`.
   forward (next: **v0.2.0**); alpha tags upload as alpha files (v0.1.0-alpha5 did).
   Tag only when the operator says "tag X"; then watch the release run and report
   the CurseForge "Success!" line.
+- CurseForge feedback (user cursebandit, 2026-10-21, built the same day): every equipped bag
+  is scanned, lockable and mailed (bags 0-5: the reagent bag was missing); the lock glow
+  shows only while a mailbox is open, with a settings button ("Locked items glow blue:
+  at the mailbox only / always", flag `glowEverywhere`) for the old behaviour; a new lock
+  (Alt+click, L3) still glows 3 s away from a mailbox so the player sees it worked.
 - Optional deps: `.pkgmeta` `optional-dependencies` (auctionator, disenchantry) and
   `## OptionalDeps`.
 
@@ -216,8 +222,12 @@ call `SendMail` anyway. Every Mailer timer checks the run id and `busy`.
 2. **Run the v1.0 check** with the operator (DISCOVERY-SESSION-2.md "v1.0 check"); fix
    what fails in its own PR first.
 3. **Tag `v1.0.0`** when the operator says so.
-4. After 1.0: an in-game check of decision rule v2 (`/mw scan` after an Auctionator scan: the
+4. In-game check of the 2026-10-21 feedback build: a white item in the reagent bag shows in
+   `/mw scan` and the window and gets mailed; Alt+click / L3 lock it; the lock glow is gone
+   away from the mailbox except a 3 s flash on a new lock, back at one, and the settings
+   button turns it on everywhere.
+5. After 1.0: an in-game check of decision rule v2 (`/mw scan` after an Auctionator scan: the
    "(3-day median ...)" and "market: ..." workings, "launch day N", a B item on the bank alt);
    the AH cut from a sale mail (`[invoice]` lines in `/mw report`),
    disenchant values for green items, ForeverMail compatibility.
-5. README "Beta unknowns" table and PLAN's "Still open" list kept current after each report.
+6. README "Beta unknowns" table and PLAN's "Still open" list kept current after each report.

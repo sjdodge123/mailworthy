@@ -62,7 +62,9 @@ end
 
 ns.On("PLAYER_LOGIN", function() Config.FirstSeen() end)
 
-Config.FLAGS = { minimapHidden = true, tagsEverywhere = true } -- saved switches outside the decision rule
+-- Saved switches outside the decision rule. glowEverywhere: the locked-item glow
+-- in the bags away from the mailbox too (off: only while a mailbox is open).
+Config.FLAGS = { minimapHidden = true, tagsEverywhere = true, glowEverywhere = true }
 
 function Config.Set(key, value)
     if ns.Valuation.DEFAULTS[key] == nil and not Config.FLAGS[key] then return end

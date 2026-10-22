@@ -16,7 +16,7 @@ read_globals = {
     "GetUnitName", "UnitName", "GetRealmName", "UnitFactionGroup", "UnitClass", "UnitLevel", "GetServerTime",
     "GetBuildInfo", "GetProfessions", "GetProfessionInfo", "InCombatLockdown",
     -- bags and items
-    "C_Container", "C_Item", "GetItemInfo", "GetItemInfoInstant", "NUM_BAG_SLOTS", "CursorHasItem", "ClearCursor",
+    "C_Container", "C_Item", "GetItemInfo", "GetItemInfoInstant", "NUM_BAG_SLOTS", "NUM_REAGENTBAG_SLOTS", "NUM_TOTAL_EQUIPPED_BAG_SLOTS", "CursorHasItem", "ClearCursor",
     -- mail
     "SendMailFrame", "InboxFrame", "SendMail", "ClearSendMail", "ClickSendMailItemButton", "GetSendMailItem",
     "GetSendMailPrice", "ATTACHMENTS_MAX_SEND", "C_Mail", "GetInboxNumItems", "GetInboxHeaderInfo",

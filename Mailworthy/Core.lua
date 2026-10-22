@@ -90,7 +90,8 @@ end)
 local HELP = {
     "At a mailbox: click the Mailworthy button under the mail window. Controller: Send Mail tab (R1), then Triangle (Y).",
     "Lock an item (it stays locked wherever it moves): Alt+click it, or L3 in your bags (controller).",
-    "Locked items glow blue. In the Mailworthy window, pressing an item locks or unlocks it.",
+    "Locked items glow blue while a mailbox is open (settings: always); a new lock glows a moment anywhere."
+        .. " In the Mailworthy window, pressing an item locks or unlocks it.",
     "/mw or /mw settings - bank alt, minimum gain, disenchant, listing length (also: minimap button)",
     "/mw locks - list this character's locked items",
     "/mw scan - what Mailworthy would mail and why (sends nothing)",
