@@ -23,9 +23,12 @@ worth selling to your bank alt. Vendor the rest."**
 Suggested categories: Auction & Economy, Mail, Bags & Inventory.
 
 Dependencies: Auctionator and Disenchantry are **optional**. `.pkgmeta`
-(`optional-dependencies: auctionator, disenchantry`) sets the CurseForge relations
-on each upload; `## OptionalDeps: Auctionator, Disenchantry` in the `.toc` makes
-them load first when installed.
+(`optional-dependencies: auctionator`) sets the CurseForge relation on each upload;
+`## OptionalDeps: Auctionator, Disenchantry` in the `.toc` makes them load first
+when installed. Disenchantry is not in `.pkgmeta`: its CurseForge project went away
+between v0.7.0 (2026-10-14, uploaded) and v0.8.0 (2026-10-20), and a relation slug
+that doesn't exist makes CurseForge refuse the whole upload (error 1018; the GitHub
+release still gets built). v0.8.0 and v0.9.0 never reached CurseForge for that reason.
 
 ## Steps
 
