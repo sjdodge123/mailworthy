@@ -92,7 +92,8 @@ local HELP = {
     "Lock an item (it stays locked wherever it moves): Alt+click it, or L3 in your bags (controller).",
     "Locked items glow blue while a mailbox is open (settings: always); a new lock glows a moment anywhere."
         .. " In the Mailworthy window, pressing an item locks or unlocks it.",
-    "/mw or /mw settings - bank alt, minimum gain, disenchant, listing length (also: minimap button)",
+    "/mw or /mw settings - bank alt, minimum gain, disenchant, listing length, keep your professions' materials"
+        .. " (also: tags, lock glow, minimap button)",
     "/mw locks - list this character's locked items",
     "/mw scan - what Mailworthy would mail and why (sends nothing)",
     "/mw summary - on your bank alt: what to list, disenchant or vendor",

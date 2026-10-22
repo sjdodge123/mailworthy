@@ -81,6 +81,7 @@ end
 function Bags.Evaluate(settings)
     settings = settings or Bags.CurrentSettings()
     if settings.serverDay == nil then settings.serverDay = ns.Config.ServerDay() end
+    if settings.professions == nil then settings.professions = ns.Characters.Professions() end
     local priced = ns.Prices.Auctionator() ~= nil
     local result = { settings = settings, priced = priced, mail = {}, keep = {}, unmailable = {},
         totals = { items = 0, stacks = 0, mails = 0, gain = 0, postage = 0 } }
@@ -165,6 +166,14 @@ local function workings(item, settings)
     return table.concat(parts, "; ")
 end
 
+--- "kept for Tailoring, Enchanting" / "kept (no crafting profession here)" / "mailed".
+function Bags.ProfessionMatsText(settings)
+    if not settings.keepProfessionMats then return "mailed" end
+    local names = {}
+    for _, p in ipairs(ns.Valuation.CraftingProfessions(settings.professions)) do names[#names + 1] = p.name end
+    return #names > 0 and ("kept for " .. table.concat(names, ", ")) or "kept (no crafting profession here)"
+end
+
 function Bags.Report(result)
     local s, t = result.settings, result.totals
     local lines = {
@@ -174,10 +183,10 @@ function Bags.Report(result)
             .. ((result.priced and (s.serverDay or math.huge) < ns.Valuation.FRESH_REALM_DAYS)
                 and " (fresh realm: unpriced white trade goods are mailed)" or ""),
         string.format("settings: %dh listing (deposit x%d), AH cut %d%%, postage %s per stack, "
-            .. "min gain %s and %d%%, disenchant %s, max price age %d days, launch day %s",
+            .. "min gain %s and %d%%, disenchant %s, max price age %d days, launch day %s, profession materials %s",
             ns.Valuation.DURATION_HOURS[s.duration], ns.Valuation.DEPOSIT_MULTIPLIER[s.duration],
             math.floor(s.cut * 100 + 0.5), money(s.postage), Bags.MinGainText(s), math.floor(s.minGainPct * 100 + 0.5),
-            s.disenchant and "on" or "off", s.maxAgeDays, tostring(s.serverDay)),
+            s.disenchant and "on" or "off", s.maxAgeDays, tostring(s.serverDay), Bags.ProfessionMatsText(s)),
         string.format("total: %d items (%d stacks) in %d mail(s), %s more than vendoring, postage %s",
             t.items, t.stacks, t.mails, money(t.gain), money(t.postage)),
     }

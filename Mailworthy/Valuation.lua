@@ -39,7 +39,48 @@ Valuation.DEFAULTS = {
     minGainPct = 0.25,    -- ... and 25% of the vendor value, both
     maxAgeDays = 7,       -- older Auctionator prices don't count
     disenchant = false,   -- Valuation.Settings switches it on when a disenchant addon is installed
+    keepProfessionMats = true, -- materials this character's crafting professions use stay (operator, 2026-10-22)
 }
+
+-- What each crafting profession needs from the trade goods (class 7) in the bags, by
+-- the profession's skill line ID (GetProfessionInfo's 7th return) and the item's
+-- subclass (modern numbering, as Valuation.SUBCLASS: 1 parts, 2 explosives, 3 devices,
+-- 5 cloth, 6 leather, 7 metal & stone, 8 meat and fish, 9 herbs, 12 enchanting).
+-- Gathering professions (Mining, Herbalism, Skinning, Fishing) need nothing: what they
+-- gather is what gets sold. Elemental materials are used by several professions in
+-- small amounts and stay mailable (lock them to keep them).
+Valuation.PROFESSION_MATS = {
+    [164] = { name = "Blacksmithing", subclasses = { [7] = true }, mats = "metal and stone" },
+    [202] = { name = "Engineering", subclasses = { [7] = true, [1] = true, [2] = true, [3] = true },
+        mats = "metal and stone, parts, explosives, devices" },
+    [165] = { name = "Leatherworking", subclasses = { [6] = true }, mats = "leather and hides" },
+    [197] = { name = "Tailoring", subclasses = { [5] = true }, mats = "cloth" },
+    [129] = { name = "First Aid", subclasses = { [5] = true }, mats = "cloth" },
+    [171] = { name = "Alchemy", subclasses = { [9] = true }, mats = "herbs" },
+    [333] = { name = "Enchanting", subclasses = { [12] = true }, mats = "dust, essences and shards" },
+    [185] = { name = "Cooking", subclasses = { [8] = true }, mats = "meat and fish" },
+}
+
+--- Pure: the crafting professions among `professions` (a list of skill line IDs, or of
+--- { skillLine = ... } entries) that Mailworthy keeps materials for: { { name, mats }, ... }.
+function Valuation.CraftingProfessions(professions)
+    local list = {}
+    for _, p in ipairs(type(professions) == "table" and professions or {}) do
+        local id = type(p) == "table" and p.skillLine or p
+        local known = Valuation.PROFESSION_MATS[tonumber(id) or -1]
+        if known then list[#list + 1] = known end
+    end
+    return list
+end
+
+--- Pure: the name of this character's crafting profession that uses the item, or nil.
+function Valuation.NeededBy(item, professions)
+    if item.classID ~= Valuation.TRADE_GOODS then return nil end
+    for _, p in ipairs(Valuation.CraftingProfessions(professions)) do
+        if p.subclasses[item.subclassID] then return p.name end
+    end
+    return nil
+end
 
 --- Pure: days since the realm launched (0 before launch and on launch day). `now` is
 --- the server time; `firstSeen` the first server time Mailworthy saw this realm, which
@@ -254,6 +295,10 @@ function Valuation.Evaluate(item, price, settings)
     if item.quest then return keep("quest item") end
     if item.inUse then return keep("in use") end
     if Valuation.IsTool(item) then return keep("profession tool") end
+    if settings.keepProfessionMats then
+        local profession = Valuation.NeededBy(item, settings.professions)
+        if profession then return keep("your " .. profession .. " needs it") end
+    end
     if item.vendor == nil then return keep("item info not loaded yet") end
 
     local n = item.count or 1

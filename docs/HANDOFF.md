@@ -59,7 +59,7 @@ must never break the game.
 | `Nav.lua` | Mailworthy's **own** controller navigation for its window: nearest button within 45 degrees, top-left start, gold highlight |
 | `PadKey.lua` | Mailworthy's **own override bindings** (watcher every 0.1 s, re-apply when replaced, clear on focus loss and at `PLAYER_REGEN_DISABLED`): set `mail` (Triangle), `window` (Triangle, D-pad, Cross, Circle), `bags` (L3 lock) |
 | `Prices.lua` | Auctionator adapter (`Lookup`: AH price per unit, age in days, exact, disenchant; nil without Auctionator), disenchant value from Siz DisenchantValue (`DisenchantValueOf`: `DisenchantValueAPI.GetValue(link)`, else Auctionator's call; `deSource`), vendor price (`GetItemInfo` 11th return), class ID, `DisenchantAddon()` / `DisenchantAddonInstalled()` (Siz DisenchantValue by its API table, Disenchantry by `DisenchantryDB`) |
-| `Valuation.lua` | **pure** decision rule: settings (defaults + saved, disenchant follows the disenchant addon), deposit, thresholds, keep reasons, no-Auctionator rule, `Money` formatting |
+| `Valuation.lua` | **pure** decision rule: settings (defaults + saved, disenchant follows the disenchant addon, `keepProfessionMats` on), profession materials (`PROFESSION_MATS` by skill line ID x trade-goods subclass, `NeededBy`, `CraftingProfessions`; `settings.professions` filled by `Bags.Evaluate` from `Characters.Professions()`), deposit, thresholds, keep reasons, no-Auctionator rule, `Money` formatting |
 | `Bags.lua` | scan bags 0-5 (`LastBag()` = `NUM_TOTAL_EQUIPPED_BAG_SLOTS`: backpack, bags 1-4, reagent bag; `IsBag()` shared with Locks) -> slots -> items (grouped per link + bound + in-use), locks, prices, verdicts, totals; `/mw scan` report in the copy box (sends nothing) |
 | `Config.lua` | saved settings (`MailworthyDB.settings` only what the player touched, `bankAlts[realm|faction]`, `names` history); flags `minimapHidden`, `tagsEverywhere`, `glowEverywhere`; choices, auto-complete, steppers |
 | `Widgets.lua` | window / button / label / legend helpers shared by all windows |
@@ -206,6 +206,11 @@ call `SendMail` anyway. Every Mailer timer checks the run id and `busy`.
   shows only while a mailbox is open, with a settings button ("Locked items glow blue:
   at the mailbox only / always", flag `glowEverywhere`) for the old behaviour; a new lock
   (Alt+click, L3) still glows 3 s away from a mailbox so the player sees it worked.
+- Profession materials (operator, 2026-10-22: "factor in the player's own professions"): a
+  setting, on by default ("Keep my professions' materials", `keepProfessionMats`), keeps trade
+  goods the character's crafting professions use, as the keep reason "your Tailoring needs
+  it", before any pricing. Mapping by `GetProfessionInfo` skill line ID and item subclass
+  (`Valuation.PROFESSION_MATS`); gathering professions need nothing; elementals stay mailable.
 - Optional deps: `.pkgmeta` `optional-dependencies` (auctionator only: the Disenchantry
   CurseForge project disappeared after v0.7.0 and its slug made v0.8.0 and v0.9.0 fail to
   upload, error 1018, fixed 2026-10-22) and `## OptionalDeps: Auctionator, Disenchantry`.
@@ -241,6 +246,8 @@ call `SendMail` anyway. Every Mailer timer checks the run id and `busy`.
    button turns it on everywhere.
 5. After 1.0: an in-game check of decision rule v2 (`/mw scan` after an Auctionator scan: the
    "(3-day median ...)" and "market: ..." workings, "launch day N", a B item on the bank alt);
+   a tailor's cloth (or any crafter's material) shown as "KEEP ... your Tailoring needs it" in
+   `/mw scan` and the window, and mailed again with the setting off;
    the AH cut from a sale mail (`[invoice]` lines in `/mw report`), a green item's DE verdict
    with Siz DisenchantValue installed (`/mw scan` "disenchant Xc each" against its tooltip,
    `/mw report` "Siz DisenchantValue installed"), ForeverMail compatibility.
