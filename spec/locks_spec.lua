@@ -31,6 +31,19 @@ describe("item locks", function()
         assert.is_false(ns.Locks.IsItemLocked(2770))
     end)
 
+    it("Alt+click in the reagent bag (bag 5) locks; a bank tab (bag 6) doesn't", function()
+        WowStub.setBag(5, 2, WowStub.item(2589, "Linen Cloth", { count = 6 }))
+        WowStub.setBag(6, 1, WowStub.item(2835, "Rough Stone", { count = 3 }))
+        WowStub.state.mods = { alt = true }
+        HandleModifiedItemClick("link", WowStub.itemLocation(5, 2))
+        assert.is_true(ns.Locks.IsItemLocked(2589))
+        HandleModifiedItemClick("link", WowStub.itemLocation(6, 1))
+        assert.is_false(ns.Locks.IsItemLocked(2835))
+        WowStub.state.navButton = WowStub.itemButton(5, 2)
+        ns.Locks.ToggleSelectedBagSlot()
+        assert.is_false(ns.Locks.IsItemLocked(2589), "L3 reaches the reagent bag too")
+    end)
+
     it("ignores clicks without Alt, with other modifiers too, and outside the bags", function()
         HandleModifiedItemClick("link", WowStub.itemLocation(0, 3))
         WowStub.state.mods = { alt = true, shift = true }

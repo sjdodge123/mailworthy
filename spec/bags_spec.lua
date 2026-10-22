@@ -45,6 +45,31 @@ describe("bag scan", function()
         _G.DisenchantryDB = nil
     end)
 
+    it("scans the reagent bag (bag 5) like the others, and never a bank tab", function()
+        WowStub.state.numSlots[5] = 16
+        WowStub.state.numSlots[6] = 98
+        WowStub.setBag(5, 3, WowStub.item(2770, "Copper Ore", { count = 10, sell = 5 }))
+        WowStub.setBag(6, 1, WowStub.item(2770, "Copper Ore", { count = 20, sell = 5 })) -- a bank tab
+        local result = ns.Bags.Evaluate()
+        local ore = byName(result.mail, "Copper Ore")
+        assert.equal(35, ore.count)
+        assert.equal(3, ore.stacks)
+        assert.same({ bag = 5, slot = 3, count = 10 }, ore.slots[3])
+        assert.equal(5, ns.Bags.LastBag())
+        assert.is_true(ns.Bags.IsBag(5))
+        assert.is_false(ns.Bags.IsBag(6))
+        assert.is_false(ns.Bags.IsBag(-1), "the keyring isn't a bag here")
+    end)
+
+    it("falls back to NUM_BAG_SLOTS + NUM_REAGENTBAG_SLOTS without the total constant", function()
+        local total, reagent = NUM_TOTAL_EQUIPPED_BAG_SLOTS, NUM_REAGENTBAG_SLOTS
+        _G.NUM_TOTAL_EQUIPPED_BAG_SLOTS = nil
+        assert.equal(5, ns.Bags.LastBag())
+        _G.NUM_REAGENTBAG_SLOTS = nil
+        assert.equal(5, ns.Bags.LastBag(), "Forever has one reagent bag slot")
+        _G.NUM_TOTAL_EQUIPPED_BAG_SLOTS, _G.NUM_REAGENTBAG_SLOTS = total, reagent
+    end)
+
     it("groups every stack of an item, and values each item once", function()
         local result = ns.Bags.Evaluate()
         local ore = byName(result.mail, "Copper Ore")

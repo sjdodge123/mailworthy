@@ -100,7 +100,7 @@ function Locks.MigrateSlotLocks()
 end
 
 local function isBagSlot(bag)
-    return type(bag) == "number" and bag >= 0 and bag <= (tonumber(NUM_BAG_SLOTS) or 4)
+    return ns.Bags.IsBag(bag) -- backpack, bags 1-4 and the reagent bag; not the bank
 end
 
 --- Post-hook of HandleModifiedItemClick(link, itemLocation): Alt (alone) + click on a bag item.
