@@ -46,8 +46,9 @@ function Locks.IsLocked(bag, slot)
     return info ~= nil and Locks.IsItemLocked(info.itemID)
 end
 
-local function notify()
-    for _, fn in ipairs(listeners) do pcall(fn) end
+--- Listeners get (itemID, locked) for a toggle (Border flashes a fresh lock).
+local function notify(itemID, locked)
+    for _, fn in ipairs(listeners) do pcall(fn, itemID, locked) end
 end
 
 function Locks.ToggleItem(itemID, link, how)
@@ -56,7 +57,7 @@ function Locks.ToggleItem(itemID, link, how)
     MailworthyCharDB.lockedItems[itemID] = locked and { link = link, at = time() } or nil
     ns.Log.Add("lock", "%s %s (item %d) by %s", locked and "locked" or "unlocked", tostring(link), itemID, tostring(how))
     ns.Print(string.format("%s %s (every stack, wherever it is).", locked and "Locked" or "Unlocked", tostring(link)))
-    notify()
+    notify(itemID, locked)
     return locked
 end
 

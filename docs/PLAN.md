@@ -273,6 +273,8 @@ preview shows which source priced each line.
   (`UI-Icon-QuestBorder`) desaturated and tinted blue, plus an additive copy.
   Only while a mailbox is open (a CurseForge user, 2026-10-21: the blue hue in
   the bags all the time was noise); the "glow everywhere" setting keeps it on.
+  A fresh lock away from a mailbox glows for 3 s on every stack, as feedback
+  that Alt+click / L3 worked (operator, 2026-10-21).
 
 ## Bank alt view (operator, 2026-10-13)
 

@@ -53,7 +53,7 @@ must never break the game.
 | `Characters.lua` | known characters (name "First Surname", realm, faction, class, level, professions); `Mailable()` = same realm+faction; SavedVariables marker per login/reload |
 | `Gamepad.lua` | read-only helpers: button symbols (`labelStyle`, `CreateAtlasMarkup`), API presence |
 | `Locks.lua` | **item locks** (by item ID, per character; follow the item; slot locks migrate); Alt+click via `hooksecurefunc("HandleModifiedItemClick")`; L3 via read-only `SmartNavigation:GetCurrentButton()` |
-| `Border.lua` | blue glow on locked items: Blizzard's quest border texture tinted blue, on bag buttons via `hooksecurefunc(frame, "UpdateItems")` on combined + individual bag frames; shown only while a mailbox is open (`MAIL_SHOW` / `MAIL_CLOSED`, `MailFrame:IsShown()`) unless the `glowEverywhere` flag is set |
+| `Border.lua` | blue glow on locked items: Blizzard's quest border texture tinted blue, on bag buttons via `hooksecurefunc(frame, "UpdateItems")` on combined + individual bag frames; shown only while a mailbox is open (`MAIL_SHOW` / `MAIL_CLOSED`, `MailFrame:IsShown()`) unless the `glowEverywhere` flag is set; a fresh lock flashes `Border.FLASH` (3 s) anywhere, via `Locks.OnChanged(itemID, locked)` |
 | `MailButton.lua` | "Mailworthy" button under the mail window on both tabs (children of InboxFrame / SendMailFrame, created at login); `Activate` toggles the window; controller on the Inbox gets an "R1 first" hint (we never switch tabs) |
 | `Nav.lua` | Mailworthy's **own** controller navigation for its window: nearest button within 45 degrees, top-left start, gold highlight |
 | `PadKey.lua` | Mailworthy's **own override bindings** (watcher every 0.1 s, re-apply when replaced, clear on focus loss and at `PLAYER_REGEN_DISABLED`): set `mail` (Triangle), `window` (Triangle, D-pad, Cross, Circle), `bags` (L3 lock) |
@@ -196,7 +196,8 @@ call `SendMail` anyway. Every Mailer timer checks the run id and `busy`.
 - CurseForge feedback (user cursebandit, 2026-10-21, built the same day): every equipped bag
   is scanned, lockable and mailed (bags 0-5: the reagent bag was missing); the lock glow
   shows only while a mailbox is open, with a settings button ("Locked items glow blue:
-  at the mailbox only / always", flag `glowEverywhere`) for the old behaviour.
+  at the mailbox only / always", flag `glowEverywhere`) for the old behaviour; a new lock
+  (Alt+click, L3) still glows 3 s away from a mailbox so the player sees it worked.
 - Optional deps: `.pkgmeta` `optional-dependencies` (auctionator, disenchantry) and
   `## OptionalDeps`.
 
@@ -223,7 +224,8 @@ call `SendMail` anyway. Every Mailer timer checks the run id and `busy`.
 3. **Tag `v1.0.0`** when the operator says so.
 4. In-game check of the 2026-10-21 feedback build: a white item in the reagent bag shows in
    `/mw scan` and the window and gets mailed; Alt+click / L3 lock it; the lock glow is gone
-   away from the mailbox, back at one, and the settings button turns it on everywhere.
+   away from the mailbox except a 3 s flash on a new lock, back at one, and the settings
+   button turns it on everywhere.
 5. After 1.0: an in-game check of decision rule v2 (`/mw scan` after an Auctionator scan: the
    "(3-day median ...)" and "market: ..." workings, "launch day N", a B item on the bank alt);
    the AH cut from a sale mail (`[invoice]` lines in `/mw report`),

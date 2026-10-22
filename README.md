@@ -21,7 +21,8 @@ than at the vendor goes to your bank alt. The rest stays in your bags to vendor.
   per mail. Pressing an item locks it, so it stays.
 - **Lock items** you never want mailed: Alt+click (mouse), L3 in your bags (controller),
   or press the item in the Mailworthy window. Locked items glow blue while a mailbox is
-  open (a setting keeps the glow on everywhere) and stay locked wherever they move.
+  open (a setting keeps the glow on everywhere); away from one a new lock glows for a
+  moment so you see it took. Locks stay wherever the item moves.
 - **On your bank alt:** bag slots carry **AH / B / DE / V** tags (list it, bank it for a
   later phase, disenchant it, vendor it now) recomputed with that character's own prices;
   tooltips show today's verdict and why the item was mailed; the Mailworthy button (or
@@ -79,7 +80,7 @@ each in-game round are in [docs/DISCOVERY-SESSION-2.md](docs/DISCOVERY-SESSION-2
 | SavedVariables survive `/reload` and relog | self-test marker, v0.4.0 settings | **work** (login, character switch, `/reload`) |
 | One-press sending from the Mailworthy window (no money, no COD) | v0.4.0 | **works** (operator, 2026-10-14) |
 | Reagent bag (bag 5, `NUM_TOTAL_EQUIPPED_BAG_SLOTS`) scanned, locked (Alt+click, L3) and mailed like bags 0-4 | a white item in the reagent bag: `/mw scan` lists it, Send mails it | open (CurseForge user report, 2026-10-21; source-backed: `Enum.BagIndex.ReagentBag` = 5 in `Blizzard_FrameXMLBase/Constants.lua`) |
-| Lock glow only while a mailbox is open (`MAIL_SHOW` / `MAIL_CLOSED`, `MailFrame:IsShown()`), "always" setting | lock an item away from a mailbox: no glow; open a mailbox: glow; close it: gone | open (CurseForge user report, 2026-10-21) |
+| Lock glow only while a mailbox is open (`MAIL_SHOW` / `MAIL_CLOSED`, `MailFrame:IsShown()`), "always" setting; a new lock flashes 3 s anywhere | lock an item away from a mailbox: a 3 s glow on every stack, then nothing; open a mailbox: glow; close it: gone | open (CurseForge user report + operator, 2026-10-21) |
 
 ## Picking up the work
 
