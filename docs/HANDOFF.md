@@ -190,23 +190,30 @@ call `SendMail` anyway. Every Mailer timer checks the run id and `busy`.
   `MailworthyDB.mailed`, 30-day expiry); summary window.
 - Releases: **every tag publishes to CurseForge** (project **1743661**, `CF_API_KEY`
   set, `.toc` has the ID). Operator asked for plain release tags `vX.Y.Z` going
-  forward (next: **v0.2.0**); alpha tags upload as alpha files (v0.1.0-alpha5 did).
-  Tag only when the operator says "tag X"; then watch the release run and report
-  the CurseForge "Success!" line.
+  forward; alpha tags upload as alpha files (v0.1.0-alpha5 did). **Check `git ls-remote
+  --tags origin` for the latest tag before tagging** (the operator asked for "v0.6.0" on
+  2026-10-21 when v0.8.0 already existed; v0.9.0 was agreed instead). Tag only when the
+  operator says "tag X"; then watch the release run and report the CurseForge "Success!"
+  line: the packager's later "Uploading ...zip... Success!" lines are the GitHub release,
+  not CurseForge, and the run can fail after them.
 - CurseForge feedback (user cursebandit, 2026-10-21, built the same day): every equipped bag
   is scanned, lockable and mailed (bags 0-5: the reagent bag was missing); the lock glow
   shows only while a mailbox is open, with a settings button ("Locked items glow blue:
   at the mailbox only / always", flag `glowEverywhere`) for the old behaviour; a new lock
   (Alt+click, L3) still glows 3 s away from a mailbox so the player sees it worked.
-- Optional deps: `.pkgmeta` `optional-dependencies` (auctionator, disenchantry) and
-  `## OptionalDeps`.
+- Optional deps: `.pkgmeta` `optional-dependencies` (auctionator only: the Disenchantry
+  CurseForge project disappeared after v0.7.0 and its slug made v0.8.0 and v0.9.0 fail to
+  upload, error 1018, fixed 2026-10-22) and `## OptionalDeps: Auctionator, Disenchantry`.
 
 ## 7. State right now
 
 - alpha5's in-game check passed (DISCOVERY-SESSION-2.md "Results of the alpha5 run");
   the one bug it showed (`PadKey.Check` erroring while idle) is fixed in v0.2.0.
 - Tags so far: v0.2.0 (Phase 1), v0.3.0 (settings), v0.4.0 (sending), v0.5.0 (bank alt
-  view), v0.5.1 (window refreshes after sending); every one uploaded to CurseForge.
+  view), v0.5.1 (window refreshes after sending), v0.6.0, v0.7.0 (2026-10-14), v0.8.0
+  (decision rule v2, 2026-10-20), v0.9.0 (CurseForge feedback: reagent bag, mailbox-only
+  glow, 2026-10-22). **CurseForge has v0.7.0 as its latest file**: v0.8.0 and v0.9.0 failed
+  there on the dead `disenchantry` relation; the next tag after the fix carries both.
 - Confirmed in game: the `/mw scan` math (v0.2.0, by hand), settings with mouse and
   controller and after `/reload`, one-press sending with no money / COD, the window
   lists, row locks, minimap button (v0.4.0; operator 2026-10-14).
