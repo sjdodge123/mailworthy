@@ -11,8 +11,9 @@ retail-style UI code). At a mailbox, one button mails every bag item worth more 
 the auction house (after fees) or disenchanted than at a vendor to the player's
 **bank alt**; the rest stays in the bags for the vendor. The bank alt then sees
 tags (AH / DE / Vendor) recomputed with fresh prices. Optional integrations:
-Auctionator (prices, recommended) and Disenchantry (switches on the disenchant
-comparison).
+Auctionator (prices, recommended) and Siz DisenchantValue (disenchant values; switches
+on the disenchant comparison; Disenchantry, now gone from CurseForge, still counts as
+the switch).
 
 The operator (repo owner) plays on a **Windows PC with a gamepad**, tests in
 game, and pastes reports back. **Keyboard/mouse is the priority** ("if mouse/kb
@@ -57,8 +58,8 @@ must never break the game.
 | `MailButton.lua` | "Mailworthy" button under the mail window on both tabs (children of InboxFrame / SendMailFrame, created at login); `Activate` toggles the window; controller on the Inbox gets an "R1 first" hint (we never switch tabs) |
 | `Nav.lua` | Mailworthy's **own** controller navigation for its window: nearest button within 45 degrees, top-left start, gold highlight |
 | `PadKey.lua` | Mailworthy's **own override bindings** (watcher every 0.1 s, re-apply when replaced, clear on focus loss and at `PLAYER_REGEN_DISABLED`): set `mail` (Triangle), `window` (Triangle, D-pad, Cross, Circle), `bags` (L3 lock) |
-| `Prices.lua` | Auctionator adapter (`Lookup`: AH price per unit, age in days, exact, disenchant; nil without Auctionator), vendor price (`GetItemInfo` 11th return), class ID, `DisenchantryInstalled` |
-| `Valuation.lua` | **pure** decision rule: settings (defaults + saved, disenchant follows Disenchantry), deposit, thresholds, keep reasons, no-Auctionator rule, `Money` formatting |
+| `Prices.lua` | Auctionator adapter (`Lookup`: AH price per unit, age in days, exact, disenchant; nil without Auctionator), disenchant value from Siz DisenchantValue (`DisenchantValueOf`: `DisenchantValueAPI.GetValue(link)`, else Auctionator's call; `deSource`), vendor price (`GetItemInfo` 11th return), class ID, `DisenchantAddon()` / `DisenchantAddonInstalled()` (Siz DisenchantValue by its API table, Disenchantry by `DisenchantryDB`) |
+| `Valuation.lua` | **pure** decision rule: settings (defaults + saved, disenchant follows the disenchant addon), deposit, thresholds, keep reasons, no-Auctionator rule, `Money` formatting |
 | `Bags.lua` | scan bags 0-5 (`LastBag()` = `NUM_TOTAL_EQUIPPED_BAG_SLOTS`: backpack, bags 1-4, reagent bag; `IsBag()` shared with Locks) -> slots -> items (grouped per link + bound + in-use), locks, prices, verdicts, totals; `/mw scan` report in the copy box (sends nothing) |
 | `Config.lua` | saved settings (`MailworthyDB.settings` only what the player touched, `bankAlts[realm|faction]`, `names` history); flags `minimapHidden`, `tagsEverywhere`, `glowEverywhere`; choices, auto-complete, steppers |
 | `Widgets.lua` | window / button / label / legend helpers shared by all windows |
@@ -82,7 +83,10 @@ Guard spec `no_gamepad_taint_spec.lua`: Mailworthy may only *read*
   `GetAuctionAgeByItemLink`, `IsAuctionDataExactByItemLink`, `GetDisenchantPriceByItemLink`,
   `GetVendorPriceByItemLink`, `RegisterForDBUpdate` (caller ID "Mailworthy"). Prices only
   after a scan. Disenchant values were never seen (no green item tested).
-- Disenchantry 1.1.1: no readable price data (`DisenchantryDB` = settings only).
+- Disenchantry 1.1.1: no readable price data (`DisenchantryDB` = settings only). Siz
+  DisenchantValue (CurseForge `siz-disenchantvalue`, Forever 1.60.1, Sep 2026) documents
+  `DisenchantValueAPI.GetValue(link)` = copper or nil for other addons (Auctionator's DE
+  Value column uses it); not yet seen in game (2026-10-22).
 - Postage: **30c per attached item** (30c empty). 12 attachments per mail.
 - AH: modern `C_AuctionHouse`; durations index 1/2/3 = **2 / 8 / 24 hours**;
   deposit = **floor(vendor value of stack x 5%) x 1 / 4 / 12**, same for commodities
@@ -173,7 +177,8 @@ call `SendMail` anyway. Every Mailer timer checks the run id and `busy`.
   vendor; deposit for the **24h listing** (operator, 2026-10-13) = floor(vendor x
   count x 5%) x 12, half counted (relist factor 0.5 since 2026-10-20; a glut counts it in full);
   mail when gain >= **5s and 25%** (defaults, steppers in settings);
-  disenchant compared when enabled (default on if Disenchantry is installed).
+  disenchant compared when enabled (default on if Siz DisenchantValue or Disenchantry is
+  installed; the value from Siz DisenchantValue, else Auctionator, since 2026-10-22).
   **Without Auctionator: mail every unlocked, tradeable white (common) item**;
   greys and uncommon+ stay. Soulbound / quest items can't be mailed (don't list them).
 - Decision rule v2 (operator, 2026-10-20: "most gold while levelling, no math for the
@@ -221,7 +226,8 @@ call `SendMail` anyway. Every Mailer timer checks the run id and `busy`.
   Pending: the Phase 4c check and a v1.0 spot check on one build
   (DISCOVERY-SESSION-2.md "v1.0 check"), then tag `v1.0.0` when the operator says so.
 - Still open: AH cut (needs a sale mail; the invoice reader in `Report.lua` logs it),
-  disenchant prices for green items, ForeverMail compatibility (replaces the mailbox window).
+  disenchant prices for green items (now from Siz DisenchantValue: see it in game),
+  ForeverMail compatibility (replaces the mailbox window).
 
 ## 8. What's left (in order)
 
@@ -235,6 +241,7 @@ call `SendMail` anyway. Every Mailer timer checks the run id and `busy`.
    button turns it on everywhere.
 5. After 1.0: an in-game check of decision rule v2 (`/mw scan` after an Auctionator scan: the
    "(3-day median ...)" and "market: ..." workings, "launch day N", a B item on the bank alt);
-   the AH cut from a sale mail (`[invoice]` lines in `/mw report`),
-   disenchant values for green items, ForeverMail compatibility.
+   the AH cut from a sale mail (`[invoice]` lines in `/mw report`), a green item's DE verdict
+   with Siz DisenchantValue installed (`/mw scan` "disenchant Xc each" against its tooltip,
+   `/mw report` "Siz DisenchantValue installed"), ForeverMail compatibility.
 6. README "Beta unknowns" table and PLAN's "Still open" list kept current after each report.

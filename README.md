@@ -4,9 +4,10 @@ A WoW Forever addon. Open a mailbox, press the **Mailworthy** button, and
 every bag item worth more on the auction house (after fees) or disenchanted
 than at the vendor goes to your bank alt. The rest stays in your bags to vendor.
 
-- **Prices** come from Auctionator (optional, recommended); Disenchantry
-  (optional) switches on the disenchant comparison. Without Auctionator,
-  Mailworthy mails every unlocked, tradeable white (common) item.
+- **Prices** come from Auctionator (optional, recommended); Siz DisenchantValue
+  (optional) gives the disenchant value of green and blue gear and switches the
+  disenchant comparison on (Disenchantry, if you still have it, switches it on too).
+  Without Auctionator, Mailworthy mails every unlocked, tradeable white (common) item.
 - **Preview first:** it shows the recipient, what goes and why, what stays and
   why, and a **Settings** button to fix anything before you press Send.
 - **Keyboard/mouse first, controller too:** everything works with keyboard and mouse, and with a gamepad alone.
@@ -65,7 +66,8 @@ each in-game round are in [docs/DISCOVERY-SESSION-2.md](docs/DISCOVERY-SESSION-2
 | Trade-goods subclass numbers on Forever (`GetItemInfoInstant`: 7 metal, 9 herb, 10 elemental, 12 enchanting) | a Strange Dust / Bruiseweed stack shows **B** before Dec 9 | open |
 | Controller in the settings window away from the mailbox (our own D-pad / Cross / Circle bindings with no Blizzard window focused) | v0.4.0 report | **works**, no blocked actions |
 | Tooltip lines through `TooltipDataProcessor.AddTooltipPostCall` (item tooltips, bags and controller) | Phase 4c check | open |
-| Disenchantry installed | `C_AddOns.IsAddOnLoaded("Disenchantry")` (in Forever's API docs), else `DisenchantryDB` exists | open |
+| Disenchantry installed | `C_AddOns.IsAddOnLoaded("Disenchantry")` (in Forever's API docs), else `DisenchantryDB` exists | open (its CurseForge project is gone; still honoured as the switch) |
+| Siz DisenchantValue: `DisenchantValueAPI.GetValue(link)` returns copper per item for a green or blue weapon / armor piece (its documented API for addons) | a green item in the bags with Siz DisenchantValue and Auctionator installed: `/mw scan` shows "disenchant Xc each" and a DE verdict matching the item's tooltip | open (2026-10-22; the addon folder name `DisenchantValue` in `## OptionalDeps` is a guess from its zip name and only affects load order) |
 | Adding "Lock slot" to the bag item menu (Triangle) | alpha1 + alpha2 | **taints controller input even unclicked**: removed; Alt+click, L3 and the Mailworthy window's rows instead |
 | Our own Triangle binding at the mailbox | alpha3/alpha4 self-test | **works**, no blocked actions |
 | D-pad to buttons under SendMailFrame (smart navigation) | alpha3/alpha4 self-test | **no**; Mailworthy's own D-pad / Cross / Circle bindings instead, **work** (alpha5) |

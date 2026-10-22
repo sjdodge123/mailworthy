@@ -43,6 +43,7 @@ describe("bag scan", function()
     after_each(function()
         _G.Auctionator = nil
         _G.DisenchantryDB = nil
+        _G.DisenchantValueAPI = nil
     end)
 
     it("scans the reagent bag (bag 5) like the others, and never a bank tab", function()
@@ -161,10 +162,33 @@ describe("bag scan", function()
         assert.equal("soulbound", byName(result.unmailable, "Hearthstone").result.reason)
     end)
 
-    it("uses saved settings and switches disenchant on when Disenchantry is installed", function()
+    it("a green weapon goes for disenchanting on Siz DisenchantValue's value, end to end", function()
+        -- Vendor 1s; no auction price; Siz says 10s of materials: DE net 10s - 30c = 9s 70c, gain 8s 70c
+        WowStub.setBag(1, 1, WowStub.item(2011, "Green Sword", { quality = 2, class = 2, sell = 100 }))
+        local result = ns.Bags.Evaluate()
+        assert.equal("no price", byName(result.keep, "Green Sword").result.reason)
+        _G.DisenchantValueAPI = { GetValue = function(l) return l:find("Green Sword", 1, true) and 1000 or nil end }
+        result = ns.Bags.Evaluate()
+        assert.is_true(result.settings.disenchant, "the comparison switches on with the addon")
+        local sword = byName(result.mail, "Green Sword")
+        assert.equal("de", sword.result.route)
+        assert.equal(970, sword.result.deNet)
+        assert.equal(870, sword.result.gain)
+        assert.equal(1000, sword.price.de)
+        assert.equal("DisenchantValue", sword.price.deSource)
+        local report = ns.Bags.Report(result)
+        assert.truthy(report:find("MAIL DE [Green Sword] x1: disenchant - vendor 1s each = 1s; disenchant 10s each; "
+            .. "DE net 9s 70c;", 1, true), report)
+        assert.truthy(ns.Report.Build():find(", Siz DisenchantValue installed", 1, true))
+    end)
+
+    it("uses saved settings and switches disenchant on when a disenchant addon is installed", function()
         assert.is_false(ns.Bags.CurrentSettings().disenchant)
+        _G.DisenchantValueAPI = { GetValue = function() return nil end }
+        assert.is_true(ns.Bags.CurrentSettings().disenchant, "Siz DisenchantValue")
+        _G.DisenchantValueAPI = nil
         _G.DisenchantryDB = {}
-        assert.is_true(ns.Bags.CurrentSettings().disenchant)
+        assert.is_true(ns.Bags.CurrentSettings().disenchant, "Disenchantry (still honoured)")
         MailworthyDB.settings = { duration = 1, disenchant = false }
         local s = ns.Bags.CurrentSettings()
         assert.equal(1, s.duration)

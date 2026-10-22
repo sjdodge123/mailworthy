@@ -1,5 +1,6 @@
 -- Prices.History: Auctionator's per-day price history, read from its database
--- (not the stable API), guarded so that anything odd is "no history".
+-- (not the stable API), guarded so that anything odd is "no history"; the
+-- disenchant value from Siz DisenchantValue's API, else Auctionator's call.
 local loadAddon = require("spec.support.load_addon")
 
 describe("prices", function()
@@ -23,7 +24,37 @@ describe("prices", function()
     end
 
     before_each(function() P = loadAddon().Prices end)
-    after_each(function() _G.Auctionator = nil end)
+    after_each(function() _G.Auctionator, _G.DisenchantValueAPI, _G.DisenchantryDB = nil, nil, nil end)
+
+    describe("disenchant addon", function()
+        it("is Siz DisenchantValue by its API table, Disenchantry by its saved variables, else none", function()
+            assert.is_nil(P.DisenchantAddon())
+            assert.is_false(P.DisenchantAddonInstalled())
+            _G.DisenchantValueAPI = { GetEraValue = function() end } -- no GetValue: not the API we need
+            assert.is_nil(P.DisenchantAddon())
+            _G.DisenchantValueAPI = { GetValue = function() return 1000 end }
+            assert.equal("Siz DisenchantValue", P.DisenchantAddon())
+            assert.is_true(P.DisenchantAddonInstalled())
+            _G.DisenchantValueAPI = nil
+            _G.DisenchantryDB = {}
+            assert.equal("Disenchantry", P.DisenchantAddon())
+            assert.is_true(P.DisenchantryInstalled())
+        end)
+
+        it("values an item through GetValue, as copper per item; nil, junk or an error is no value", function()
+            assert.is_nil(P.DisenchantValueOf(link))
+            local asked
+            _G.DisenchantValueAPI = { GetValue = function(l) asked = l return 1234 end }
+            assert.equal(1234, P.DisenchantValueOf(link))
+            assert.equal(link, asked)
+            _G.DisenchantValueAPI.GetValue = function() return nil end
+            assert.is_nil(P.DisenchantValueOf(link))
+            _G.DisenchantValueAPI.GetValue = function() return "junk" end
+            assert.is_nil(P.DisenchantValueOf(link))
+            _G.DisenchantValueAPI.GetValue = function() error("boom") end
+            assert.is_nil(P.DisenchantValueOf(link))
+        end)
+    end)
 
     describe("History", function()
         it("is nil without Auctionator, without its database, or for an unknown item", function()
@@ -67,6 +98,27 @@ describe("prices", function()
             assert.is_nil(P.Lookup(link).exact, "unknown when Auctionator can't say")
             _G.Auctionator.API.v1.IsAuctionDataExactByItemLink = function() return true end
             assert.equal(true, P.Lookup(link).exact)
+        end)
+
+        it("takes the disenchant value from Siz DisenchantValue first, else Auctionator's call", function()
+            auctionator({})
+            assert.is_nil(P.Lookup(link).de)
+            _G.Auctionator.API.v1.GetDisenchantPriceByItemLink = function() return 300 end
+            local p = P.Lookup(link)
+            assert.equal(300, p.de)
+            assert.equal("Auctionator", p.deSource)
+            _G.DisenchantValueAPI = { GetValue = function() return 900 end }
+            p = P.Lookup(link)
+            assert.equal(900, p.de)
+            assert.equal("DisenchantValue", p.deSource)
+            _G.DisenchantValueAPI.GetValue = function() error("boom") end
+            p = P.Lookup(link)
+            assert.equal(300, p.de, "an erroring GetValue falls back to Auctionator")
+            assert.equal("Auctionator", p.deSource)
+            _G.Auctionator.API.v1.GetDisenchantPriceByItemLink = nil
+            p = P.Lookup(link)
+            assert.is_nil(p.de)
+            assert.is_nil(p.deSource)
         end)
 
         it("says when the price call itself failed, so it never counts as 'no price yet'", function()

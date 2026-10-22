@@ -1,7 +1,7 @@
 -- Saved settings (account-wide, MailworthyDB): the bank alt per realm + faction,
 -- the history of names the player confirmed, and the decision-rule settings that
 -- Valuation reads. Only values the player touched are saved; everything else is
--- Valuation.DEFAULTS (so the disenchant default keeps following Disenchantry
+-- Valuation.DEFAULTS (so the disenchant default keeps following the disenchant addon
 -- until the player sets it).
 local _, ns = ...
 
@@ -35,7 +35,7 @@ end
 -- Settings -------------------------------------------------------------------
 
 function Config.Values()
-    return ns.Valuation.Settings(db().settings, ns.Prices.DisenchantryInstalled())
+    return ns.Valuation.Settings(db().settings, ns.Prices.DisenchantAddonInstalled())
 end
 
 function Config.Get(key) return Config.Values()[key] end
