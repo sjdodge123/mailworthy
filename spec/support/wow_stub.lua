@@ -69,6 +69,7 @@ function WowStub.reset()
     WowStub.managerCalls = {}
     _G.MailworthyDB, _G.MailworthyCharDB = nil, nil
     _G.Auctionator = nil
+    _G.DisenchantValueAPI = nil
     _G.SendMailFrame = WowStub.newWidget("Frame", "SendMailFrame")
     _G.InboxFrame = WowStub.newWidget("Frame", "InboxFrame")
     _G.MailFrame = WowStub.newWidget("Frame", "MailFrame")

@@ -220,7 +220,7 @@ function UI.Refresh()
     amountLabel:SetText("Amount: at least " .. money(v.minGain))
     pctLabel:SetText(string.format("Percent: at least %d%% of the vendor price", math.floor(v.minGainPct * 100 + 0.5)))
     disenchantButton:SetText(string.format("Include disenchant value: %s%s", v.disenchant and "on" or "off",
-        ns.Prices.DisenchantryInstalled() and "" or " (Disenchantry not installed)"))
+        ns.Prices.DisenchantAddonInstalled() and "" or " (no disenchant addon: install Siz DisenchantValue)"))
     for i, b in ipairs(durationButtons) do
         b:SetText(selected(ns.Valuation.DURATION_HOURS[i] .. "h", v.duration == i))
     end

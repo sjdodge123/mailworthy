@@ -108,7 +108,7 @@ the same pattern that made the More-menu entry taint gamepad input (alpha2).
 | Setting | Default | Scope |
 |---|---|---|
 | Bank alt (mail recipient) | none; the mailbox button opens settings until it's set | account, per realm + faction |
-| Include disenchant value | **on if Disenchantry is installed**, otherwise off. The default applies only until the player touches the checkbox; after that their choice persists | account |
+| Include disenchant value | **on if Siz DisenchantValue (or Disenchantry) is installed**, otherwise off. The default applies only until the player touches the checkbox; after that their choice persists | account |
 | Minimum gain over vendor | **5s and 25%** (both must hold); two steppers in the settings window (gold/silver amount, percent), changeable any time, including from the preview's Settings button | account |
 | Max price age | 7 days (Auctionator `GetAuctionAgeByItemLink`, confirmed on Forever) | account |
 | AH cut | 5% | account |
@@ -216,7 +216,8 @@ the bank alt's recorded skill.
 | Source | Calls | Status |
 |---|---|---|
 | Auctionator | `Auctionator.API.v1.GetAuctionPriceByItemLink(callerID, link)`, `GetAuctionAgeByItemLink`, `IsAuctionDataExactByItemLink`, `GetDisenchantPriceByItemLink`, `RegisterForDBUpdate` | **confirmed** on Forever (Auctionator 340, 2026-10-13); prices themselves still to see after a scan |
-| Disenchantry | none: `DisenchantryDB` holds settings only (blacklist, quality filter, statistics) | used only to switch the disenchant checkbox on by default; disenchant values come from Auctionator |
+| Siz DisenchantValue | `DisenchantValueAPI.GetValue(linkOrID)` = copper per item (learned from the player's disenchants, else the era tables, priced from Auctionator), nil when not disenchantable / no price; `GetEraValue` | the disenchant price source since 2026-10-22 (Auctionator's own disenchant call is the fallback); its presence switches the disenchant checkbox on. Forever addon, CurseForge slug `siz-disenchantvalue` |
+| Disenchantry | none: `DisenchantryDB` holds settings only (blacklist, quality filter, statistics) | only switched the disenchant checkbox on by default; still honoured, but its CurseForge project is gone (relation removed 2026-10-22) |
 | TSM | `TSM_API.ToItemString`, `TSM_API.GetCustomPriceValue("DBMarket", s)` | optional, later; not installed in the first report |
 | Vendor | `C_Item.GetItemInfo` / `GetItemInfo` 11th return | **confirmed** |
 
@@ -317,8 +318,9 @@ bank alt's own, fresh Auctionator data** ([media/bank-alt-prototype.png](../medi
 ## Release and CurseForge
 
 How to publish, the assets (icon, description, screenshot) and the checklist for
-the first public file: [CURSEFORGE.md](CURSEFORGE.md). Auctionator and
-Disenchantry are optional dependencies (`.pkgmeta`, `## OptionalDeps`).
+the first public file: [CURSEFORGE.md](CURSEFORGE.md). Auctionator and Siz
+DisenchantValue are optional dependencies (`.pkgmeta`, `## OptionalDeps`; Disenchantry
+only in `## OptionalDeps`).
 
 ## Modules
 
@@ -361,7 +363,7 @@ realm+faction, name history, settings, blocked actions) and
 **Settled by the first report** (LedgerLink v1.3.1, build 70338, 2026-10-13):
 - Auctionator 340 runs on Forever; its API has price, age, exactness,
   disenchant and DB-update calls.
-- Disenchantry exposes no price data.
+- Disenchantry exposes no price data (replaced by Siz DisenchantValue's API, 2026-10-22).
 - `C_Container.GetContainerItemInfo` gives `isBound`, `hasNoValue`, `isLocked`,
   `quality`, `stackCount`, `itemID`, `hyperlink`; quest items via
   `GetContainerItemQuestInfo`; sell price is `GetItemInfo`'s 11th return.

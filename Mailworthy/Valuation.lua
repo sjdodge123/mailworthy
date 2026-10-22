@@ -38,7 +38,7 @@ Valuation.DEFAULTS = {
     minGain = 500,        -- 5s ...
     minGainPct = 0.25,    -- ... and 25% of the vendor value, both
     maxAgeDays = 7,       -- older Auctionator prices don't count
-    disenchant = false,   -- Valuation.Settings switches it on when Disenchantry is installed
+    disenchant = false,   -- Valuation.Settings switches it on when a disenchant addon is installed
 }
 
 --- Pure: days since the realm launched (0 before launch and on launch day). `now` is
@@ -109,11 +109,12 @@ function Valuation.BankReason(item, r, settings)
 end
 
 --- Settings for a scan: saved values over the defaults. The disenchant default
---- follows Disenchantry until the player sets it (then their choice sticks).
-function Valuation.Settings(saved, disenchantryInstalled)
+--- follows the disenchant addon (Siz DisenchantValue or Disenchantry installed)
+--- until the player sets it (then their choice sticks).
+function Valuation.Settings(saved, disenchantAddonInstalled)
     local s = {}
     for k, v in pairs(Valuation.DEFAULTS) do s[k] = v end
-    s.disenchant = disenchantryInstalled == true
+    s.disenchant = disenchantAddonInstalled == true
     for k, v in pairs(type(saved) == "table" and saved or {}) do
         if Valuation.DEFAULTS[k] ~= nil and type(v) == type(Valuation.DEFAULTS[k]) then s[k] = v end
     end

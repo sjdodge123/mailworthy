@@ -91,7 +91,7 @@ function Report.Build()
             ns.Config.Flag("tagsEverywhere") and "every character" or "bank alt only",
             ns.Config.Flag("glowEverywhere") and "always" or "at the mailbox", ns.Bags.LastBag()),
         "prices: " .. (ns.Prices.Auctionator() and "Auctionator" or "none")
-            .. (ns.Prices.DisenchantryInstalled() and ", Disenchantry installed" or ""),
+            .. (ns.Prices.DisenchantAddon() and (", " .. ns.Prices.DisenchantAddon() .. " installed") or ""),
         string.format("controller: %s, labelStyle=%s", ns.MailButton.GamepadUI() and "on" or "off",
             tostring(ns.Gamepad.LabelStyle())),
         "api: " .. ns.Gamepad.Presence(),
