@@ -97,6 +97,40 @@ describe("config", function()
             assert.is_nil(ns.Config.SetBankAlt(nil))
             assert.is_nil(ns.Config.BankAlt())
         end)
+
+        it("this character can declare itself the bank alt (a second WoW account), per realm + faction", function()
+            assert.is_false(ns.Config.IsBankAltHere())
+            assert.equal("Rettana Quilwrit", ns.Config.SetBankAltHere())
+            assert.equal("Rettana Quilwrit", ns.Config.BankAlt())
+            assert.equal("Rettana Quilwrit", MailworthyDB.bankAlts["Classic Beta PvP|Alliance"], "the same slot a pick uses")
+            assert.is_true(ns.Config.IsBankAltHere())
+            for _, c in ipairs(ns.Config.Choices()) do
+                assert.not_equal("Rettana Quilwrit", c.name, "never offered to itself")
+            end
+            assert.equal(0, #MailworthyDB.names, "not in the typed-name history")
+            local log = table.concat(ns.Log.Lines(), "\n")
+            assert.truthy(log:find("bank alt for Classic Beta PvP|Alliance = Rettana Quilwrit (this character)", 1, true), log)
+            WowStub.state.faction = "Horde"
+            assert.is_nil(ns.Config.BankAlt(), "a Horde character has its own")
+            assert.is_false(ns.Config.IsBankAltHere())
+        end)
+
+        it("clears the declared bank alt again, and a picked character is never 'here'", function()
+            ns.Config.SetBankAltHere()
+            ns.Config.ClearBankAlt()
+            assert.is_nil(ns.Config.BankAlt())
+            assert.is_false(ns.Config.IsBankAltHere())
+            ns.Config.ClearBankAlt() -- nothing to clear: no error, no log line
+            local cleared = 0
+            for _, line in ipairs(ns.Log.Lines()) do
+                if line:find("cleared", 1, true) then cleared = cleared + 1 end
+            end
+            assert.equal(1, cleared)
+            ns.Config.SetBankAlt("Roknua Themicrulah")
+            assert.is_false(ns.Config.IsBankAltHere())
+            ns.Config.SetBankAltHere()
+            assert.equal("Rettana Quilwrit", ns.Config.BankAlt(), "replaces the pick")
+        end)
     end)
 
     describe("decision-rule settings", function()

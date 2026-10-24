@@ -291,3 +291,108 @@ describe("vendor tags on a main after sending", function()
         _G.Enum, _G.TooltipDataProcessor, _G.TooltipUtil = nil, nil, nil
     end)
 end)
+
+-- A bank alt on a second WoW account: its SavedVariables never saw the main's
+-- pick or a single send, so it declares itself the bank alt in the settings window
+-- and MailworthyDB.mailed is nil there.
+describe("bank alt on a second account (never sent, no pick from a main)", function()
+    local ns, combined, prices, postCalls, tooltipLines, displayed
+
+    local function tagOf(button)
+        for _, f in ipairs(button.fontStrings) do
+            if f:IsShown() then return f.text end
+        end
+        return nil
+    end
+
+    local function hover(link, itemID)
+        tooltipLines, displayed = {}, link
+        postCalls[0](GameTooltip, { id = itemID })
+        return table.concat(tooltipLines, "\n")
+    end
+
+    before_each(function()
+        ns = loadAddon()
+        prices, postCalls, tooltipLines = {}, {}, {}
+        _G.Auctionator = { API = { v1 = {
+            GetAuctionPriceByItemLink = function(_, l) return prices[l] and prices[l].ah end,
+            GetAuctionAgeByItemLink = function() return 0 end,
+            IsAuctionDataExactByItemLink = function() return true end,
+        } } }
+        _G.Enum = { TooltipDataType = { Item = 0 } }
+        _G.TooltipDataProcessor = { AddTooltipPostCall = function(t, fn) postCalls[t] = fn end }
+        _G.TooltipUtil = { GetDisplayedItem = function() return "name", displayed end }
+        rawset(GameTooltip, "AddLine", function(_, text) table.insert(tooltipLines, text) end)
+        WowStub.setBag(0, 1, WowStub.item(2770, "Copper Ore", { count = 5, sell = 5 }))
+        prices[WowStub.link(2770, "Copper Ore")] = { ah = 174 }
+        WowStub.setBag(0, 2, WowStub.item(2589, "Linen Cloth", { count = 20, sell = 10 }))
+        prices[WowStub.link(2589, "Linen Cloth")] = { ah = 38 }
+        combined = ContainerFrameCombinedBags
+        combined.Items = { WowStub.itemButton(0, 1), WowStub.itemButton(0, 2) }
+        ns.Fire("PLAYER_LOGIN")
+        assert.is_nil(MailworthyDB.mailed, "nothing was ever sent from this account")
+        assert.equal(0, #ns.Characters.Mailable(), "the main is on the other account: unknown here")
+    end)
+
+    after_each(function()
+        _G.Auctionator, _G.Enum, _G.TooltipDataProcessor, _G.TooltipUtil = nil, nil, nil, nil
+        rawset(GameTooltip, "AddLine", nil)
+        for _, line in ipairs(ns.Log.Lines()) do assert.is_nil(line:find("error", 1, true), line) end
+    end)
+
+    it("is not the bank alt until it says so; then the tags come on without 'tags everywhere'", function()
+        combined:UpdateItems()
+        assert.is_false(ns.BankAlt.IsBankAlt())
+        assert.is_nil(ns.BankAlt.Mode())
+        assert.is_nil(tagOf(combined.Items[1]))
+        ns.SettingsUI.Show()
+        _G.MailworthySettingsHere:Click()
+        assert.is_true(ns.BankAlt.IsBankAlt())
+        assert.equal("bankalt", ns.BankAlt.Mode())
+        assert.is_false(ns.Config.Flag("tagsEverywhere"))
+        combined:UpdateItems()
+        assert.equal("AH", tagOf(combined.Items[1]))
+        assert.equal("V", tagOf(combined.Items[2]))
+    end)
+
+    it("tooltips and the summary work with no mailed-for history at all", function()
+        ns.SettingsUI.Show()
+        _G.MailworthySettingsHere:Click()
+        local text = hover(WowStub.link(2770, "Copper Ore"), 2770)
+        assert.truthy(text:find("Mailworthy  |cffffffff[Auction]|r", 1, true), text)
+        assert.truthy(text:find("7s 95c more than a vendor.", 1, true), text)
+        assert.is_nil(text:find("Mailed for", 1, true), "no record: no such line")
+        assert.is_nil(MailworthyDB.mailed, "hovering writes nothing")
+        local s = ns.BankAlt.Summary(ns.BankAlt.Refresh())
+        assert.same({ stacks = 1, items = 5, gain = 795 }, s.ah)
+        assert.same({ stacks = 1, items = 20, vendor = 200, wasAuction = 0 }, s.v)
+        ns.HandleSlash("summary")
+        assert.is_true(MailworthySummaryFrame:IsShown())
+    end)
+
+    it("a damaged or partial mailed record never errors", function()
+        ns.SettingsUI.Show()
+        _G.MailworthySettingsHere:Click()
+        MailworthyDB.mailed = { [2770] = true, [2589] = {} }
+        local text = hover(WowStub.link(2770, "Copper Ore"), 2770)
+        assert.is_nil(text:find("Mailed for", 1, true), text)
+        text = hover(WowStub.link(2589, "Linen Cloth"), 2589)
+        assert.truthy(text:find("Mailed for: nil, ", 1, true), text)
+        assert.equal(0, ns.BankAlt.Summary(ns.BankAlt.Refresh()).v.wasAuction)
+    end)
+
+    it("at a mailbox the Mailworthy button opens the summary, and sending to itself is refused", function()
+        ns.SettingsUI.Show()
+        _G.MailworthySettingsHere:Click()
+        MailworthySettingsFrame:Hide()
+        MailFrame:Show()
+        SendMailFrame:Show()
+        _G.MailworthyMailButton:Click()
+        assert.is_true(MailworthySummaryFrame:IsShown())
+        assert.is_false(ns.MailWindow.Frame():IsShown())
+        assert.equal("this character is the bank alt", ns.Mailer.Blocker(ns.Config.BankAlt(), { {} }))
+        ns.MailWindow.Show("send")
+        ns.MailWindow.Send()
+        assert.equal(0, #WowStub.state.sent, "nothing sent")
+    end)
+end)

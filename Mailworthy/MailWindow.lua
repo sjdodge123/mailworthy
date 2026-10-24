@@ -264,7 +264,7 @@ function UI.Refresh(keepScan)
     if not result then return end
     title:SetText("Mailworthy  " .. (ns.MailButton.GamepadUI() and ns.Gamepad.Glyph(ns.Gamepad.FACE_TOP) or ""))
     local bankAlt = ns.Config.BankAlt()
-    local isBankAlt = bankAlt and bankAlt:lower() == tostring(ns.PlayerName()):lower()
+    local isBankAlt = ns.Config.IsBankAltHere()
     toName:SetText("|cffffd100To:|r " .. (bankAlt or "|cffff8040no bank alt set: press Settings|r"))
     toNote:SetText(isBankAlt and "this is your bank alt" or (bankAlt and "your bank alt" or ""))
 

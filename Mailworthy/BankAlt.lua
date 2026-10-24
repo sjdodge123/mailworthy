@@ -50,9 +50,11 @@ local function call(fn, ...)
     return unpack(results, 2, table.maxn(results))
 end
 
+--- The character this realm + faction mails to: picked from a main on the same
+--- account, or declared here ("This character is my bank alt" in the settings
+--- window) when the bank alt lives on a second WoW account.
 function BankAlt.IsBankAlt()
-    local alt = ns.Config.BankAlt()
-    return alt ~= nil and alt:lower() == tostring(ns.PlayerName()):lower()
+    return ns.Config.IsBankAltHere()
 end
 
 local vendorMode = false -- this session, on this character, after a send
@@ -239,6 +241,7 @@ local function onTooltip(tooltip, data)
     -- On a main after sending, only the vendor verdict: "Mailed for" belongs on the bank alt.
     local record = BankAlt.Mode() ~= "vendor" and itemID and type(MailworthyDB.mailed) == "table"
         and MailworthyDB.mailed[itemID] or nil
+    if type(record) ~= "table" then record = nil end
     local lines = BankAlt.TooltipLines(item, record, c.result and c.result.settings or BankAlt.Settings())
     if #lines == 0 then return end
     tooltip:AddLine(" ")
@@ -280,7 +283,9 @@ function BankAlt.Summary(result)
                 if v == "v" then
                     t.vendor = t.vendor + (item.result.vendor or 0)
                     local record = mailed[item.itemID]
-                    if record and (record.route == "ah" or record.listRoute == "ah") then t.wasAuction = t.wasAuction + 1 end
+                    if type(record) == "table" and (record.route == "ah" or record.listRoute == "ah") then
+                        t.wasAuction = t.wasAuction + 1
+                    end
                 else
                     t.gain = t.gain + (item.result.gain or 0)
                 end

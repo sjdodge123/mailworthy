@@ -140,6 +140,34 @@ function Config.SetBankAlt(name)
     return name
 end
 
+--- This character declares itself the bank alt (the control in the settings window).
+--- Same slot as a picked name, so every other character on this realm + faction
+--- on this account mails to it, and BankAlt.IsBankAlt() is true here. Needed when
+--- the bank alt lives on a second WoW account: SavedVariables are per account, so
+--- the main's choice never reaches this one. Not added to the names history.
+function Config.SetBankAltHere()
+    local name = Config.Clean(ns.PlayerName())
+    if not name then return nil end
+    local key = realmKey()
+    db().bankAlts[key] = name
+    ns.Log.Add("config", "bank alt for %s = %s (this character)", key, name)
+    return name
+end
+
+--- No bank alt on this realm + faction any more (undo for SetBankAltHere).
+function Config.ClearBankAlt()
+    local key = realmKey()
+    if db().bankAlts[key] == nil then return end
+    db().bankAlts[key] = nil
+    ns.Log.Add("config", "bank alt for %s cleared", key)
+end
+
+--- Is this character the saved bank alt for its realm + faction?
+function Config.IsBankAltHere()
+    local alt = Config.BankAlt()
+    return alt ~= nil and tostring(alt):lower() == tostring(ns.PlayerName()):lower()
+end
+
 function Config.ForgetName(name)
     local _, realm, faction = realmKey()
     local names = db().names

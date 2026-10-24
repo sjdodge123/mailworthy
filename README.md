@@ -28,6 +28,12 @@ than at the vendor goes to your bank alt. The rest stays in your bags to vendor.
   later phase, disenchant it, vendor it now) recomputed with that character's own prices;
   tooltips show today's verdict and why the item was mailed; the Mailworthy button (or
   `/mw summary`) sums it up.
+- **Bank alt on a second WoW account** (played on another monitor): mail crosses accounts,
+  saved settings don't. On your main, type the alt's name under "Or type it" in `/mw`
+  (press **Use name** twice: Mailworthy hasn't seen that character). On the alt's account
+  install Auctionator and Mailworthy, run an Auctionator scan there, open `/mw` and press
+  **This character is my bank alt**: the tags, tooltips and summary come on. Each account
+  keeps its own price scans, and the "Mailed for" tooltip line stays on the sending account.
 - **No math needed:** prices are the 3-day median of Auctionator's scans (one undercut
   can't flip a verdict), half the deposit counts (the game refunds it on a sale), a flooded
   market is valued at its floor, and the rule knows the realm's launch day: in launch week
@@ -46,7 +52,7 @@ than at the vendor goes to your bank alt. The rest stays in your bags to vendor.
   (lock them to keep them).
 
 ```
-/mw                   settings: bank alt, minimum gain, disenchant, listing length, tags, lock glow, profession materials, minimap button
+/mw                   settings: bank alt (pick, type, or "This character is my bank alt"), minimum gain, disenchant, listing length, tags, lock glow, profession materials, minimap button
 /mw scan              what Mailworthy would mail and why, with the numbers (sends nothing)
 /mw summary           on your bank alt: what to list, disenchant or vendor
 /mw locks             this character's locked items

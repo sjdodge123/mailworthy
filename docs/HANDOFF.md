@@ -61,12 +61,12 @@ must never break the game.
 | `Prices.lua` | Auctionator adapter (`Lookup`: AH price per unit, age in days, exact, disenchant; nil without Auctionator), disenchant value from Siz DisenchantValue (`DisenchantValueOf`: `DisenchantValueAPI.GetValue(link)`, else Auctionator's call; `deSource`), vendor price (`GetItemInfo` 11th return), class ID, `DisenchantAddon()` / `DisenchantAddonInstalled()` (Siz DisenchantValue by its API table, Disenchantry by `DisenchantryDB`) |
 | `Valuation.lua` | **pure** decision rule: settings (defaults + saved, disenchant follows the disenchant addon, `keepProfessionMats` on), profession materials (`PROFESSION_MATS` by skill line ID x trade-goods subclass, `NeededBy`, `CraftingProfessions`; `settings.professions` filled by `Bags.Evaluate` from `Characters.Professions()`), deposit, thresholds, keep reasons, no-Auctionator rule, `Money` formatting |
 | `Bags.lua` | scan bags 0-5 (`LastBag()` = `NUM_TOTAL_EQUIPPED_BAG_SLOTS`: backpack, bags 1-4, reagent bag; `IsBag()` shared with Locks) -> slots -> items (grouped per link + bound + in-use), locks, prices, verdicts, totals; `/mw scan` report in the copy box (sends nothing) |
-| `Config.lua` | saved settings (`MailworthyDB.settings` only what the player touched, `bankAlts[realm|faction]`, `names` history); flags `minimapHidden`, `tagsEverywhere`, `glowEverywhere`; choices, auto-complete, steppers |
+| `Config.lua` | saved settings (`MailworthyDB.settings` only what the player touched, `bankAlts[realm|faction]` set by a pick or by the bank alt itself via `SetBankAltHere`, `names` history); flags `minimapHidden`, `tagsEverywhere`, `glowEverywhere`; choices, auto-complete, steppers |
 | `Widgets.lua` | window / button / label / legend helpers shared by all windows |
 | `Mailer.lua` | sending: plan 12 stacks per mail, re-check each slot, attach, zero money/COD, `SendMail`, chain on `MAIL_SEND_SUCCESS`; stops on failure / close / combat / 10 s; a run id kills a stopped run's timers; records `MailworthyDB.mailed` (30 days) |
 | `MailWindow.lua` | the window at the mailbox (`media/ui-prototype.png`): To, Mailing rows (chip + gain), Staying rows (reason), total, Send / Settings / Close; rows toggle item locks; pages of 8 / 5 |
 | `BankAlt.lua` | bank alt view: verdicts with no postage (`Verdict`: ah / de / v), tags on bag buttons (a `Border` decorator), tooltip lines via `TooltipDataProcessor`, summary window (`/mw summary`, mail button on the bank alt); switches `bankAltTags`, `tooltipLines`; setting `tagsEverywhere` |
-| `SettingsUI.lua` | settings window (bank alt buttons + optional typed name with "not seen" second press, steppers, disenchant, 2/8/24h, minimap toggle); controller via `PadKey` set `settings` (works away from the mailbox) |
+| `SettingsUI.lua` | settings window (bank alt buttons, "This character is my bank alt" for a second account, optional typed name with "not seen" second press, steppers, disenchant, 2/8/24h, minimap toggle); controller via `PadKey` set `settings` (works away from the mailbox) |
 | `MinimapButton.lua` | LedgerLink's minimap button (click: settings; drag: move); feature `minimapButton` |
 | `Report.lua` | `/mw report` (one copyable report: build, controller, switches, bank alt, settings, locks, last send, blocked actions, log), the copy box `/mw scan` uses, and the AH sale-mail reader (house cut). Replaced the discovery self-test in Phase 5 |
 
@@ -190,6 +190,16 @@ call `SendMail` anyway. Every Mailer timer checks the run id and `busy`.
   goods before day 35 and gluts until day 60; the minimum gain grows 1/180 a day after
   day 35, capped at 2x. No new settings.
 - Bank alt picked from known characters (same realm + faction), never typed by default.
+- **Bank alt on a second WoW account** (Reddit r/wowaddons, 2026-10-24): SavedVariables are
+  per account, so the main's pick never reaches the alt. The alt declares itself with the
+  settings button "This character is my bank alt" (`Config.SetBankAltHere`, `ClearBankAlt`,
+  `IsBankAltHere`); it writes the **same** `bankAlts[realm|faction]` slot a pick uses (one
+  bank alt per realm + faction per account, so the account's other characters mail to it),
+  and `BankAlt.IsBankAlt()` reads it. The typed path still refuses the character's own name
+  and points at the button. Not crossing accounts: price scans (Auctionator per account) and
+  the "Mailed for" history (`MailworthyDB.mailed`, written by the sender); the tooltip and
+  summary skip the line when there's no record. The history is not carried in the mail
+  body or subject (decided against in that PR).
 - Bank alt view: AH / DE / V tags on bag slots recomputed with the bank alt's own
   prices; tooltip shows fresh verdict + "Mailed for: ..." (recorded at send time,
   `MailworthyDB.mailed`, 30-day expiry); summary window.
