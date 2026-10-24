@@ -24,7 +24,7 @@ must never break the game.
 
 | What | Where |
 |---|---|
-| Repo | `~/Documents/Projects/mailworthy`, GitHub `sjdodge123/mailworthy` (private), `main` |
+| Repo | GitHub `sjdodge123/mailworthy` (public), default branch `main` |
 | Design + phases + decision rule | [docs/PLAN.md](PLAN.md) |
 | Decision-rule research (bank category, server age, competition; beta build check 2026-10-20), **built** as rule v2 | [docs/ALGORITHM-RESEARCH.md](ALGORITHM-RESEARCH.md) |
 | Blizzard source findings + **taint rules** | [docs/FOREVER-UI-NOTES.md](FOREVER-UI-NOTES.md) |
@@ -39,7 +39,7 @@ must never break the game.
 | Package layout check (CI) | [tools/check-package-layout.sh](../tools/check-package-layout.sh) |
 | Agent rules | [AGENTS.md](../AGENTS.md) (CLAUDE.md includes it) |
 | Blizzard's Forever UI source | GitHub `Ketho/wow-ui-source-forever` (branch `forever`); read with `gh api repos/Ketho/wow-ui-source-forever/contents/<path>?ref=forever --jq .content \| base64 -d`, search with `gh search code --repo Ketho/wow-ui-source-forever "<term>"`. Snapshot of build 70205: `Bleakfiber/Blizzard-Interface-Assets---Forever-1.60.1.70205` |
-| Sibling project | LedgerLink at `~/Documents/Projects/ledger-link` (CurseForge 1728299). Its `/rl probe` sections S5-S8 (v1.3.0-v1.3.3) were Mailworthy's first discovery tool: price addons, bag values, mail/AH/gamepad APIs, smart navigation dumps, the bag "More" menu recorder, AH deposits. LedgerLink's own rules (wire format owned by Raid Ledger) don't apply here |
+| Sibling project | LedgerLink (CurseForge 1728299), a separate repo. Its `/rl probe` sections S5-S8 (v1.3.0-v1.3.3) were Mailworthy's first discovery tool: price addons, bag values, mail/AH/gamepad APIs, smart navigation dumps, the bag "More" menu recorder, AH deposits. LedgerLink's own rules (wire format owned by Raid Ledger) don't apply here |
 
 **Same-named files trap:** LedgerLink also has `media/logo-400.png`,
 `media/curseforge-description.html`, etc. Always use paths inside this repo.
