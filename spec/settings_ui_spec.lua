@@ -61,14 +61,39 @@ describe("settings window", function()
         assert.is_false(_G.MailworthySettingsChoice2:IsShown())
     end)
 
-    it("won't save this character or an empty name", function()
+    it("won't save this character or an empty name; a typed own name points at the button", function()
         type_("Rettana Quilwrit")
         _G.MailworthySettingsUseName:Click()
         _G.MailworthySettingsUseName:Click()
+        assert.truthy(_G.MailworthySettingsName:GetText() ~= "", "the typed name stays")
         type_("  ")
         _G.MailworthySettingsUseName:Click()
         assert.is_nil(ns.Config.BankAlt())
     end)
+
+    it("'This character is my bank alt' (a bank alt on a second WoW account) saves this character; again clears it",
+        function()
+            local here = _G.MailworthySettingsHere
+            assert.equal("This character is my bank alt", here:GetText())
+            here:Click()
+            assert.equal("Rettana Quilwrit", ns.Config.BankAlt())
+            assert.is_true(ns.BankAlt.IsBankAlt())
+            assert.equal("bankalt", ns.BankAlt.Mode(), "no 'tags everywhere' needed")
+            assert.truthy(here:GetText():find("> This character is my bank alt <", 1, true), "marked as chosen")
+            assert.truthy(hint():find("Bank alt: Rettana Quilwrit (this character)", 1, true), hint())
+            assert.is_false(_G.MailworthySettingsChoice1:GetText():find("> Roknua", 1, true) ~= nil)
+            assert.equal("this character is the bank alt", ns.Mailer.Blocker(ns.Config.BankAlt(), {}),
+                "the Mailworthy window still refuses to mail to itself")
+            here:Click()
+            assert.is_nil(ns.Config.BankAlt())
+            assert.is_false(ns.BankAlt.IsBankAlt())
+            assert.equal("This character is my bank alt", here:GetText())
+            assert.truthy(hint():find("No bank alt set on this realm and faction any more.", 1, true))
+            -- Picking another character afterwards works as before.
+            _G.MailworthySettingsChoice1:Click()
+            assert.equal("Roknua Themicrulah", ns.Config.BankAlt())
+            assert.equal("This character is my bank alt", here:GetText())
+        end)
 
     it("steppers, disenchant, listing length and the minimap button", function()
         _G.MailworthySettingsAmountUp:Click()
@@ -121,6 +146,15 @@ describe("settings window", function()
             WowStub.state.now = WowStub.state.now + 1
             _G.MailworthyPadCross:Click()
             assert.equal(1, ns.Config.Get("duration"))
+            local reachable = false
+            for _, c in ipairs(ns.Nav.Candidates()) do
+                if c.button == _G.MailworthySettingsHere then reachable = true end
+            end
+            assert.is_true(reachable, "the D-pad reaches 'This character is my bank alt'")
+            ns.Nav.Select(_G.MailworthySettingsHere)
+            WowStub.state.now = WowStub.state.now + 1
+            _G.MailworthyPadCross:Click()
+            assert.equal("Rettana Quilwrit", ns.Config.BankAlt(), "Cross declares this character the bank alt")
             WowStub.state.now = WowStub.state.now + 1
             _G.MailworthyPadCircle:Click()
             assert.is_false(MailworthySettingsFrame:IsShown())
