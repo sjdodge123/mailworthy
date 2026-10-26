@@ -25,6 +25,16 @@
 <h2>Your professions come first</h2>
 <p>Mailworthy knows which professions the character has and keeps their materials in the bags, whatever they'd sell for: cloth for a tailor (or for first aid), leather for a leatherworker, metal and stone for a blacksmith or an engineer (plus parts, explosives and devices), herbs for an alchemist, dust, essences and shards for an enchanter, meat and fish for a cook. The window shows them under "staying" with the reason, for example <em>your Tailoring needs it</em>. Gathering professions keep nothing: what you mine, pick or skin is what gets sold. Elemental materials are still mailed; lock them if you want to keep them. The whole rule is one checkbox in the settings, on by default.</p>
 
+<h2>Send a profession's materials to a friend</h2>
+<p>Got a guildmate who enchants, or a friend levelling leatherworking? Bind a profession to them once and Mailworthy mails them every material it uses, every time you press Send, until you remove the binding. Type <code>/mw friends</code> (or press <strong>Send materials to friends</strong> in the settings), pick the player from your party, your guild or your own characters (online players first, with their professions shown and suggested), then pick the profession. Two clicks, or two presses on the controller.</p>
+<ul>
+<li>The Mailworthy window lists your bindings above the mail list, each with <strong>Skip once</strong> (just this visit) and <strong>Remove</strong>. Items headed to a friend show <em>to Bob</em> instead of a gain.</li>
+<li>Each binding has a <strong>price cap</strong>, 5 gold each by default. When the market suddenly wants a material, anything at or above the cap goes to your bank alt instead, and the scan tells you why.</li>
+<li>Bindings cover all your characters on that realm and faction, or just one; your call per binding.</li>
+<li>Locked items still stay, and a binding beats "keep my professions' materials" for that profession, since you asked for it.</li>
+<li>If your friend runs Mailworthy too, the addons tell each other which of their characters craft what, and your mail goes to <strong>whichever of their characters has the profession</strong>: the friend themself, or their crafter alt. Never their bank alt. The window always names who gets it. (<code>/mw feature comms off</code> stops the messages.)</li>
+</ul>
+
 <h2>Optional: Auctionator and Siz DisenchantValue</h2>
 <p>Mailworthy works on its own, and gets smarter with these two addons installed:</p>
 <ul>
@@ -60,6 +70,7 @@
 <li>Auction listing length used for the deposit estimate</li>
 <li>Your bank alt</li>
 <li>Keep my professions' materials (lists the character's crafting professions and what they use)</li>
+<li>Send materials to friends: your bindings, each with its price cap and scope</li>
 <li>Bank alt tags on every character, or only on the bank alt</li>
 <li>Locked-item glow: at the mailbox only, or always</li>
 <li>Minimap button</li>
@@ -68,9 +79,9 @@
 
 <h2>Good to know</h2>
 <ul>
-<li>Mail only goes between characters on the same realm and faction, so that's who Mailworthy offers as your bank alt.</li>
+<li>Mail only goes between characters on the same realm and faction, so that's who Mailworthy offers as your bank alt and as friends.</li>
 <li>Mailworthy doesn't post auctions. It gets the items to your bank alt; you list them there (Auctionator makes that quick).</li>
-<li>Nothing is sent without your click, nothing happens in combat, and the window always shows why each item is mailed or kept.</li>
+<li>Nothing is sent without your click, nothing happens in combat, and the window always shows who gets each item and why it's mailed or kept.</li>
 <li>Want the numbers? <code>/mw scan</code> shows the price, deposit, postage and gain behind every decision.</li>
 </ul>
 
