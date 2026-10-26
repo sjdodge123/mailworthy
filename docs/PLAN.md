@@ -117,7 +117,7 @@ the same pattern that made the More-menu entry taint gamepad input (alpha2).
 | Postage | **30c per attached item** (measured 2026-10-13) | account |
 | Locked items | none | **per character** |
 | Minimap button | shown | account |
-| Bindings ("send my Enchanting materials to Bob", operator 2026-10-26) | none; `/mw friends` or the settings' "Send materials to friends" button: pick a player (party, guild, own characters, Mailworthy users; online first, their professions suggested from the guild roster's `profession1ID` / `profession2ID`, the known-character record or their Mailworthy's hello), then the profession. Each binding: price cap stepper (5g each by default; at or above it the normal rule applies and the item goes to the bank alt), scope, "To them" / "To their alt" (when their Mailworthy has named one), Remove. The Mailworthy window shows them with Skip once (until the mailbox closes) and Remove | account (per realm + faction) or **per character**; this character's bindings win |
+| Bindings ("send my Enchanting materials to Bob", operator 2026-10-26) | none; `/mw friends` or the settings' "Send materials to friends" button: pick a player (party, guild, own characters, Mailworthy users; online first, their professions suggested from the guild roster's `profession1ID` / `profession2ID`, the known-character record or their Mailworthy's hello), then the profession. Each binding: price cap stepper (5g each by default; at or above it the normal rule applies and the item goes to the bank alt), scope, Remove; the mail goes to the friend, or to the character of theirs that has the profession when their Mailworthy has said so. The Mailworthy window shows them with Skip once (until the mailbox closes) and Remove | account (per realm + faction) or **per character**; this character's bindings win |
 
 ### Bank alt picker (no mistypes)
 
@@ -249,13 +249,17 @@ explicit choice over the default keep. The bank alt's tags ignore bindings.
   (`GetGuildRosterInfo` fallback; the roster is asked for with `C_GuildInfo.GuildRoster()`,
   10 s apart), the account's known characters (with their recorded professions), and
   Mailworthy users heard from. Names lose any "-Realm" suffix.
-- **Hellos (`Comms.lua`, `/mw feature comms`):** `H1|<bank alt>|<skill lines>` to GUILD and
-  PARTY / RAID at login (8 s), on group changes, on a bank alt change (10 s apart), and in
-  answer to `A1` (the friends window asks, 30 s apart). Peers are data: names cleaned and
-  length-checked, professions must be known crafting skill lines, kept 60 days in
-  `MailworthyDB.peers`. A binding's "To their alt" uses the alt the peer's **latest** hello
-  named; unknown alt = to them. The operator accepted the risk (a peer names its own alt)
-  as an opt-in per binding; the window always shows the actual recipient.
+- **Hellos (`Comms.lua`, `/mw feature comms`):** `H2|<own crafting skill lines>|<Name=ids;...>`
+  (the account's other characters on the realm + faction that craft, from the known-character
+  list, as many as fit in 255 bytes) to GUILD and PARTY / RAID at login (8 s), on group
+  changes (10 s apart), and in answer to `A2` (the friends window asks, 30 s apart). Peers
+  are data: names cleaned and length-checked, professions must be known crafting skill
+  lines, kept 60 days in `MailworthyDB.peers`.
+- **Delivery follows the profession** (operator, 2026-10-26: "get the materials to the friend
+  that actually has the profession, not their alt for the AH"): `Routes.Crafter(route, peer)`
+  is pure: the bound player when they have the profession or nothing is known, else the
+  first of their characters that has it, from the peer's **latest** hello. No toggle; the
+  window and the scan name the actual recipient. Bank alts are never a target.
 - Two presses with the controller: the friends window is all buttons (Nav / PadKey
   "settings" set).
 

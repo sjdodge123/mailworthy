@@ -12,6 +12,11 @@
 -- the market suddenly wants: at or above the cap the normal rule applies and
 -- the item goes to the bank alt. "Skip once" drops a binding for this mailbox
 -- visit (cleared at MAIL_CLOSED). The recipient is always shown in the window.
+-- When the bound player runs Mailworthy, its hello (Comms) lists their
+-- characters' crafting professions, and the mail goes to the one that has the
+-- bound profession: the player themself when they do, their crafter when they
+-- don't, the player when nothing is known (operator, 2026-10-26: the goal is
+-- the friend who actually has the profession, never their alt for the AH).
 --
 -- Who can be bound: the party / raid (unit tokens), the guild (C_Club member
 -- info, which carries each member's two professions and presence, as Blizzard's
@@ -104,14 +109,27 @@ function Routes.Matches(route, item)
     return p ~= nil and p.subclasses[item.subclassID] == true
 end
 
---- Where a binding's mail goes right now: the bound player, or, when the binding says
---- "to their bank alt" and that player's own Mailworthy has told us one, that alt.
-function Routes.Recipient(route)
-    if route.viaAlt and ns.Comms then
-        local peer = ns.Comms.Peer(route.to)
-        if peer and peer.bankAlt then return peer.bankAlt, true end
+local function has(ids, profession)
+    for _, id in ipairs(ids or {}) do
+        if tonumber(id) == tonumber(profession) then return true end
+    end
+    return false
+end
+
+--- Pure: who gets a binding's mail given what the bound player's Mailworthy said (`peer`,
+--- or nil): the player when they have the profession or nothing is known, else the first
+--- of their characters that has it. Second return: true when it's another character.
+function Routes.Crafter(route, peer)
+    if not peer or has(peer.professions, route.profession) then return route.to, false end
+    for _, c in ipairs(peer.characters or {}) do
+        if has(c.professions, route.profession) then return c.name, true end
     end
     return route.to, false
+end
+
+--- Where a binding's mail goes right now (Routes.Crafter with the peer heard from).
+function Routes.Recipient(route)
+    return Routes.Crafter(route, ns.Comms and ns.Comms.Peer(route.to) or nil)
 end
 
 --- Pure: divert an item to a binding. `verdict` is Valuation.Evaluate's result for the
@@ -128,10 +146,10 @@ function Routes.Divert(item, verdict, price, settings, routes)
                 unit = ns.Valuation.SmoothedPrice(price)
             end
             if route.cap and unit and unit >= route.cap then return nil, route end
-            local to, viaAlt = Routes.Recipient(route)
+            local to, crafter = Routes.Recipient(route)
             local n = item.count or 1
             return {
-                action = "mail", route = Routes.ROUTE, to = to, viaAlt = viaAlt, key = route.key, what = Routes.What(route),
+                action = "mail", route = Routes.ROUTE, to = to, crafter = crafter, key = route.key, what = Routes.What(route),
                 reason = Routes.What(route) .. " go to " .. tostring(to),
                 vendor = (item.vendor or 0) * n, postage = (settings and settings.postage or 30) * (item.stacks or 1),
                 ahUnit = unit,
@@ -194,8 +212,8 @@ function Routes.Get(key)
     return copy
 end
 
---- Add a binding. opts: scope ("account" default / "character"), cap (copper; false = none),
---- viaAlt. Returns the binding, or nil and why.
+--- Add a binding. opts: scope ("account" default / "character"), cap (copper; false = none).
+--- Returns the binding, or nil and why.
 function Routes.Add(name, profession, opts)
     opts = opts or {}
     name = Routes.Clean(name)
@@ -209,7 +227,7 @@ function Routes.Add(name, profession, opts)
     local list = listFor(scope)
     if #list >= Routes.MAX then return nil, "too many bindings" end
     local route = { to = name, profession = profession, cap = opts.cap == nil and Routes.DEFAULT_CAP or (opts.cap or nil),
-        viaAlt = opts.viaAlt == true, at = call(GetServerTime) or time() }
+        at = call(GetServerTime) or time() }
     list[#list + 1] = route
     ns.Log.Add("routes", "bound %s to %s (%s)", Routes.What(route), name, scope)
     return Routes.Get(key)
@@ -262,12 +280,6 @@ function Routes.StepCap(key, dir)
     if not r then return end
     r.cap = Routes.NextCap(r.cap, dir)
     ns.Log.Add("routes", "%s to %s: cap %s", Routes.What(r), r.to, r.cap and ns.Valuation.Money(r.cap) or "none")
-end
-
-function Routes.SetViaAlt(key, on)
-    local _, _, r = find(key)
-    if not r then return end
-    r.viaAlt = on == true
 end
 
 --- Pure: "to my alt above 5g each" / "no price cap".
@@ -448,10 +460,10 @@ end
 function Routes.ReportLines()
     local lines = {}
     for _, r in ipairs(Routes.List()) do
-        local to, viaAlt = Routes.Recipient(r)
+        local to, crafter = Routes.Recipient(r)
         lines[#lines + 1] = string.format("binding: %s (%s, %s%s%s)", Routes.Describe(r),
             r.scope == "character" and "this character" or "all my characters", Routes.CapText(r),
-            viaAlt and (", via their bank alt " .. to) or (r.viaAlt and ", via their bank alt (not reported yet)" or ""),
+            crafter and (", delivered to their crafter " .. to) or "",
             skipped[r.key] and ", skipped this visit" or "")
     end
     return lines

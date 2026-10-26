@@ -51,10 +51,10 @@ than at the vendor goes to your bank alt. The rest stays in your bags to vendor.
   **price cap** (default 5g each): a material the market suddenly wants goes to your bank
   alt instead. The Mailworthy window lists the bindings with **Skip once** (this mailbox
   visit only) and **Remove**. Locked items still stay. If the friend runs Mailworthy too,
-  it tells yours their bank alt and professions (addon messages to guild and group; `/mw
-  feature comms off` stops them), and the binding can deliver **to their alt** directly,
-  showing that name in the window; otherwise mail them and their own Mailworthy (with a
-  binding to their alt) carries it on.
+  it tells yours which of their characters craft what (addon messages to guild and group;
+  `/mw feature comms off` stops them), and the mail goes to **whichever of their characters
+  has the profession**: the friend when they do, their crafter alt when they don't, and the
+  friend when nothing is known. Never their bank alt. The window names the recipient.
 - Profession tools (fishing poles, Mining Pick, Blacksmith Hammer, Skinning Knife, ...)
   always stay. Gold is never attached.
 - **Your professions' materials stay** (on by default, a setting turns it off): cloth for
@@ -110,7 +110,7 @@ each in-game round are in [docs/DISCOVERY-SESSION-2.md](docs/DISCOVERY-SESSION-2
 | One-press sending from the Mailworthy window (no money, no COD) | v0.4.0 | **works** (operator, 2026-10-14) |
 | Reagent bag (bag 5, `NUM_TOTAL_EQUIPPED_BAG_SLOTS`) scanned, locked (Alt+click, L3) and mailed like bags 0-4 | a white item in the reagent bag: `/mw scan` lists it, Send mails it | open (CurseForge user report, 2026-10-21; source-backed: `Enum.BagIndex.ReagentBag` = 5 in `Blizzard_FrameXMLBase/Constants.lua`) |
 | Guild members through `C_Club.GetGuildClubId` / `GetClubMembers` / `GetMemberInfo` (`name`, `presence`, `profession1ID` / `profession2ID` as skill line IDs, as Blizzard's Communities roster reads them on Forever; `GetGuildRosterInfo` fallback), party through `GetNumGroupMembers` / `GetUnitName(unit, true)` / `UnitIsConnected`, the roster asked for with `C_GuildInfo.GuildRoster()` | `/mw friends` lists guild and party members with "online" and their professions; a two-part name without a realm suffix lands in the binding and the mail arrives | open (2026-10-26) |
-| Addon messages between Mailworthys: `C_ChatInfo.RegisterAddonMessagePrefix("Mailworthy")`, `SendAddonMessage(prefix, text, "GUILD" / "PARTY" / "RAID")`, `CHAT_MSG_ADDON` (sender possibly "Name-Realm") | two guild members with Mailworthy: `/mw report` shows "mailworthy peer: <name> (bank alt ...)" on each, `/mw friends` marks them "Mailworthy" and offers "To their alt" on a binding | open (2026-10-26) |
+| Addon messages between Mailworthys: `C_ChatInfo.RegisterAddonMessagePrefix("Mailworthy")`, `SendAddonMessage(prefix, text, "GUILD" / "PARTY" / "RAID")`, `CHAT_MSG_ADDON` (sender possibly "Name-Realm") | two guild members with Mailworthy: `/mw report` shows "mailworthy peer: <name> (<professions>; other characters: ...)" on each, `/mw friends` marks them "Mailworthy", and a binding for a profession only an alt of theirs has says "delivered to their ... character" | open (2026-10-26) |
 | Lock glow only while a mailbox is open (`MAIL_SHOW` / `MAIL_CLOSED`, `MailFrame:IsShown()`), "always" setting; a new lock flashes 3 s anywhere | lock an item away from a mailbox: a 3 s glow on every stack, then nothing; open a mailbox: glow; close it: gone | open (CurseForge user report + operator, 2026-10-21) |
 
 ## Picking up the work

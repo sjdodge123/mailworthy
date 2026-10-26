@@ -180,7 +180,7 @@ local function workings(item, settings)
     if r.deNet then parts[#parts + 1] = "DE net " .. money(r.deNet) end
     if r.gain then parts[#parts + 1] = string.format("gain %s (needs %s)", money(r.gain), money(r.threshold)) end
     if r.to then
-        parts[#parts + 1] = "binding" .. (r.viaAlt and " (via their bank alt)" or "")
+        parts[#parts + 1] = "binding" .. (r.crafter and " (their character with the profession)" or "")
             .. (r.ahUnit and (", under the cap at " .. money(r.ahUnit) .. " each") or "")
     elseif r.capped then
         parts[#parts + 1] = string.format("not to %s: at or above the %s cap", tostring(r.capped.to),
@@ -215,9 +215,9 @@ function Bags.Report(result)
             t.routed > 0 and string.format(" (%d stacks to friends)", t.routed) or ""),
     }
     for _, r in ipairs(result.routes or {}) do
-        local to, viaAlt = ns.Routes.Recipient(r)
+        local to, crafter = ns.Routes.Recipient(r)
         lines[#lines + 1] = string.format("binding: %s (%s%s)", ns.Routes.Describe(r), ns.Routes.CapText(r),
-            viaAlt and (", via their bank alt " .. to) or "")
+            crafter and (", delivered to their crafter " .. to) or "")
     end
     for _, item in ipairs(result.mail) do
         local w = workings(item, s)

@@ -1,11 +1,14 @@
 -- Addon messages between Mailworthy users (C_ChatInfo, prefix "Mailworthy"), so a
--- binding can offer "to their bank alt" and the friends window can mark who
--- runs Mailworthy and what they craft. Each Mailworthy says hello to its guild
--- and group at login, when the group changes, when its bank alt changes, and
--- when another Mailworthy asks (the friends window asks when it opens):
+-- binding reaches the friend's character that has the profession (operator,
+-- 2026-10-26: "get the materials to the friend that actually has the profession,
+-- not to their alt for the AH") and the friends window can mark who runs
+-- Mailworthy and what they craft. Each Mailworthy says hello to its guild and
+-- group at login, when the group changes, and when another Mailworthy asks (the
+-- friends window asks when it opens):
 --
---   H1|<bank alt or empty>|<profession skill lines, comma separated>
---   A1                                                   (ask: please say hello)
+--   H2|<this character's crafting skill lines>|<other characters on this realm + faction
+--       that have a crafting profession: Name=333,197;Other Name=165>
+--   A2                                                   (ask: please say hello)
 --
 -- What arrives is data from other players, never instructions: names are
 -- cleaned and length-checked, professions must be crafting skill lines
@@ -19,7 +22,8 @@ local Comms = {}
 ns.Comms = Comms
 
 Comms.PREFIX = "Mailworthy"
-Comms.VERSION = 1
+Comms.VERSION = 2
+Comms.MAX_MESSAGE = 255   -- the addon-message limit; characters past it are left out
 Comms.PEER_DAYS = 60
 Comms.HELLO_DELAY = 8      -- seconds after login (the guild roster and group are in by then)
 Comms.THROTTLE = 10        -- seconds between hellos
@@ -52,34 +56,68 @@ end
 
 function Comms.On() return ns.Features.On("comms") end
 
---- Pure: this character's hello: bank alt (unless this character is it) and crafting professions.
-function Comms.Encode(bankAlt, professions)
+--- Pure: the crafting skill lines in a professions list ({ skillLine = } entries or ids), sorted.
+local function craftingIds(professions)
     local ids = {}
     for _, p in ipairs(type(professions) == "table" and professions or {}) do
         local id = tonumber(type(p) == "table" and p.skillLine or p)
-        if id and ns.Valuation.PROFESSION_MATS[id] then ids[#ids + 1] = tostring(id) end
+        if id and ns.Valuation.PROFESSION_MATS[id] then ids[#ids + 1] = id end
     end
     table.sort(ids)
-    local alt = tostring(bankAlt or ""):gsub("|", "")
-    return string.format("H%d|%s|%s", Comms.VERSION, alt, table.concat(ids, ","))
+    return ids
 end
 
---- Pure: a message from another Mailworthy, or nil. { kind = "hello", version, bankAlt,
---- professions = { ids } } or { kind = "ask", version }.
+local function idText(ids)
+    local out = {}
+    for i, id in ipairs(ids) do out[i] = tostring(id) end
+    return table.concat(out, ",")
+end
+
+local function goodName(name)
+    name = ns.Routes.Clean(name)
+    if not name or #name > Comms.MAX_NAME or name:find("[%c=;|]") then return nil end
+    return name
+end
+
+--- Pure: this character's hello: its crafting professions and the account's other
+--- characters here that craft ({ { name, professions }, ... }), as many as fit.
+function Comms.Encode(professions, characters)
+    local head = string.format("H%d|%s|", Comms.VERSION, idText(craftingIds(professions)))
+    local parts = {}
+    for _, c in ipairs(type(characters) == "table" and characters or {}) do
+        local ids, name = craftingIds(c.professions), goodName(c.name)
+        if name and #ids > 0 then
+            local part = name .. "=" .. idText(ids)
+            local candidate = head .. table.concat(parts, ";") .. (#parts > 0 and ";" or "") .. part
+            if #candidate <= Comms.MAX_MESSAGE then parts[#parts + 1] = part end
+        end
+    end
+    return head .. table.concat(parts, ";")
+end
+
+--- Pure: a message from another Mailworthy, or nil. { kind = "hello", version, professions =
+--- { ids }, characters = { { name, professions = { ids } }, ... } } or { kind = "ask", version }.
 function Comms.Decode(text)
-    if type(text) ~= "string" or #text > 255 then return nil end
+    if type(text) ~= "string" or #text > Comms.MAX_MESSAGE then return nil end
     local kind, version, rest = text:match("^(%a)(%d+)|?(.*)$")
     if kind == "A" then return { kind = "ask", version = tonumber(version) } end
     if kind ~= "H" then return nil end
-    local alt, profs = rest:match("^([^|]*)|?([%d,]*)$")
-    if alt == nil then return nil end
-    alt = ns.Routes.Clean(alt)
-    if alt and (#alt > Comms.MAX_NAME or alt:find("%c")) then alt = nil end
-    local ids = {}
-    for id in tostring(profs):gmatch("%d+") do
-        if ns.Routes.ProfessionName(tonumber(id)) then ids[#ids + 1] = tonumber(id) end
+    local profs, chars = rest:match("^([%d,]*)|?([^|]*)$")
+    if profs == nil then return nil end
+    local function known(list)
+        local ids = {}
+        for id in tostring(list):gmatch("%d+") do
+            if ns.Routes.ProfessionName(tonumber(id)) then ids[#ids + 1] = tonumber(id) end
+        end
+        return ids
     end
-    return { kind = "hello", version = tonumber(version), bankAlt = alt, professions = ids }
+    local characters = {}
+    for part in tostring(chars):gmatch("[^;]+") do
+        local name, ids = part:match("^([^=]+)=([%d,]*)$")
+        name = name and goodName(name)
+        if name and #known(ids) > 0 then characters[#characters + 1] = { name = name, professions = known(ids) } end
+    end
+    return { kind = "hello", version = tonumber(version), professions = known(profs), characters = characters }
 end
 
 local function channels()
@@ -110,9 +148,8 @@ function Comms.Announce(reason)
         return false
     end
     lastHello, pendingHello = now(), false
-    local bankAlt = not ns.Config.IsBankAltHere() and ns.Config.BankAlt() or nil
     ns.Log.Add("comms", "hello (%s)", tostring(reason))
-    return send(Comms.Encode(bankAlt, ns.Characters.Professions()))
+    return send(Comms.Encode(ns.Characters.Professions(), ns.Characters.Mailable()))
 end
 
 --- Ask other Mailworthys to say hello (the friends window, throttled).
@@ -122,7 +159,7 @@ function Comms.Ask()
     return send(string.format("A%d", Comms.VERSION))
 end
 
---- Peers heard from on this realm + faction: lower-case name -> { name, bankAlt, professions, version, at }.
+--- Peers heard from on this realm + faction: lower-case name -> { name, professions, characters, version, at }.
 function Comms.Peers()
     return store()
 end
@@ -142,11 +179,14 @@ function Comms.Hear(sender, text)
         Comms.Announce("asked by " .. name)
         return msg
     end
-    local peer = { name = name, bankAlt = msg.bankAlt, professions = msg.professions, version = msg.version, at = serverTime() }
-    if peer.bankAlt and peer.bankAlt:lower() == name:lower() then peer.bankAlt = nil end
+    local characters = {}
+    for _, c in ipairs(msg.characters) do
+        if c.name:lower() ~= name:lower() then characters[#characters + 1] = c end
+    end
+    local peer = { name = name, professions = msg.professions, characters = characters, version = msg.version, at = serverTime() }
     store()[name:lower()] = peer
-    ns.Log.Add("comms", "hello from %s: bank alt %s, professions %s", name, tostring(peer.bankAlt or "none"),
-        #peer.professions > 0 and table.concat(peer.professions, ",") or "none")
+    ns.Log.Add("comms", "hello from %s: professions %s, %d other character(s)", name,
+        #peer.professions > 0 and table.concat(peer.professions, ",") or "none", #characters)
     return peer
 end
 
@@ -158,14 +198,24 @@ function Comms.Prune(at)
     end
 end
 
+--- Pure: "Enchanting, Tailoring" / "no crafting profession".
+function Comms.ProfessionText(ids)
+    local profs = {}
+    for _, id in ipairs(ids or {}) do profs[#profs + 1] = ns.Routes.ProfessionName(id) or tostring(id) end
+    table.sort(profs)
+    return #profs > 0 and table.concat(profs, ", ") or "no crafting profession"
+end
+
 --- One line per peer for /mw report.
 function Comms.ReportLines()
     local lines = {}
     for _, peer in pairs(store()) do
-        local profs = {}
-        for _, id in ipairs(peer.professions or {}) do profs[#profs + 1] = ns.Routes.ProfessionName(id) or tostring(id) end
-        lines[#lines + 1] = string.format("mailworthy peer: %s (bank alt %s, %s, heard %s)", tostring(peer.name),
-            tostring(peer.bankAlt or "none"), #profs > 0 and table.concat(profs, ", ") or "no crafting profession",
+        local others = {}
+        for _, c in ipairs(peer.characters or {}) do
+            others[#others + 1] = tostring(c.name) .. " = " .. Comms.ProfessionText(c.professions)
+        end
+        lines[#lines + 1] = string.format("mailworthy peer: %s (%s; other characters: %s; heard %s)", tostring(peer.name),
+            Comms.ProfessionText(peer.professions), #others > 0 and table.concat(others, ", ") or "none",
             date("%b %d", peer.at or 0))
     end
     table.sort(lines)
