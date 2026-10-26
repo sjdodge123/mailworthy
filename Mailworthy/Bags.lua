@@ -176,7 +176,7 @@ local function workings(item, settings)
         parts[#parts + 1] = string.format("AH net %s (cut %d%%, deposit %s, postage %s)", money(r.ahNet),
             math.floor(settings.cut * 100 + 0.5), deposit, money(r.postage))
     end
-    if p and p.de then parts[#parts + 1] = "disenchant " .. money(p.de) .. " each" end
+    if p and p.de then parts[#parts + 1] = "disenchant " .. money(p.de) .. " each (" .. tostring(p.deSource or "?") .. ")" end
     if r.deNet then parts[#parts + 1] = "DE net " .. money(r.deNet) end
     if r.gain then parts[#parts + 1] = string.format("gain %s (needs %s)", money(r.gain), money(r.threshold)) end
     if r.to then

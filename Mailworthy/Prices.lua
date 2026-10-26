@@ -1,10 +1,12 @@
 -- Price sources. Auctionator (optional) gives auction prices from its own scans;
--- Mailworthy never scans the AH itself. Disenchant prices come from Siz
+-- Mailworthy never scans the AH itself. Disenchant values, in this order: Siz
 -- DisenchantValue (optional; its documented API for other addons,
 -- DisenchantValueAPI.GetValue(link) = copper per item or nil, learned from the
--- player's own disenchants or from the era tables, priced from Auctionator),
--- else from Auctionator's own disenchant call (never seen returning a value on
--- Forever). Vendor prices come from the item info. Confirmed on Forever
+-- player's own disenchants), then the era disenchant tables priced with
+-- Auctionator's material prices (Disenchant.lua: the same number Disenchantry's
+-- tooltip shows, since Disenchantry has no API; labelled "Disenchantry" when it
+-- is installed), then Auctionator's own disenchant call (never seen returning a
+-- value on Forever). Vendor prices come from the item info. Confirmed on Forever
 -- (Auctionator 340/341, 2026-10-13): the API.v1 calls below exist and return
 -- prices after a scan (age 0, exact). Every call is guarded: a missing or failing
 -- call is "no price", never a guess.
@@ -54,8 +56,9 @@ function Prices.DisenchantValueOf(link)
     return copper(call(api.GetValue, link))
 end
 
---- Disenchantry has no price data; its presence only switched the disenchant comparison
---- on by default (its CurseForge project is gone, but players may still have it).
+--- Disenchantry (CurseForge project 1704637, back since 2026-10-22): no API, so its
+--- values are recomputed by Disenchant.lua; its presence switches the disenchant
+--- comparison on by default and names the source.
 function Prices.DisenchantryInstalled()
     local addons = rawget(_G, "C_AddOns")
     if type(addons) == "table" and call(addons.IsAddOnLoaded, "Disenchantry") then return true end
@@ -103,10 +106,43 @@ function Prices.History(link)
     return history
 end
 
+--- Auctionator's price for a material by item ID (copper per unit), the call Disenchantry
+--- uses for its material prices (GetAuctionPriceByItemID, else the link form).
+function Prices.MaterialPrice(itemID)
+    local api = Prices.Auctionator()
+    if not api or not tonumber(itemID) then return nil end
+    if type(api.GetAuctionPriceByItemID) == "function" then
+        return copper(call(api.GetAuctionPriceByItemID, Prices.CALLER, tonumber(itemID)))
+    end
+    return copper(call(api.GetAuctionPriceByItemLink, Prices.CALLER, "item:" .. tonumber(itemID)))
+end
+
+--- Quality, item level and class of an item from its info (nil while not loaded).
+function Prices.ItemFacts(link)
+    local getInfo = (C_Item and C_Item.GetItemInfo) or GetItemInfo
+    local name, _, quality, level, _, _, _, _, _, _, _, classID = call(getInfo, link)
+    if name == nil then return nil end
+    return { quality = tonumber(quality), level = tonumber(level), classID = tonumber(classID) }
+end
+
+--- The disenchant value of an item (copper per item) and its source: "DisenchantValue"
+--- (Siz DisenchantValue's API), "Disenchantry" (the era tables priced with Auctionator,
+--- Disenchantry installed), "tables" (the same without it), "Auctionator" (its own call).
+function Prices.DisenchantValueFor(link)
+    local de = Prices.DisenchantValueOf(link)
+    if de ~= nil then return de, "DisenchantValue" end
+    de = ns.Disenchant and ns.Disenchant.Value(Prices.ItemFacts(link))
+    if de ~= nil then return de, Prices.DisenchantryInstalled() and "Disenchantry" or "tables" end
+    local api = Prices.Auctionator()
+    de = api and copper(call(api.GetDisenchantPriceByItemLink, Prices.CALLER, link)) or nil
+    if de ~= nil then return de, "Auctionator" end
+    return nil, nil
+end
+
 --- Auction data for one item link, or nil when there's no price source at all.
 --- { ah = copper per unit (last scan's minimum buyout), failed = true when that call errored, age = days since seen, exact = true / false /
----   nil (unknown), de = copper per item (Siz DisenchantValue first, else Auctionator's disenchant
----   call), deSource = "DisenchantValue" / "Auctionator", history = Prices.History(link),
+---   nil (unknown), de = copper per item, deSource = "DisenchantValue" / "Disenchantry" / "tables" / "Auctionator"
+---   (Prices.DisenchantValueFor), history = Prices.History(link),
 ---   available = units listed at the last scanned day }; any may be nil.
 function Prices.Lookup(link)
     local api = Prices.Auctionator()
@@ -115,8 +151,7 @@ function Prices.Lookup(link)
     if exact ~= nil then exact = exact == true end
     local history = Prices.History(link)
     local ok, ah = try(api.GetAuctionPriceByItemLink, Prices.CALLER, link)
-    local de, deSource = Prices.DisenchantValueOf(link), "DisenchantValue"
-    if de == nil then de, deSource = copper(call(api.GetDisenchantPriceByItemLink, Prices.CALLER, link)), "Auctionator" end
+    local de, deSource = Prices.DisenchantValueFor(link)
     return {
         ah = ok and copper(ah) or nil,
         failed = not ok or nil, -- the price call itself failed: never "no price yet" (AGENTS safety)

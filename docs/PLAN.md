@@ -219,7 +219,7 @@ the bank alt's recorded skill.
 |---|---|---|
 | Auctionator | `Auctionator.API.v1.GetAuctionPriceByItemLink(callerID, link)`, `GetAuctionAgeByItemLink`, `IsAuctionDataExactByItemLink`, `GetDisenchantPriceByItemLink`, `RegisterForDBUpdate` | **confirmed** on Forever (Auctionator 340, 2026-10-13); prices themselves still to see after a scan |
 | Siz DisenchantValue | `DisenchantValueAPI.GetValue(linkOrID)` = copper per item (learned from the player's disenchants, else the era tables, priced from Auctionator), nil when not disenchantable / no price; `GetEraValue` | the disenchant price source since 2026-10-22 (Auctionator's own disenchant call is the fallback); its presence switches the disenchant checkbox on. Forever addon, CurseForge slug `siz-disenchantvalue` |
-| Disenchantry | none: `DisenchantryDB` holds settings only (blacklist, quality filter, statistics) | only switched the disenchant checkbox on by default; still honoured, but its CurseForge project is gone (relation removed 2026-10-22) |
+| Disenchantry | none it exports (everything lives in its private namespace, checked in its 1.1.5 source), so `Disenchant.lua` ports its era tables (MIT) and formula: expected value = sum of chance x average quantity x Auctionator material price (`GetAuctionPriceByItemID`, else the link form); nil when a material has no price | **the disenchant source since 2026-10-26** when Siz DisenchantValue isn't there (labelled "Disenchantry" with it installed, "tables" without); switches the disenchant checkbox on by default; CurseForge project 1704637 is back (relation restored) |
 | TSM | `TSM_API.ToItemString`, `TSM_API.GetCustomPriceValue("DBMarket", s)` | optional, later; not installed in the first report |
 | Vendor | `C_Item.GetItemInfo` / `GetItemInfo` 11th return | **confirmed** |
 
@@ -404,7 +404,7 @@ realm+faction, name history, settings, blocked actions) and
 **Settled by the first report** (LedgerLink v1.3.1, build 70338, 2026-10-13):
 - Auctionator 340 runs on Forever; its API has price, age, exactness,
   disenchant and DB-update calls.
-- Disenchantry exposes no price data (replaced by Siz DisenchantValue's API, 2026-10-22).
+- Disenchantry exposes no price data; since 2026-10-26 Mailworthy recomputes its expected value from the same tables (`Disenchant.lua`).
 - `C_Container.GetContainerItemInfo` gives `isBound`, `hasNoValue`, `isLocked`,
   `quality`, `stackCount`, `itemID`, `hyperlink`; quest items via
   `GetContainerItemQuestInfo`; sell price is `GetItemInfo`'s 11th return.

@@ -4,10 +4,12 @@ A WoW Forever addon. Open a mailbox, press the **Mailworthy** button, and
 every bag item worth more on the auction house (after fees) or disenchanted
 than at the vendor goes to your bank alt. The rest stays in your bags to vendor.
 
-- **Prices** come from Auctionator (optional, recommended); Siz DisenchantValue
-  (optional) gives the disenchant value of green and blue gear and switches the
-  disenchant comparison on (Disenchantry, if you still have it, switches it on too).
-  Without Auctionator, Mailworthy mails every unlocked, tradeable white (common) item.
+- **Prices** come from Auctionator (optional, recommended). **Disenchant values** of
+  green, blue and purple gear come from Siz DisenchantValue (optional; learned from your
+  own disenchants) or from the era disenchant tables priced with Auctionator, the same
+  number Disenchantry's tooltip shows; either addon installed switches the disenchant
+  comparison on. Without Auctionator, Mailworthy mails every unlocked, tradeable white
+  (common) item.
 - **Preview first:** it shows the recipient, what goes and why, what stays and
   why, and a **Settings** button to fix anything before you press Send.
 - **Keyboard/mouse first, controller too:** everything works with keyboard and mouse, and with a gamepad alone.
@@ -92,7 +94,8 @@ each in-game round are in [docs/DISCOVERY-SESSION-2.md](docs/DISCOVERY-SESSION-2
 | Trade-goods subclass numbers on Forever (`GetItemInfoInstant`: 7 metal, 9 herb, 10 elemental, 12 enchanting) | a Strange Dust / Bruiseweed stack shows **B** before Dec 9 | open |
 | Controller in the settings window away from the mailbox (our own D-pad / Cross / Circle bindings with no Blizzard window focused) | v0.4.0 report | **works**, no blocked actions |
 | Tooltip lines through `TooltipDataProcessor.AddTooltipPostCall` (item tooltips, bags and controller) | Phase 4c check | open |
-| Disenchantry installed | `C_AddOns.IsAddOnLoaded("Disenchantry")` (in Forever's API docs), else `DisenchantryDB` exists | open (its CurseForge project is gone; still honoured as the switch) |
+| Disenchantry installed | `C_AddOns.IsAddOnLoaded("Disenchantry")` (in Forever's API docs), else `DisenchantryDB` exists | open (its CurseForge project, 1704637, is back since 2026-10-22; it has no API, so Mailworthy recomputes its "Expected disenchant value") |
+| Disenchant tables (`Disenchant.lua`, ported from Disenchantry 1.1.5): a green item's `/mw scan` line "disenchant Xs each (Disenchantry)" equals Disenchantry's tooltip "Expected disenchant value"; materials priced by `Auctionator.API.v1.GetAuctionPriceByItemID` (else the `item:ID` link form); item level from `GetItemInfo`'s 4th return | a green weapon and a green armor piece with both addons installed | open (2026-10-26) |
 | Profession materials: `GetProfessionInfo` 7th return is the skill line ID (Tailoring 197, Enchanting 333, ...) and trade goods use the modern subclass numbering (cloth 5, leather 6, metal & stone 7, meat 8, herb 9, enchanting 12) | a tailor's cloth or an enchanter's dust in `/mw scan`: "KEEP ... your Tailoring needs it"; the settings window names the profession with its materials | open (2026-10-22; the subclass numbers match the decision rule's, seen for ore / herbs / enchanting materials) |
 | Siz DisenchantValue: `DisenchantValueAPI.GetValue(link)` returns copper per item for a green or blue weapon / armor piece (its documented API for addons) | a green item in the bags with Siz DisenchantValue and Auctionator installed: `/mw scan` shows "disenchant Xc each" and a DE verdict matching the item's tooltip | open (2026-10-22; the addon folder name `DisenchantValue` in `## OptionalDeps` is a guess from its zip name and only affects load order) |
 | Adding "Lock slot" to the bag item menu (Triangle) | alpha1 + alpha2 | **taints controller input even unclicked**: removed; Alt+click, L3 and the Mailworthy window's rows instead |

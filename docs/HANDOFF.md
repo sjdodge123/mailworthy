@@ -12,8 +12,8 @@ the auction house (after fees) or disenchanted than at a vendor to the player's
 **bank alt**; the rest stays in the bags for the vendor. The bank alt then sees
 tags (AH / DE / Vendor) recomputed with fresh prices. Optional integrations:
 Auctionator (prices, recommended) and Siz DisenchantValue (disenchant values; switches
-on the disenchant comparison; Disenchantry, now gone from CurseForge, still counts as
-the switch).
+on the disenchant comparison) and Disenchantry (back on CurseForge since 2026-10-22; no API,
+so `Disenchant.lua` recomputes its expected value from the same era tables; a switch too).
 
 The operator (repo owner) plays on a **Windows PC with a gamepad**, tests in
 game, and pastes reports back. **Keyboard/mouse is the priority** ("if mouse/kb
@@ -60,6 +60,7 @@ must never break the game.
 | `Nav.lua` | Mailworthy's **own** controller navigation for its window: nearest button within 45 degrees, top-left start, gold highlight |
 | `PadKey.lua` | Mailworthy's **own override bindings** (watcher every 0.1 s, re-apply when replaced, clear on focus loss and at `PLAYER_REGEN_DISABLED`): set `mail` (Triangle), `window` (Triangle, D-pad, Cross, Circle), `bags` (L3 lock) |
 | `Prices.lua` | Auctionator adapter (`Lookup`: AH price per unit, age in days, exact, disenchant; nil without Auctionator), disenchant value from Siz DisenchantValue (`DisenchantValueOf`: `DisenchantValueAPI.GetValue(link)`, else Auctionator's call; `deSource`), vendor price (`GetItemInfo` 11th return), class ID, `DisenchantAddon()` / `DisenchantAddonInstalled()` (Siz DisenchantValue by its API table, Disenchantry by `DisenchantryDB`) |
+| `Disenchant.lua` | era disenchant tables ported from Disenchantry 1.1.5 (MIT; original-era rows only, Forever's ilvl 21-30 weapon essence quirk) and the pure expected value (chance x average quantity x material price, nil when a material has no price); `Value(itemFacts)` prices materials through `Prices.MaterialPrice` |
 | `Valuation.lua` | **pure** decision rule: settings (defaults + saved, disenchant follows the disenchant addon, `keepProfessionMats` on), profession materials (`PROFESSION_MATS` by skill line ID x trade-goods subclass, `NeededBy`, `CraftingProfessions`; `settings.professions` filled by `Bags.Evaluate` from `Characters.Professions()`), deposit, thresholds, keep reasons, no-Auctionator rule, `Money` formatting |
 | `Bags.lua` | scan bags 0-5 (`LastBag()` = `NUM_TOTAL_EQUIPPED_BAG_SLOTS`: backpack, bags 1-4, reagent bag; `IsBag()` shared with Locks) -> slots -> items (grouped per link + bound + in-use), locks, prices, verdicts, totals; `/mw scan` report in the copy box (sends nothing) |
 | `Config.lua` | saved settings (`MailworthyDB.settings` only what the player touched, `bankAlts[realm|faction]` set by a pick or by the bank alt itself via `SetBankAltHere`, `names` history); flags `minimapHidden`, `tagsEverywhere`, `glowEverywhere`; choices, auto-complete, steppers |
@@ -87,7 +88,9 @@ Guard spec `no_gamepad_taint_spec.lua`: Mailworthy may only *read*
   `GetAuctionAgeByItemLink`, `IsAuctionDataExactByItemLink`, `GetDisenchantPriceByItemLink`,
   `GetVendorPriceByItemLink`, `RegisterForDBUpdate` (caller ID "Mailworthy"). Prices only
   after a scan. Disenchant values were never seen (no green item tested).
-- Disenchantry 1.1.1: no readable price data (`DisenchantryDB` = settings only). Siz
+- Disenchantry 1.1.1: no readable price data (`DisenchantryDB` = settings only); 1.1.5 (back on
+  CurseForge 2026-10-22, project 1704637) computes an "Expected disenchant value" in its tooltip
+  from era tables + Auctionator, all in its private namespace: Mailworthy ports the tables. Siz
   DisenchantValue (CurseForge `siz-disenchantvalue`, Forever 1.60.1, Sep 2026) documents
   `DisenchantValueAPI.GetValue(link)` = copper or nil for other addons (Auctionator's DE
   Value column uses it); not yet seen in game (2026-10-22).
@@ -225,9 +228,17 @@ call `SendMail` anyway. Every Mailer timer checks the run id and `busy`.
   goods the character's crafting professions use, as the keep reason "your Tailoring needs
   it", before any pricing. Mapping by `GetProfessionInfo` skill line ID and item subclass
   (`Valuation.PROFESSION_MATS`); gathering professions need nothing; elementals stay mailable.
-- Optional deps: `.pkgmeta` `optional-dependencies` (auctionator only: the Disenchantry
-  CurseForge project disappeared after v0.7.0 and its slug made v0.8.0 and v0.9.0 fail to
-  upload, error 1018, fixed 2026-10-22) and `## OptionalDeps: Auctionator, Disenchantry`.
+- Optional deps: `.pkgmeta` `optional-dependencies` auctionator, siz-disenchantvalue and (since
+  2026-10-26, the project being back) disenchantry: a slug that disappears fails the CurseForge
+  upload with error 1018 (v0.8.0 and v0.9.0 did on disenchantry in October 2026), so if a tag's
+  release run fails on it, drop the slug and re-tag; `## OptionalDeps: Auctionator,
+  DisenchantValue, Disenchantry`.
+- Disenchantry as a first-class disenchant source (operator, 2026-10-26: "support that as a first
+  class enchanting market addon"): it has no API (its 1.1.5 zip was read; everything is in its
+  private namespace), so `Disenchant.lua` carries its tables and formula and Mailworthy's number
+  equals its tooltip. Source order: Siz DisenchantValue (learned values), the tables, Auctionator's
+  own call. With Auctionator alone the tables still work ("era tables"); only the default of the
+  checkbox depends on a disenchant addon being installed.
 
 - Bindings (operator, 2026-10-26: "send my enchanting mats to a guild member and bind that,
   until cancelled; easy to X on each send and to remove; few settings; an insane market high

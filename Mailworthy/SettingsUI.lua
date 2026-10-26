@@ -254,8 +254,9 @@ function UI.Refresh()
     local v = ns.Config.Values()
     amountLabel:SetText("Amount: at least " .. money(v.minGain))
     pctLabel:SetText(string.format("Percent: at least %d%% of the vendor price", math.floor(v.minGainPct * 100 + 0.5)))
+    local deAddon = ns.Prices.DisenchantAddon()
     disenchantButton:SetText(string.format("Include disenchant value: %s%s", v.disenchant and "on" or "off",
-        ns.Prices.DisenchantAddonInstalled() and "" or " (no disenchant addon: install Siz DisenchantValue)"))
+        deAddon and (" (" .. deAddon .. ")") or " (era tables; Disenchantry or Siz DisenchantValue turns this on)"))
     for i, b in ipairs(durationButtons) do
         b:SetText(selected(ns.Valuation.DURATION_HOURS[i] .. "h", v.duration == i))
     end
