@@ -202,9 +202,10 @@ local function fillRoutes()
             row.skip:Hide()
             row.remove:Hide()
         elseif r then
-            local to, viaAlt = ns.Routes.Recipient(r)
+            local to, crafter = ns.Routes.Recipient(r)
             local skipped = ns.Routes.Skipped(r.key)
-            row.text:SetText(ns.Routes.What(r) .. " |cffffd100to " .. to .. "|r" .. (viaAlt and " (their bank alt)" or "")
+            row.text:SetText(ns.Routes.What(r) .. " |cffffd100to " .. to .. "|r"
+                .. (crafter and (" (" .. (tostring(r.to):match("^(%S+)") or r.to) .. "'s crafter)") or "")
                 .. (skipped and " |cff888888- skipped this time|r" or ""))
             row.skip:SetText(skipped and "Undo skip" or "Skip once")
             row.text:Show()

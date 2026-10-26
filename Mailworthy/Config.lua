@@ -137,7 +137,6 @@ function Config.SetBankAlt(name)
     db().bankAlts[key] = name
     remember(name, realm, faction)
     ns.Log.Add("config", "bank alt for %s = %s%s", key, name, entry and "" or " (not seen by Mailworthy)")
-    if ns.Comms then ns.Comms.Announce("bank alt set") end
     return name
 end
 

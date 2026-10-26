@@ -1,7 +1,8 @@
 -- The friends window (/mw friends, the settings' "Send materials to friends"
 -- button, the Mailworthy window's button): the bindings in force, each with its
--- price cap stepper, scope (all my characters / this character), delivery (to
--- them / to their bank alt, when their Mailworthy has said which) and Remove;
+-- price cap stepper, scope (all my characters / this character), where the mail
+-- goes (the friend, or the character of theirs that has the profession, as their
+-- own Mailworthy reported) and Remove;
 -- then "Add a binding" in two presses: pick a player (party, guild, own
 -- characters, Mailworthy users; online first; their professions shown), then
 -- pick the profession (theirs suggested). Every control is a button, so the
@@ -71,18 +72,11 @@ local function createBindingRows()
             UI.Refresh()
         end, "MailworthyFriendsCapUp" .. i)
         row.capUp:SetPoint("TOPLEFT", 258, y - 24)
-        row.scope = W.Button(frame, "", 136, function()
+        row.scope = W.Button(frame, "", 150, function()
             if row.key then ns.Routes.ToggleScope(row.key) end
             UI.Refresh()
         end, "MailworthyFriendsScope" .. i)
         row.scope:SetPoint("TOPLEFT", 294, y - 24)
-        row.via = W.Button(frame, "", 100, function()
-            local r = row.key and ns.Routes.Get(row.key)
-            if r then ns.Routes.SetViaAlt(row.key, not r.viaAlt) end
-            UI.Refresh()
-            ns.MailWindow.RefreshIfShown()
-        end, "MailworthyFriendsVia" .. i)
-        row.via:SetPoint("TOPLEFT", 436, y - 24)
         bindingRows[i] = row
     end
     emptyBindings = W.Label(frame, "GameFontHighlightSmall")
@@ -149,7 +143,8 @@ function UI.Create()
     sub:SetWidth(WIDTH - 56)
     sub:SetJustifyH("LEFT")
     sub:SetText("A binding mails everything a profession uses to one player, every time, until you remove it. "
-        .. "Locked items still stay. A material the market suddenly wants (the price cap) goes to your bank alt instead.")
+        .. "Locked items still stay. A material the market suddenly wants (the price cap) goes to your bank alt instead. "
+        .. "If the friend runs Mailworthy, the mail goes to whichever of their characters has the profession.")
     local h = W.Label(frame, "GameFontNormal")
     h:SetPoint("TOPLEFT", 20, BIND_TOP + 22)
     h:SetText("Bindings")
@@ -185,18 +180,15 @@ local function fillBindings()
     for i, row in ipairs(bindingRows) do
         local r = list[first + i]
         row.key = r and r.key or nil
-        local widgets = { row.text, row.remove, row.cap, row.capDown, row.capUp, row.scope, row.via }
+        local widgets = { row.text, row.remove, row.cap, row.capDown, row.capUp, row.scope }
         if r then
-            local to, viaAlt = ns.Routes.Recipient(r)
-            local peer = ns.Comms and ns.Comms.Peer(r.to)
+            local to, crafter = ns.Routes.Recipient(r)
             row.text:SetText(ns.Routes.What(r) .. " |cffffd100to " .. r.to .. "|r"
-                .. (viaAlt and (" |cffaaaaaa(their bank alt " .. to .. ")|r") or ""))
+                .. (crafter and (" |cffaaaaaa(delivered to their " .. (ns.Routes.ProfessionName(r.profession) or "")
+                    .. " character " .. to .. ")|r") or ""))
             row.cap:SetText(ns.Routes.CapText(r))
             row.scope:SetText(ns.Routes.SCOPES[r.scope] or r.scope)
-            local altKnown = peer and peer.bankAlt
-            row.via:SetText(r.viaAlt and (altKnown and "To their alt" or "Alt unknown") or "To them")
             for _, w in ipairs(widgets) do w:Show() end
-            if not altKnown and not r.viaAlt then row.via:Hide() end
         else
             for _, w in ipairs(widgets) do w:Hide() end
         end

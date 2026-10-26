@@ -4,7 +4,8 @@
 -- material the market suddenly wants to the bank alt instead; Skip once drops a
 -- binding for one mailbox visit; the friends window picks the player (party,
 -- guild, own characters, Mailworthy users) and suggests their professions;
--- Mailworthys say hello to each other so a binding can go to their bank alt.
+-- Mailworthys say hello to each other (every character's crafting professions)
+-- so a binding reaches the friend's character that has the profession.
 local loadAddon = require("spec.support.load_addon")
 
 describe("bindings", function()
@@ -338,71 +339,78 @@ describe("bindings", function()
     end)
 
     describe("hellos between Mailworthys", function()
-        it("encodes this character's bank alt and crafting professions, and decodes only what it knows", function()
-            local hello = ns.Comms.Encode("Roknua Themicrulah", { { skillLine = ENCHANTING }, { skillLine = 186 }, TAILORING })
-            assert.equal("H1|Roknua Themicrulah|197,333", hello)
-            assert.same({ kind = "hello", version = 1, bankAlt = "Roknua Themicrulah", professions = { 197, 333 } },
+        it("encodes this character's crafting professions and the account's crafters; decodes only what it knows", function()
+            local hello = ns.Comms.Encode({ { skillLine = ENCHANTING }, { skillLine = 186 }, TAILORING }, {
+                { name = "Alice Alt", professions = { { skillLine = 165 }, { skillLine = 186 } } },
+                { name = "Miner Only", professions = { { skillLine = 186 } } },
+                { name = "Cook Two-Realm", professions = { 185 } },
+            })
+            assert.equal("H2|197,333|Alice Alt=165;Cook Two=185", hello)
+            assert.same({ kind = "hello", version = 2, professions = { 197, 333 },
+                characters = { { name = "Alice Alt", professions = { 165 } }, { name = "Cook Two", professions = { 185 } } } },
                 ns.Comms.Decode(hello))
-            assert.same({ kind = "hello", version = 1, bankAlt = nil, professions = {} }, ns.Comms.Decode("H1||"))
-            assert.same({ kind = "ask", version = 1 }, ns.Comms.Decode("A1"))
+            assert.same({ kind = "hello", version = 2, professions = {}, characters = {} }, ns.Comms.Decode("H2||"))
+            assert.same({ kind = "ask", version = 2 }, ns.Comms.Decode("A2"))
             assert.is_nil(ns.Comms.Decode("hello there"))
-            assert.is_nil(ns.Comms.Decode(("H1|" .. string.rep("x", 300))))
-            assert.same({ 333 }, ns.Comms.Decode("H1|Some One|999,333").professions, "unknown skill lines are dropped")
-            assert.is_nil(ns.Comms.Decode("H1|Some One|333,abc"), "not a number list: not a hello")
+            assert.is_nil(ns.Comms.Decode(("H2|" .. string.rep("x", 300))))
+            assert.same({ 333 }, ns.Comms.Decode("H2|999,333|").professions, "unknown skill lines are dropped")
+            assert.same({}, ns.Comms.Decode("H2|333|Some One=999;=165;Bad=Name").characters, "junk characters are dropped")
+            assert.is_nil(ns.Comms.Decode("H2|333,abc|"), "not a number list: not a hello")
+            local many = {}
+            for i = 1, 20 do many[i] = { name = "Character Number" .. i, professions = { 165 } } end
+            assert.is_true(#ns.Comms.Encode({}, many) <= 255, "never over the addon-message limit")
         end)
 
-        it("says hello to the guild and group after login, when the group changes, and when the bank alt changes", function()
+        it("says hello to the guild and group after login and when the group changes, naming the account's crafters", function()
             WowStub.state.guild = { clubId = 3, members = {} }
             WowStub.state.group = { members = { { name = "Pal Member" } } }
             WowStub.state.professions[2] = { index = 9, name = "Enchanting", rank = 1, maxRank = 75, skillLine = ENCHANTING }
+            MailworthyDB.characters[ns.Characters.Key("Alt Mine", "Classic Beta PvP", "Alliance")] = {
+                name = "Alt Mine", realm = "Classic Beta PvP", faction = "Alliance", class = "MAGE", level = 12,
+                professions = { { name = "Leatherworking", skillLine = 165 } },
+            }
+            MailworthyDB.characters[ns.Characters.Key("Horde Guy", "Classic Beta PvP", "Horde")] = {
+                name = "Horde Guy", realm = "Classic Beta PvP", faction = "Horde", professions = { { skillLine = 197 } },
+            }
             assert.is_true(WowStub.state.prefixes.Mailworthy, "prefix registered at login")
-            WowStub.state.now = WowStub.state.now + 11 -- picking the bank alt in before_each said hello already
             WowStub.runTimers(10)
             local sent = WowStub.state.addonMessages
             assert.equal(2, #sent)
             assert.equal("GUILD", sent[1].channel)
             assert.equal("PARTY", sent[2].channel)
-            assert.equal("H1|Roknua Themicrulah|333", sent[1].message)
+            assert.equal("H2|333|Alt Mine=165", sent[1].message, "the other faction's character can't be mailed")
             assert.equal("Mailworthy", sent[1].prefix)
             ns.Fire("GROUP_ROSTER_UPDATE")
             assert.equal(2, #sent, "throttled: 10 s between hellos")
             WowStub.state.now = WowStub.state.now + 11
             ns.Fire("GROUP_ROSTER_UPDATE")
             assert.equal(4, #sent)
-            WowStub.state.now = WowStub.state.now + 11
-            ns.Config.SetBankAlt("Alt Mine")
-            assert.equal("H1|Alt Mine|333", sent[#sent].message)
-            WowStub.state.now = WowStub.state.now + 11
-            ns.Config.SetBankAltHere()
-            ns.Comms.Announce("spec")
-            assert.equal("H1||333", sent[#sent].message, "the bank alt itself names none")
         end)
 
         it("remembers who said hello, answers an ask, drops junk, and forgets after 60 days", function()
             WowStub.state.guild = { clubId = 3, members = {} }
-            ns.Fire("CHAT_MSG_ADDON", "Mailworthy", "H1|Alice Alt|333,197", "GUILD", "Bob Surname-Classic Beta PvP")
+            ns.Fire("CHAT_MSG_ADDON", "Mailworthy", "H2|333,197|Alice Alt=165;Bob Surname=171", "GUILD", "Bob Surname-Classic Beta PvP")
             local peer = ns.Comms.Peer("bob surname")
             assert.equal(BOB, peer.name)
-            assert.equal("Alice Alt", peer.bankAlt)
             assert.same({ 333, 197 }, peer.professions)
+            assert.same({ { name = "Alice Alt", professions = { 165 } } }, peer.characters, "never the sender itself")
             assert.equal(1, WowStub.state.serverTime - peer.at + 1)
-            ns.Fire("CHAT_MSG_ADDON", "OtherAddon", "H1|Evil Alt|", "GUILD", "Someone Else")
+            ns.Fire("CHAT_MSG_ADDON", "OtherAddon", "H2|333|", "GUILD", "Someone Else")
             assert.is_nil(ns.Comms.Peer("Someone Else"))
             ns.Fire("CHAT_MSG_ADDON", "Mailworthy", "garbage", "GUILD", "Someone Else")
             assert.is_nil(ns.Comms.Peer("Someone Else"))
-            ns.Fire("CHAT_MSG_ADDON", "Mailworthy", "H1|Rettana Quilwrit|", "GUILD", "Rettana Quilwrit")
+            ns.Fire("CHAT_MSG_ADDON", "Mailworthy", "H2|333|", "GUILD", "Rettana Quilwrit")
             assert.is_nil(ns.Comms.Peer("Rettana Quilwrit"), "not itself")
-            ns.Fire("CHAT_MSG_ADDON", "Mailworthy", "H1|Self Alt|", "GUILD", "Self Alt")
-            assert.is_nil(ns.Comms.Peer("Self Alt").bankAlt, "a bank alt can't be its own bank alt")
             local before = #WowStub.state.addonMessages
             WowStub.state.now = WowStub.state.now + 11
-            ns.Fire("CHAT_MSG_ADDON", "Mailworthy", "A1", "GUILD", "Bob Surname")
+            ns.Fire("CHAT_MSG_ADDON", "Mailworthy", "A2", "GUILD", "Bob Surname")
             assert.equal(before + 1, #WowStub.state.addonMessages, "an ask gets a hello")
             local candidates = ns.Routes.Candidates()
             assert.equal(BOB, candidates[1].name)
             assert.equal("Bob Surname - Enchanting, Tailoring - Mailworthy", ns.Routes.CandidateText(candidates[1]))
             local report = table.concat(ns.Comms.ReportLines(), "\n")
-            assert.truthy(report:find("mailworthy peer: Bob Surname (bank alt Alice Alt, Enchanting, Tailoring", 1, true), report)
+            assert.truthy(report:find("mailworthy peer: Bob Surname (Enchanting, Tailoring; other characters: Alice Alt = Leatherworking",
+                1, true), report)
             ns.Comms.Prune(WowStub.state.serverTime + 61 * 86400)
             assert.is_nil(ns.Comms.Peer(BOB))
         end)
@@ -412,28 +420,43 @@ describe("bindings", function()
             WowStub.state.guild = { clubId = 3, members = {} }
             WowStub.runTimers(10)
             assert.equal(0, #WowStub.state.addonMessages)
-            ns.Fire("CHAT_MSG_ADDON", "Mailworthy", "H1|Alice Alt|333", "GUILD", "Bob Surname")
+            ns.Fire("CHAT_MSG_ADDON", "Mailworthy", "H2|333|", "GUILD", "Bob Surname")
             assert.is_nil(ns.Comms.Peer(BOB))
         end)
 
-        it("a binding can go to the friend's bank alt once their Mailworthy has named it", function()
+        it("delivery follows the profession: the friend when they have it, else their character that does", function()
+            local route = { to = BOB, profession = ENCHANTING }
+            assert.same({ BOB, false }, { ns.Routes.Crafter(route, nil) }, "nothing known: the friend")
+            local alice = { name = "Alice Alt", professions = { 333 } }
+            assert.same({ BOB, false }, { ns.Routes.Crafter(route, { professions = { 333 }, characters = { alice } }) },
+                "the friend has it: the friend, whatever their alts have")
+            assert.same({ "Alice Alt", true }, { ns.Routes.Crafter(route, { professions = { 197 },
+                characters = { { name = "Miner Guy", professions = { 165 } }, { name = "Alice Alt", professions = { 333 } } } }) })
+            local leather = { name = "Alice Alt", professions = { 165 } }
+            assert.same({ BOB, false }, { ns.Routes.Crafter(route, { professions = {}, characters = { leather } }) },
+                "nobody of theirs has it: the friend, never an alt for the AH")
+        end)
+
+        it("a binding's mail goes to the friend's crafter once their Mailworthy has said who that is", function()
             withAuctionator()
             WowStub.setBag(0, 1, dust(20))
             MailFrame:Show()
             SendMailFrame:Show()
             local r = ns.Routes.Add(BOB, ENCHANTING)
-            ns.Routes.SetViaAlt(r.key, true)
-            assert.equal(BOB, (ns.Routes.Recipient(ns.Routes.Get(r.key))), "unknown alt: to Bob himself")
-            ns.Fire("CHAT_MSG_ADDON", "Mailworthy", "H1|Alice Alt|333", "GUILD", BOB)
-            local to, viaAlt = ns.Routes.Recipient(ns.Routes.Get(r.key))
+            assert.equal(BOB, (ns.Routes.Recipient(ns.Routes.Get(r.key))), "nothing heard: to Bob himself")
+            ns.Fire("CHAT_MSG_ADDON", "Mailworthy", "H2|165|Alice Alt=333", "GUILD", BOB)
+            local to, crafter = ns.Routes.Recipient(ns.Routes.Get(r.key))
             assert.equal("Alice Alt", to)
-            assert.is_true(viaAlt)
+            assert.is_true(crafter)
             local result = ns.Bags.Evaluate()
             assert.equal("Alice Alt", result.mail[1].result.to)
+            assert.truthy(ns.Bags.Report(result):find("delivered to their crafter Alice Alt", 1, true))
             ns.Mailer.Start(result.mail, ns.Config.BankAlt())
             WowStub.runTimers()
             assert.equal("Alice Alt", WowStub.state.sent[1].name)
-            assert.truthy(table.concat(ns.Routes.ReportLines(), "\n"):find("via their bank alt Alice Alt", 1, true))
+            assert.truthy(table.concat(ns.Routes.ReportLines(), "\n"):find("delivered to their crafter Alice Alt", 1, true))
+            ns.Fire("CHAT_MSG_ADDON", "Mailworthy", "H2|333|Alice Alt=333", "GUILD", BOB)
+            assert.equal(BOB, (ns.Routes.Recipient(ns.Routes.Get(r.key))), "Bob learned Enchanting: to Bob")
         end)
     end)
 
@@ -450,7 +473,7 @@ describe("bindings", function()
             local f = ns.RoutesUI.Frame()
             assert.is_true(f:IsShown())
             assert.equal(1, WowStub.state.rosterRequests)
-            assert.equal("A1", WowStub.state.addonMessages[1].message, "asks other Mailworthys to say hello")
+            assert.equal("A2", WowStub.state.addonMessages[1].message, "asks other Mailworthys to say hello")
             assert.equal("Bob Surname - Enchanting - online - guild", _G.MailworthyFriendsPick1:GetText())
             assert.is_true(_G.MailworthyFriendsPick2:IsShown())
             assert.is_false(_G.MailworthyFriendsProfession1:IsShown())
@@ -472,24 +495,23 @@ describe("bindings", function()
             assert.is_true(f:IsShown())
         end)
 
-        it("each binding row: cap stepper, scope, delivery (once the friend's alt is known) and Remove", function()
+        it("each binding row: cap stepper, scope, where the mail goes, and Remove", function()
             ns.RoutesUI.Show()
             _G.MailworthyFriendsPick1:Click()
             _G.MailworthyFriendsProfession4:Click()
             assert.equal("All my characters", _G.MailworthyFriendsScope1:GetText())
-            assert.is_false(_G.MailworthyFriendsVia1:IsShown(), "Bob's Mailworthy hasn't named an alt")
+            assert.is_nil(_G.MailworthyFriendsVia1, "no delivery toggle: the profession decides")
             _G.MailworthyFriendsCapUp1:Click()
             _G.MailworthyFriendsCapUp1:Click()
             assert.equal(250000, ns.Routes.List()[1].cap)
             _G.MailworthyFriendsScope1:Click()
             assert.equal("This character", _G.MailworthyFriendsScope1:GetText())
             assert.equal(1, #MailworthyCharDB.routes)
-            ns.Fire("CHAT_MSG_ADDON", "Mailworthy", "H1|Alice Alt|333", "GUILD", BOB)
-            assert.is_true(_G.MailworthyFriendsVia1:IsShown())
-            assert.equal("To them", _G.MailworthyFriendsVia1:GetText())
-            _G.MailworthyFriendsVia1:Click()
-            assert.equal("To their alt", _G.MailworthyFriendsVia1:GetText())
-            assert.is_true(ns.Routes.List()[1].viaAlt)
+            ns.Fire("CHAT_MSG_ADDON", "Mailworthy", "H2|165|Alice Alt=333", "GUILD", BOB)
+            ns.MailWindow.Show("send")
+            assert.truthy(_G.MailworthyMailSkip1:IsShown())
+            local to = ns.Routes.Recipient(ns.Routes.List()[1])
+            assert.equal("Alice Alt", to)
             _G.MailworthyFriendsRemove1:Click()
             assert.equal(0, ns.Routes.Count())
             assert.is_true(_G.MailworthyFriendsRemove1:IsShown() == false)
