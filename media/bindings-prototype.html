@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Mailworthy bindings prototype</title>
+<!-- Prototype of the bindings UI (2026-10-26): the Mailworthy window at the mailbox with
+     the binding rows (Skip once / Remove, "to <first name>" chips, every recipient on Send)
+     and the friends window (binding rows with the price cap stepper and scope; pick a player,
+     then a profession). Rendered to media/bindings-prototype.png by tools/build-icons.sh.
+     The names are made up. Delivery follows the profession: Bob has Enchanting himself, so
+     the dust goes to Bob; Mara doesn't have Leatherworking, so her leather goes to her
+     crafter Tilda, as her own Mailworthy reported. -->
+<style>
+  :root {
+    --gold: #ffd100; --text: #f2e8d0; --dim: #b9ad92; --edge: #8a6a2a; --edge-hi: #e0b44c;
+    --panel: #15110c; --row: #221b12; --row-alt: #1c160f; --green: #1eff00; --white: #ffffff;
+    --silver: #c8c8c8; --copper: #d08a4a; --mint: #33ff99;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; width: 1180px; height: 850px; overflow: hidden; }
+  body {
+    font: 13px/1.35 "Trebuchet MS", "Segoe UI", Arial, sans-serif; color: var(--text);
+    background: radial-gradient(ellipse at 30% 20%, #3a4a3a 0%, #1d241c 45%, #0d110d 100%);
+  }
+  .frame {
+    position: absolute; background: var(--panel); border: 3px solid var(--edge);
+    border-radius: 10px; box-shadow: 0 0 0 1px #000, inset 0 0 0 1px var(--edge-hi), 0 12px 30px rgba(0,0,0,.6);
+  }
+  .title {
+    height: 34px; display: flex; align-items: center; gap: 8px; padding: 0 12px;
+    font: bold 15px Georgia, "Times New Roman", serif; color: var(--gold);
+    background: linear-gradient(#3b2d18, #241a0d); border-bottom: 2px solid var(--edge); border-radius: 7px 7px 0 0;
+  }
+  .title img { width: 22px; height: 22px; }
+  .title .x { margin-left: auto; width: 18px; height: 18px; border-radius: 50%; background: #8b1a1a;
+    color: #fff; font: bold 12px Arial; display: grid; place-items: center; border: 1px solid #d9a; }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 78px; height: 26px; padding: 0 12px;
+    font: bold 12px "Trebuchet MS", Arial, sans-serif; color: var(--gold);
+    background: linear-gradient(#9b1c1c, #5c0d0d); border: 1px solid #e0b44c; border-radius: 4px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.25); white-space: nowrap;
+  }
+  .btn.grey { background: linear-gradient(#4a4036, #2b241c); }
+  .btn.small { min-width: 0; height: 22px; padding: 0 9px; font-size: 11px; }
+  .btn.step { min-width: 24px; width: 24px; padding: 0; }
+  .btn.wide { width: 100%; justify-content: flex-start; height: 24px; }
+  .btn.pick { color: var(--mint); }
+  .nav { outline: 2px solid var(--gold); outline-offset: 3px; }
+  .content { padding: 12px 16px; }
+  h3 { margin: 12px 0 6px; font: bold 13px Georgia, serif; color: var(--gold); display: flex; justify-content: space-between; align-items: center; }
+  h3 small { color: var(--dim); font: 12px "Trebuchet MS", Arial, sans-serif; }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 5px 8px; vertical-align: middle; }
+  tr:nth-child(odd) td { background: var(--row); }
+  tr:nth-child(even) td { background: var(--row-alt); }
+  .icon { width: 26px; height: 26px; border-radius: 3px; border: 1px solid #000; box-shadow: inset 0 0 0 1px rgba(255,255,255,.15); }
+  .q1 { color: var(--white); } .q2 { color: var(--green); }
+  .count { color: var(--dim); }
+  .why { display: inline-block; padding: 1px 7px; border-radius: 9px; font-size: 11px; font-weight: bold; white-space: nowrap; }
+  .why.ah { background: #2d4a6b; color: #cfe6ff; }
+  .why.de { background: #4b2d6b; color: #ead7ff; }
+  .why.bank { background: #26805f; color: #d8fff0; }
+  .why.friend { background: #8c5a1e; color: #ffe8c2; }
+  .gain { text-align: right; white-space: nowrap; color: var(--text); }
+  .money i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin: 0 4px 0 2px; vertical-align: 0; }
+  .g { background: radial-gradient(#fff3a0, #d4a017); } .s { background: radial-gradient(#ffffff, #9a9a9a); }
+  .c { background: radial-gradient(#ffcf9a, #a0582a); }
+  .kept td { padding: 3px 8px; color: var(--dim); font-size: 12px; }
+  .kept .tag { color: #9ec7ff; }
+  .hint { color: var(--dim); font-size: 11px; }
+
+  /* Left: the Mailworthy window at the mailbox */
+  .mw { left: 24px; top: 24px; width: 528px; height: 768px; }
+  .to { display: flex; align-items: baseline; gap: 8px; padding: 8px 10px; background: var(--row);
+    border: 1px solid #3a2e1c; border-radius: 4px; }
+  .to b { color: var(--gold); font-size: 14px; }
+  .to .who { font-size: 15px; color: var(--white); font-weight: bold; }
+  .to .note { margin-left: auto; color: var(--dim); font-size: 12px; }
+  .routes { margin-top: 8px; border: 1px solid #3a2e1c; border-radius: 4px; background: var(--row-alt); padding: 4px 8px; }
+  .route { display: flex; align-items: center; gap: 8px; height: 26px; font-size: 12px; }
+  .route .what { color: var(--text); }
+  .route .toname { color: var(--gold); font-weight: bold; }
+  .route .crafter { color: var(--dim); }
+  .route .skipped { color: #888; }
+  .route .buttons { margin-left: auto; display: flex; gap: 6px; }
+  .routes .add { display: flex; align-items: center; height: 30px; }
+  .total { margin-top: 10px; padding: 8px 10px; background: #1d2a1d; border: 1px solid #3f6b3f; border-radius: 4px; }
+  .total .big { font-size: 15px; font-weight: bold; color: #b6ff9a; }
+  .total .sub { color: var(--dim); font-size: 12px; }
+  .actions { display: flex; gap: 8px; margin-top: 10px; }
+  .actions .btn { min-width: 110px; height: 30px; font-size: 13px; }
+  .actions .send { min-width: 180px; }
+  .status { margin-top: 8px; color: var(--dim); font-size: 11px; }
+  .legend { margin-top: 6px; color: var(--dim); font-size: 11px; display: flex; justify-content: space-between; }
+
+  /* Right: the friends window */
+  .fr { left: 580px; top: 24px; width: 576px; height: 802px; }
+  .sub { color: var(--dim); font-size: 12px; margin-top: 2px; }
+  .binding { border: 1px solid #3a2e1c; border-radius: 4px; background: var(--row); padding: 6px 10px; margin-bottom: 6px; }
+  .binding .line1 { display: flex; align-items: center; gap: 8px; }
+  .binding .line1 .what { color: var(--text); font-size: 13px; }
+  .binding .line1 .toname { color: var(--gold); font-weight: bold; }
+  .binding .line1 .crafter { color: var(--dim); font-size: 12px; }
+  .binding .line1 .btn { margin-left: auto; }
+  .binding .line2 { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 12px; color: var(--dim); }
+  .binding .line2 .cap { width: 196px; }
+  .binding .line2 .scope { margin-left: 8px; }
+  .step { color: var(--text); font-size: 13px; margin: 2px 0 8px; }
+  .step b { color: var(--gold); }
+  .cands { display: flex; flex-direction: column; gap: 4px; }
+  .cands .btn .meta { color: var(--dim); font-weight: normal; margin-left: 6px; }
+  .cands .btn .on { color: #7dff7d; font-weight: normal; }
+  .profs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 4px; }
+  .profs .btn { width: 100%; justify-content: flex-start; height: 24px; }
+  .profs .suggest { color: var(--mint); }
+  .fr .foot { position: absolute; left: 16px; right: 16px; bottom: 12px; display: flex; align-items: flex-end; gap: 10px; }
+  .fr .foot .hint { flex: 1; }
+  .callout { position: absolute; font-size: 11px; color: #ffe8c2; background: rgba(60, 40, 10, .92); border: 1px solid #c9893a;
+    border-radius: 4px; padding: 4px 8px; max-width: 250px; box-shadow: 0 4px 12px rgba(0,0,0,.6); }
+</style>
+</head>
+<body>
+  <!-- The Mailworthy window at the mailbox -->
+  <div class="frame mw">
+    <div class="title"><img src="logo-512.png" alt=""><span>Mailworthy</span><span class="x">x</span></div>
+    <div class="content">
+      <div class="to"><b>To:</b><span class="who">Penny Ledgerwick</span><span class="note">your bank alt</span></div>
+
+      <div class="routes">
+        <div class="route"><span class="what">Enchanting materials</span><span class="toname">to Bob Thornfield</span>
+          <span class="buttons"><span class="btn grey small">Skip once</span><span class="btn grey small">Remove</span></span></div>
+        <div class="route"><span class="what">Leatherworking materials</span><span class="toname">to Tilda Marrow</span>
+          <span class="crafter">(Mara's crafter)</span>
+          <span class="buttons"><span class="btn grey small">Skip once</span><span class="btn grey small">Remove</span></span></div>
+        <div class="route"><span class="what">Cooking materials</span><span class="toname">to Harl Grubb</span>
+          <span class="skipped">- skipped this time</span>
+          <span class="buttons"><span class="btn grey small">Undo skip</span><span class="btn grey small">Remove</span></span></div>
+        <div class="add"><span class="btn grey small">Send materials to friends...</span></div>
+      </div>
+
+      <h3>Mailing <small>7 items in 3 mails</small></h3>
+      <table>
+        <tr><td style="width:34px"><div class="icon" style="background:linear-gradient(135deg,#c97b3d,#6b3a18)"></div></td>
+          <td><span class="q2">Bandit Cloak</span></td><td><span class="why de">Disenchant</span></td>
+          <td class="gain money">+49<i class="s"></i>81<i class="c"></i></td></tr>
+        <tr><td><div class="icon" style="background:linear-gradient(135deg,#e0874a,#7a3e1a)"></div></td>
+          <td><span class="q1">Copper Ore</span> <span class="count">x13</span></td><td><span class="why ah">Auction</span></td>
+          <td class="gain money">+29<i class="s"></i>80<i class="c"></i></td></tr>
+        <tr><td><div class="icon" style="background:linear-gradient(135deg,#9aa0a8,#4a4f57)"></div></td>
+          <td><span class="q1">Rough Weightstone</span> <span class="count">x20</span></td><td><span class="why ah">Auction</span></td>
+          <td class="gain money">+6<i class="s"></i>58<i class="c"></i></td></tr>
+        <tr><td><div class="icon" style="background:linear-gradient(135deg,#a9c5ff,#3d4f8a)"></div></td>
+          <td><span class="q1">Strange Dust</span> <span class="count">x20</span></td><td><span class="why friend">to Bob</span></td>
+          <td class="gain"></td></tr>
+        <tr><td><div class="icon" style="background:linear-gradient(135deg,#c9a6ff,#5a2d8a)"></div></td>
+          <td><span class="q1">Lesser Magic Essence</span> <span class="count">x4</span></td><td><span class="why friend">to Bob</span></td>
+          <td class="gain"></td></tr>
+        <tr><td><div class="icon" style="background:linear-gradient(135deg,#b07a4a,#5a3a1a)"></div></td>
+          <td><span class="q1">Light Leather</span> <span class="count">x27</span> <span class="count">(2 stacks)</span></td>
+          <td><span class="why friend">to Tilda</span></td><td class="gain"></td></tr>
+        <tr><td><div class="icon" style="background:linear-gradient(135deg,#7fb3c9,#2f5a6b)"></div></td>
+          <td><span class="q1">Greater Magic Essence</span> <span class="count">x2</span></td><td><span class="why ah">Auction</span></td>
+          <td class="gain money">+10<i class="g"></i>40<i class="s"></i></td></tr>
+      </table>
+
+      <h3>Staying in your bags <small>3 items</small></h3>
+      <table class="kept">
+        <tr><td>Linen Cloth x20</td><td class="tag">your Tailoring needs it</td></tr>
+        <tr><td>Raw Brilliant Smallfish x9</td><td class="tag">locked (press to unlock)</td></tr>
+        <tr><td>Small Egg x2</td><td class="tag">no auction price yet</td></tr>
+      </table>
+
+      <div class="total">
+        <div class="big money">+1<i class="g"></i>96<i class="s"></i>59<i class="c"></i> more than vendoring</div>
+        <div class="sub">after the 5% auction cut, deposits (24h listing) and postage (2s 10c); 4 stacks to friends</div>
+      </div>
+
+      <div class="actions">
+        <span class="btn send">Send to Penny, Bob +1</span><span class="btn grey">Settings</span><span class="btn grey">Close</span>
+      </div>
+      <div class="status">Press an item to lock it (it stays in your bags); press a locked one to unlock it.</div>
+      <div class="legend"><span>&#9747; press &nbsp; &#9711; close &nbsp; D-pad move</span><span>Prices: Auctionator · Disenchant values: on</span></div>
+    </div>
+  </div>
+  <div class="callout" style="left:40px; top:790px; max-width:500px">Greater Magic Essence is at 10g each, above Bob's 5g cap: it goes to the bank alt, Bob gets the rest.</div>
+
+  <!-- The friends window -->
+  <div class="frame fr">
+    <div class="title"><img src="logo-512.png" alt=""><span>Send materials to friends</span><span class="x">x</span></div>
+    <div class="content">
+      <div class="sub">A binding mails everything a profession uses to one player, every time, until you remove it. Locked items
+        still stay. A material the market suddenly wants (the price cap) goes to your bank alt instead. If the friend runs
+        Mailworthy, the mail goes to whichever of their characters has the profession.</div>
+
+      <h3>Bindings</h3>
+      <div class="binding">
+        <div class="line1"><span class="what">Enchanting materials</span><span class="toname">to Bob Thornfield</span>
+          <span class="btn grey small">Remove</span></div>
+        <div class="line2"><span class="cap">to my alt at 5g each or more</span>
+          <span class="btn grey small step">-</span><span class="btn grey small step">+</span>
+          <span class="btn grey small scope">All my characters</span></div>
+      </div>
+      <div class="binding">
+        <div class="line1"><span class="what">Leatherworking materials</span><span class="toname">to Mara Quill</span>
+          <span class="crafter">(delivered to their Leatherworking character Tilda Marrow)</span>
+          <span class="btn grey small">Remove</span></div>
+        <div class="line2"><span class="cap">to my alt at 2g each or more</span>
+          <span class="btn grey small step">-</span><span class="btn grey small step">+</span>
+          <span class="btn grey small scope">This character</span></div>
+      </div>
+      <div class="binding">
+        <div class="line1"><span class="what">Cooking materials</span><span class="toname">to Harl Grubb</span>
+          <span class="btn grey small">Remove</span></div>
+        <div class="line2"><span class="cap">no price cap</span>
+          <span class="btn grey small step">-</span><span class="btn grey small step">+</span>
+          <span class="btn grey small scope">All my characters</span></div>
+      </div>
+
+      <h3>Add a binding <span><span class="btn grey small">1/2 &nbsp;&gt;</span>&nbsp;<span class="btn grey small">Refresh list</span></span></h3>
+      <div class="step"><b>Who should get your materials?</b></div>
+      <div class="cands">
+        <span class="btn grey wide nav">Bob Thornfield <span class="meta">- Enchanting -</span> <span class="on">online</span> <span class="meta">- guild, Mailworthy</span></span>
+        <span class="btn grey wide">Mara Quill <span class="meta">- Alchemy, Tailoring -</span> <span class="on">online</span> <span class="meta">- party, Mailworthy</span></span>
+        <span class="btn grey wide">Harl Grubb <span class="meta">- Cooking -</span> <span class="on">online</span> <span class="meta">- guild</span></span>
+        <span class="btn grey wide">Penny Ledgerwick <span class="meta">- Tailoring - my character</span></span>
+        <span class="btn grey wide">Dorn Ashvale <span class="meta">- Blacksmithing, Engineering - my character</span></span>
+        <span class="btn grey wide">Zed Nightwell <span class="meta">- Alchemy - guild</span></span>
+      </div>
+
+      <div class="step" style="margin-top:14px"><span class="hint">After a pick:</span> <b>What should Bob Thornfield get?</b> <span class="hint">Suggested: Enchanting.</span></div>
+      <div class="profs">
+        <span class="btn grey">Alchemy (herbs)</span><span class="btn grey">Blacksmithing (metal and stone)</span>
+        <span class="btn grey">Cooking (meat and fish)</span><span class="btn grey suggest">&gt; Enchanting (dust, essences and shards) &lt;</span>
+        <span class="btn grey">Engineering (metal and stone, parts, ...)</span><span class="btn grey">First Aid (cloth)</span>
+        <span class="btn grey">Leatherworking (leather and hides)</span><span class="btn grey">Tailoring (cloth)</span>
+      </div>
+      <div class="foot">
+        <span class="hint">Enchanting materials now go to Bob Thornfield. Remove it any time; at the mailbox, Skip once drops it for one visit.</span>
+        <span class="btn grey small">Back</span><span class="btn">Done</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
