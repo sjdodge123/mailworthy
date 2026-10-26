@@ -17,6 +17,7 @@ Gamepad.lua
 Locks.lua
 Border.lua
 Prices.lua
+Disenchant.lua
 Valuation.lua
 Config.lua
 Routes.lua

@@ -178,7 +178,7 @@ describe("bag scan", function()
         assert.equal(1000, sword.price.de)
         assert.equal("DisenchantValue", sword.price.deSource)
         local report = ns.Bags.Report(result)
-        assert.truthy(report:find("MAIL DE [Green Sword] x1: disenchant - vendor 1s each = 1s; disenchant 10s each; "
+        assert.truthy(report:find("MAIL DE [Green Sword] x1: disenchant - vendor 1s each = 1s; disenchant 10s each (DisenchantValue); "
             .. "DE net 9s 70c;", 1, true), report)
         assert.truthy(ns.Report.Build():find(", Siz DisenchantValue installed", 1, true))
     end)

@@ -16,7 +16,7 @@ function WowStub.item(id, name, o)
     return {
         itemID = id, hyperlink = link(id, name), stackCount = o.count or 1, quality = o.quality or 1,
         isBound = o.bound or false, hasNoValue = o.noValue or false, isLocked = false,
-        sell = o.sell or 1, class = o.class or 7, subclass = o.subclass, quest = o.quest or false,
+        sell = o.sell or 1, class = o.class or 7, subclass = o.subclass, quest = o.quest or false, level = o.level,
     }
 end
 
@@ -335,7 +335,9 @@ local function byLink(l)
 end
 _G.GetItemInfo = function(l)
     local item = byLink(l)
-    if item then return "name", item.hyperlink, item.quality, 1, 1, "t", "s", 20, "", 0, item.sell end
+    if item then
+        return "name", item.hyperlink, item.quality, item.level or 1, 1, "t", "s", 20, "", 0, item.sell, item.class, item.subclass or 0
+    end
 end
 _G.GetItemInfoInstant = function(l)
     local item = byLink(l)

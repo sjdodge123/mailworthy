@@ -381,8 +381,10 @@ function UI.Refresh(keepScan)
         totalNote:SetText("No Auctionator prices: mailing white items only. Postage " .. money(t.postage) .. "." .. friends)
     end
     sendButton:SetText(ns.Mailer.Busy() and "Sending..." or UI.SendText(t.recipients, bankAlt, isBankAlt))
+    local deAddon = ns.Prices.DisenchantAddon()
     pricesLine:SetText(string.format("Prices: %s  ·  Disenchant values: %s",
-        result.priced and "Auctionator" or "none", result.settings.disenchant and "on" or "off"))
+        result.priced and "Auctionator" or "none",
+        result.settings.disenchant and ("on" .. (deAddon and (" (" .. deAddon .. ")") or " (era tables)")) or "off"))
     local status = ns.Mailer.Status()
     if not status then
         status = "Press an item to lock it (it stays in your bags); press a locked one to unlock it."
