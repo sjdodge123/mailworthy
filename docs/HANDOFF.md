@@ -34,6 +34,7 @@ must never break the game.
 | Logo source / avatar / in-game icon | [media/logo.svg](../media/logo.svg), [media/logo-400.png](../media/logo-400.png), [media/logo-512.png](../media/logo-512.png), [Mailworthy/Textures/Icon.tga](../Mailworthy/Textures/Icon.tga) |
 | **Target release UI** (mailbox window) | [media/ui-prototype.html](../media/ui-prototype.html) -> [.png](../media/ui-prototype.png) |
 | **Target bank alt view** (tags + tooltip + summary) | [media/bank-alt-prototype.html](../media/bank-alt-prototype.html) -> [.png](../media/bank-alt-prototype.png) |
+| **Bindings UI** (binding rows in the mail window, the friends window) | [media/bindings-prototype.html](../media/bindings-prototype.html) -> [.png](../media/bindings-prototype.png) |
 | CurseForge description (paste into the project page) | [media/curseforge-description.html](../media/curseforge-description.html) |
 | Rebuild icon/avatar/TGA/screenshots | [tools/build-icons.sh](../tools/build-icons.sh) (Chrome headless + Pillow) |
 | Package layout check (CI) | [tools/check-package-layout.sh](../tools/check-package-layout.sh) |
