@@ -42,6 +42,19 @@ than at the vendor goes to your bank alt. The rest stays in your bags to vendor.
   minimum gain grows with the gold supply. Details: `docs/PLAN.md` "Decision rule".
 - **After sending:** your main's bags tag what's left for the vendor with **V** (grey
   junk too) for the rest of the session. Lock an item to keep it and its V goes.
+- **Send a profession's materials to a friend** (`/mw friends`, or the settings' "Send
+  materials to friends" button): pick a guild member, party member or one of your own
+  characters (online players first; their professions are shown and suggested), then the
+  profession. From then on everything that profession uses (dust, essences and shards for
+  an enchanter, cloth for a tailor, ...) is mailed to them, every time, for all your
+  characters on that realm and faction (or this character only). Each binding has a
+  **price cap** (default 5g each): a material the market suddenly wants goes to your bank
+  alt instead. The Mailworthy window lists the bindings with **Skip once** (this mailbox
+  visit only) and **Remove**. Locked items still stay. If the friend runs Mailworthy too,
+  it tells yours their bank alt and professions (addon messages to guild and group; `/mw
+  feature comms off` stops them), and the binding can deliver **to their alt** directly,
+  showing that name in the window; otherwise mail them and their own Mailworthy (with a
+  binding to their alt) carries it on.
 - Profession tools (fishing poles, Mining Pick, Blacksmith Hammer, Skinning Knife, ...)
   always stay. Gold is never attached.
 - **Your professions' materials stay** (on by default, a setting turns it off): cloth for
@@ -52,8 +65,9 @@ than at the vendor goes to your bank alt. The rest stays in your bags to vendor.
   (lock them to keep them).
 
 ```
-/mw                   settings: bank alt (pick, type, or "This character is my bank alt"), minimum gain, disenchant, listing length, tags, lock glow, profession materials, minimap button
+/mw                   settings: bank alt (pick, type, or "This character is my bank alt"), minimum gain, disenchant, listing length, tags, lock glow, profession materials, friends, minimap button
 /mw scan              what Mailworthy would mail and why, with the numbers (sends nothing)
+/mw friends           send a profession's materials to a guild member, party member or one of your characters (bindings)
 /mw summary           on your bank alt: what to list, disenchant or vendor
 /mw locks             this character's locked items
 /mw report            a copyable report for bug reports
@@ -95,6 +109,8 @@ each in-game round are in [docs/DISCOVERY-SESSION-2.md](docs/DISCOVERY-SESSION-2
 | SavedVariables survive `/reload` and relog | self-test marker, v0.4.0 settings | **work** (login, character switch, `/reload`) |
 | One-press sending from the Mailworthy window (no money, no COD) | v0.4.0 | **works** (operator, 2026-10-14) |
 | Reagent bag (bag 5, `NUM_TOTAL_EQUIPPED_BAG_SLOTS`) scanned, locked (Alt+click, L3) and mailed like bags 0-4 | a white item in the reagent bag: `/mw scan` lists it, Send mails it | open (CurseForge user report, 2026-10-21; source-backed: `Enum.BagIndex.ReagentBag` = 5 in `Blizzard_FrameXMLBase/Constants.lua`) |
+| Guild members through `C_Club.GetGuildClubId` / `GetClubMembers` / `GetMemberInfo` (`name`, `presence`, `profession1ID` / `profession2ID` as skill line IDs, as Blizzard's Communities roster reads them on Forever; `GetGuildRosterInfo` fallback), party through `GetNumGroupMembers` / `GetUnitName(unit, true)` / `UnitIsConnected`, the roster asked for with `C_GuildInfo.GuildRoster()` | `/mw friends` lists guild and party members with "online" and their professions; a two-part name without a realm suffix lands in the binding and the mail arrives | open (2026-10-26) |
+| Addon messages between Mailworthys: `C_ChatInfo.RegisterAddonMessagePrefix("Mailworthy")`, `SendAddonMessage(prefix, text, "GUILD" / "PARTY" / "RAID")`, `CHAT_MSG_ADDON` (sender possibly "Name-Realm") | two guild members with Mailworthy: `/mw report` shows "mailworthy peer: <name> (bank alt ...)" on each, `/mw friends` marks them "Mailworthy" and offers "To their alt" on a binding | open (2026-10-26) |
 | Lock glow only while a mailbox is open (`MAIL_SHOW` / `MAIL_CLOSED`, `MailFrame:IsShown()`), "always" setting; a new lock flashes 3 s anywhere | lock an item away from a mailbox: a 3 s glow on every stack, then nothing; open a mailbox: glow; close it: gone | open (CurseForge user report + operator, 2026-10-21) |
 
 ## Picking up the work

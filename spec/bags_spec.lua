@@ -85,7 +85,8 @@ describe("bag scan", function()
         assert.equal("quest item", byName(result.unmailable, "Quest Thing").result.reason)
         assert.is_nil(byName(result.keep, "Hearthstone"), "never-mailable items aren't in the keep list")
         assert.equal("no price", byName(result.keep, "Rough Stone").result.reason)
-        assert.same({ items = 25, stacks = 2, mails = 1, gain = 966, postage = 60 }, result.totals)
+        assert.same({ items = 25, stacks = 2, mails = 1, gain = 966, postage = 60, routed = 0, recipients = { "" } },
+            result.totals)
     end)
 
     it("keeps locked items (every stack) and stacks the game has locked", function()

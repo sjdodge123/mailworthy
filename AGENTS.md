@@ -6,8 +6,12 @@ Mailworthy is a WoW Forever addon (`## Interface: 16001`). Start with
 
 ## Safety (STRICT)
 
-- Mail goes **only** to the saved bank alt shown in the preview, and only after
-  the player presses Send. Never attach money. Never mail a locked item.
+- Mail goes **only** to the recipients shown in the preview, and only after the
+  player presses Send: the saved bank alt, and, for a binding (`Routes.lua`), the
+  bound player or the bank alt that player's own Mailworthy reported (only when the
+  binding says "to their alt"). Never attach money. Never mail a locked item.
+- A binding never overrides a hard keep (locked, soulbound, quest, in use, tool); at or
+  above its price cap the normal rule applies and the item goes to the bank alt.
 - Re-check each slot right before attaching it; skip anything that changed.
 - Without Auctionator, the only items mailed are unlocked, tradeable white
   (common) items; with Auctionator, an item without a price stays in the bags,

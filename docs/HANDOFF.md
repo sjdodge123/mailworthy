@@ -68,9 +68,12 @@ must never break the game.
 | `BankAlt.lua` | bank alt view: verdicts with no postage (`Verdict`: ah / de / v), tags on bag buttons (a `Border` decorator), tooltip lines via `TooltipDataProcessor`, summary window (`/mw summary`, mail button on the bank alt); switches `bankAltTags`, `tooltipLines`; setting `tagsEverywhere` |
 | `SettingsUI.lua` | settings window (bank alt buttons, "This character is my bank alt" for a second account, optional typed name with "not seen" second press, steppers, disenchant, 2/8/24h, minimap toggle); controller via `PadKey` set `settings` (works away from the mailbox) |
 | `MinimapButton.lua` | LedgerLink's minimap button (click: settings; drag: move); feature `minimapButton` |
-| `Report.lua` | `/mw report` (one copyable report: build, controller, switches, bank alt, settings, locks, last send, blocked actions, log), the copy box `/mw scan` uses, and the AH sale-mail reader (house cut). Replaced the discovery self-test in Phase 5 |
+| `Report.lua` | `/mw report` (one copyable report: build, controller, switches, bank alt, settings, locks, last send, bindings, peers, blocked actions, log), the copy box `/mw scan` uses, and the AH sale-mail reader (house cut). Replaced the discovery self-test in Phase 5 |
+| `Routes.lua` | **bindings** (2026-10-26): a crafting profession's materials to one player (`MailworthyDB.routes[realm\|faction]` for all the account's characters, `MailworthyCharDB.routes` for this one; this character's win). Pure `Divert(item, verdict, price, settings, routes)`: route `friend`, `to`, `what`; never over a hard keep; at or above the binding's `cap` (copper per unit, `CAP_STEPS`, 5g default, nil = none) the normal verdict stands with `capped`. `SkipOnce` per mailbox visit. `Candidates()`: party / raid units, guild via `C_Club` (`GetGuildRosterInfo` fallback), known characters, peers; `Clean` drops "-Realm". `Recipient(route)` = the peer's reported bank alt when `viaAlt` |
+| `Comms.lua` | hellos between Mailworthys (`C_ChatInfo`, prefix `Mailworthy`): `H1\|<bank alt>\|<skill lines>` / `A1`; peers in `MailworthyDB.peers[realm\|faction]` (60 days); throttled; everything received is validated data. Switch `comms` |
+| `RoutesUI.lua` | the friends window (`/mw friends`, settings button, Mailworthy window button): binding rows (cap stepper, scope, To them / To their alt, Remove), then pick a player (online first, professions suggested), then the profession |
 
-Tests: `spec/` (busted on LuaJIT, 111 specs) with a WoW stub in
+Tests: `spec/` (busted on LuaJIT, 207 specs) with a WoW stub in
 `spec/support/wow_stub.lua` (bags, mail send tab, postage, timers with delays,
 override bindings, focused frame, item buttons that **error on any field write**).
 `Nav` drives the most recently shown visible window (`Nav.Root`); Circle closes only that one.
@@ -225,6 +228,18 @@ call `SendMail` anyway. Every Mailer timer checks the run id and `busy`.
   CurseForge project disappeared after v0.7.0 and its slug made v0.8.0 and v0.9.0 fail to
   upload, error 1018, fixed 2026-10-22) and `## OptionalDeps: Auctionator, Disenchantry`.
 
+- Bindings (operator, 2026-10-26: "send my enchanting mats to a guild member and bind that,
+  until cancelled; easy to X on each send and to remove; few settings; an insane market high
+  still goes to my alt"): `Routes.lua` / `RoutesUI.lua` / `Comms.lua`, PLAN "Bindings". Chosen:
+  the cap is a per-unit price stepper on the binding row (5g default), not a slider (numbers
+  use steppers, controller rule); a binding beats the "keep my professions' materials" default;
+  the bank alt's tags ignore bindings; of the two delivery options the operator listed, "to
+  them" is the default and "to their alt" (from the peer's own hello) is opt-in per binding,
+  with the real recipient always shown; the receiving Mailworthy carries materials on with a
+  binding of its own to its alt (no special inbox handling). Default scope: all the account's
+  characters on the realm + faction. Not built: a slider widget, a never-mail list, typed names
+  in the friends window (candidates only).
+
 ## 7. State right now
 
 - alpha5's in-game check passed (DISCOVERY-SESSION-2.md "Results of the alpha5 run");
@@ -262,3 +277,8 @@ call `SendMail` anyway. Every Mailer timer checks the run id and `busy`.
    with Siz DisenchantValue installed (`/mw scan` "disenchant Xc each" against its tooltip,
    `/mw report` "Siz DisenchantValue installed"), ForeverMail compatibility.
 6. README "Beta unknowns" table and PLAN's "Still open" list kept current after each report.
+7. In-game check of bindings (2026-10-26): `/mw friends` lists guild members with "online" and
+   professions (C_Club on Forever) and party members; a binding's materials show "to <first
+   name>" in the window and arrive with subject "Mailworthy 1/1: Enchanting materials";
+   Skip once / Remove; two Mailworthy users see each other in `/mw report` ("mailworthy peer")
+   and "To their alt" appears on the binding.

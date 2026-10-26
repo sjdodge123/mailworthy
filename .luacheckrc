@@ -15,6 +15,9 @@ read_globals = {
     -- character
     "GetUnitName", "UnitName", "GetRealmName", "UnitFactionGroup", "UnitClass", "UnitLevel", "GetServerTime",
     "GetBuildInfo", "GetProfessions", "GetProfessionInfo", "InCombatLockdown",
+    -- bindings: party / raid, guild (C_Club member info, GetGuildRosterInfo fallback), addon messages
+    "GetNumGroupMembers", "IsInRaid", "UnitIsConnected", "IsInGuild", "GetNumGuildMembers", "GetGuildRosterInfo",
+    "C_GuildInfo", "C_Club", "C_ChatInfo",
     -- bags and items
     "C_Container", "C_Item", "GetItemInfo", "GetItemInfoInstant", "NUM_BAG_SLOTS", "NUM_REAGENTBAG_SLOTS", "NUM_TOTAL_EQUIPPED_BAG_SLOTS", "CursorHasItem", "ClearCursor",
     -- mail
@@ -44,6 +47,7 @@ files["spec/**"] = {
     globals = { "WowStub", "print", "unpack", "time", "date", "CreateFrame", "InboxFrame", "SendMailFrame",
         "C_Container", "Auctionator", "Menu", "MailFrame",
         "MailworthyMailButton", "GamepadSharedUtility", "GamepadMode", "ContainerFrameCombinedBags", "ContainerFrameContainer",
-        "HandleModifiedItemClick", "MailworthyPadWatcher", "DisenchantryDB", "MailworthyInboxButton", "GameTooltip", "SmartNavigation", "Minimap", "MailworthyMinimapButton", "MailworthySettingsFrame", "TooltipDataProcessor", "Enum", "TooltipUtil", "MailworthySummaryFrame", "MailworthyReportFrame" },
+        "HandleModifiedItemClick", "MailworthyPadWatcher", "DisenchantryDB", "MailworthyInboxButton", "GameTooltip", "SmartNavigation", "Minimap", "MailworthyMinimapButton", "MailworthySettingsFrame", "TooltipDataProcessor", "Enum", "TooltipUtil", "MailworthySummaryFrame", "MailworthyReportFrame",
+        "MailworthyFriendsFrame", "C_Club", "C_ChatInfo", "C_GuildInfo" },
     allow_defined_top = true,
 }

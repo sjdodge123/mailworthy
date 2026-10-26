@@ -83,27 +83,43 @@ function Bags.Evaluate(settings)
     if settings.serverDay == nil then settings.serverDay = ns.Config.ServerDay() end
     if settings.professions == nil then settings.professions = ns.Characters.Professions() end
     local priced = ns.Prices.Auctionator() ~= nil
-    local result = { settings = settings, priced = priced, mail = {}, keep = {}, unmailable = {},
-        totals = { items = 0, stacks = 0, mails = 0, gain = 0, postage = 0 } }
+    local routes = settings.routes or ns.Routes.Active()
+    local result = { settings = settings, priced = priced, routes = routes, mail = {}, keep = {}, unmailable = {},
+        totals = { items = 0, stacks = 0, mails = 0, gain = 0, postage = 0, routed = 0, recipients = {} } }
+    local stacksTo = {}
     for _, item in ipairs(Bags.Group(Bags.Slots())) do
         item.locked = ns.Locks.IsItemLocked(item.itemID)
         item.classID, item.subclassID = ns.Prices.ClassID(item.link)
         item.vendor = item.noValue and 0 or ns.Prices.Vendor(item.link)
         item.price = priced and ns.Prices.Lookup(item.link) or nil
         item.result = ns.Valuation.Evaluate(item, item.price, settings)
+        local diverted, capped = ns.Routes.Divert(item, item.result, item.price, settings, routes)
+        if diverted then item.result = diverted elseif capped then item.result.capped = capped end
         if item.result.action == "mail" then
             table.insert(result.mail, item)
             local t = result.totals
             t.items, t.stacks = t.items + item.count, t.stacks + item.stacks
-            t.gain = t.gain + (item.result.gain or 0)
             t.postage = t.postage + item.result.postage
+            local to = item.result.to or "" -- "" = the bank alt
+            if item.result.to then t.routed = t.routed + item.stacks else t.gain = t.gain + (item.result.gain or 0) end
+            if not stacksTo[to] then
+                stacksTo[to] = 0
+                t.recipients[#t.recipients + 1] = to
+            end
+            stacksTo[to] = stacksTo[to] + item.stacks
         elseif ns.Valuation.Unmailable(item.result) then
             table.insert(result.unmailable, item)
         else
             table.insert(result.keep, item)
         end
     end
-    result.totals.mails = math.ceil(result.totals.stacks / Bags.ATTACHMENTS)
+    for _, n in pairs(stacksTo) do result.totals.mails = result.totals.mails + math.ceil(n / Bags.ATTACHMENTS) end
+    for i, to in ipairs(result.totals.recipients) do -- the bank alt first
+        if to == "" and i > 1 then
+            table.remove(result.totals.recipients, i)
+            table.insert(result.totals.recipients, 1, "")
+        end
+    end
     local function byGain(a, b)
         local ga, gb = a.result.gain or -math.huge, b.result.gain or -math.huge
         if ga ~= gb then return ga > gb end
@@ -118,7 +134,7 @@ end
 
 local money = function(c) return ns.Valuation.Money(c) end
 
-local ROUTE = { ah = "AH", de = "DE", common = "COMMON", bank = "BANK" }
+local ROUTE = { ah = "AH", de = "DE", common = "COMMON", bank = "BANK", friend = "FRIEND" }
 
 local function itemName(item)
     local name = item.link:match("%[(.-)%]") or item.link
@@ -163,6 +179,13 @@ local function workings(item, settings)
     if p and p.de then parts[#parts + 1] = "disenchant " .. money(p.de) .. " each" end
     if r.deNet then parts[#parts + 1] = "DE net " .. money(r.deNet) end
     if r.gain then parts[#parts + 1] = string.format("gain %s (needs %s)", money(r.gain), money(r.threshold)) end
+    if r.to then
+        parts[#parts + 1] = "binding" .. (r.viaAlt and " (via their bank alt)" or "")
+            .. (r.ahUnit and (", under the cap at " .. money(r.ahUnit) .. " each") or "")
+    elseif r.capped then
+        parts[#parts + 1] = string.format("not to %s: at or above the %s cap", tostring(r.capped.to),
+            money(r.capped.cap or 0))
+    end
     return table.concat(parts, "; ")
 end
 
@@ -187,9 +210,15 @@ function Bags.Report(result)
             ns.Valuation.DURATION_HOURS[s.duration], ns.Valuation.DEPOSIT_MULTIPLIER[s.duration],
             math.floor(s.cut * 100 + 0.5), money(s.postage), Bags.MinGainText(s), math.floor(s.minGainPct * 100 + 0.5),
             s.disenchant and "on" or "off", s.maxAgeDays, tostring(s.serverDay), Bags.ProfessionMatsText(s)),
-        string.format("total: %d items (%d stacks) in %d mail(s), %s more than vendoring, postage %s",
-            t.items, t.stacks, t.mails, money(t.gain), money(t.postage)),
+        string.format("total: %d items (%d stacks) in %d mail(s), %s more than vendoring, postage %s%s",
+            t.items, t.stacks, t.mails, money(t.gain), money(t.postage),
+            t.routed > 0 and string.format(" (%d stacks to friends)", t.routed) or ""),
     }
+    for _, r in ipairs(result.routes or {}) do
+        local to, viaAlt = ns.Routes.Recipient(r)
+        lines[#lines + 1] = string.format("binding: %s (%s%s)", ns.Routes.Describe(r), ns.Routes.CapText(r),
+            viaAlt and (", via their bank alt " .. to) or "")
+    end
     for _, item in ipairs(result.mail) do
         local w = workings(item, s)
         lines[#lines + 1] = string.format("MAIL %s %s: %s%s", ROUTE[item.result.route] or "?", itemName(item),

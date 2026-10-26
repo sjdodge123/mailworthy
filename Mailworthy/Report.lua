@@ -102,6 +102,8 @@ function Report.Build()
         "last send: " .. tostring(ns.Mailer.Status() or "none this session"),
     }
     for _, entry in pairs(MailworthyDB.characters) do lines[#lines + 1] = "known character: " .. ns.Characters.Describe(entry) end
+    for _, l in ipairs(ns.Routes.ReportLines()) do lines[#lines + 1] = l end
+    for _, l in ipairs(ns.Comms.ReportLines()) do lines[#lines + 1] = l end
     for _, l in ipairs(ns.Blocked.Lines()) do lines[#lines + 1] = l end
     lines[#lines + 1] = "log:"
     for _, l in ipairs(ns.Log.Lines()) do lines[#lines + 1] = l end

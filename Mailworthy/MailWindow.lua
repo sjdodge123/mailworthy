@@ -1,6 +1,7 @@
 -- The Mailworthy window at the mailbox (media/ui-prototype.png): who the mail
--- goes to, what goes and why, what stays and why, the total gain, and Send /
--- Settings / Close. One press of Send mails everything (Mailer).
+-- goes to, the bindings in force (a profession's materials to a friend, with
+-- Skip once and Remove), what goes and why, what stays and why, the total gain,
+-- and Send / Settings / Close. One press of Send mails everything (Mailer).
 --
 -- Mouse: click. Controller: Triangle at the mail window opens it, then the D-pad
 -- moves Mailworthy's own highlight, Cross presses, Circle closes (PadKey "window"
@@ -15,16 +16,19 @@ local _, ns = ...
 local UI = {}
 ns.MailWindow = UI
 
-UI.MAIL_ROWS, UI.STAY_ROWS = 8, 5
-local WIDTH, MAIL_ROW, STAY_ROW = 520, 30, 20
-local HEIGHT = 196 + UI.MAIL_ROWS * MAIL_ROW + UI.STAY_ROWS * STAY_ROW + 100
+UI.MAIL_ROWS, UI.STAY_ROWS, UI.ROUTE_ROWS = 8, 5, 3
+local WIDTH, MAIL_ROW, STAY_ROW, ROUTE_ROW = 520, 30, 20, 22
+local ROUTES_TOP = -74
+local MAIL_TOP = ROUTES_TOP - UI.ROUTE_ROWS * ROUTE_ROW - 34
+local HEIGHT = 196 - MAIL_TOP - 84 + UI.MAIL_ROWS * MAIL_ROW + UI.STAY_ROWS * STAY_ROW + 100
 
 local W = ns.Widgets
 local money = function(c) return ns.Valuation.Money(c) end
 
 local frame, title, toName, toNote, mailCount, stayCount, mailPage, stayPage
 local totalLine, totalNote, sendButton, pricesLine, statusLine, legend
-local mailRows, stayRows = {}, {}
+local mailRows, stayRows, routeRows = {}, {}, {}
+local friendsButton
 local result
 local pages = { mail = 1, stay = 1 }
 
@@ -33,6 +37,7 @@ UI.CHIPS = {
     de = { "Disenchant", 0.45, 0.25, 0.65 },
     common = { "Common", 0.4, 0.4, 0.4 },
     bank = { "Bank", 0.15, 0.5, 0.45 },
+    friend = { "to a friend", 0.55, 0.35, 0.12 }, -- the chip says "to <first name>"
 }
 
 function UI.Frame() return frame end
@@ -59,6 +64,22 @@ function UI.StayReason(r)
 end
 
 local function firstName(name) return tostring(name):match("^(%S+)") or tostring(name) end
+
+--- Pure: the Send button's text: "Send to Roknua", "Send to Roknua, Bob", "Send to Roknua +2".
+--- `recipients` lists the scan's recipients ("" = the bank alt).
+function UI.SendText(recipients, bankAlt, isBankAlt)
+    local names = {}
+    for _, to in ipairs(recipients or {}) do
+        if to == "" then
+            if bankAlt and not isBankAlt then names[#names + 1] = firstName(bankAlt) end
+        else
+            names[#names + 1] = firstName(to)
+        end
+    end
+    if #names == 0 then return (bankAlt and not isBankAlt) and ("Send to " .. firstName(bankAlt)) or "Send" end
+    if #names > 2 then return string.format("Send to %s +%d", names[1], #names - 1) end
+    return "Send to " .. table.concat(names, ", ")
+end
 
 local function toggleLock(row)
     if row.item and not ns.Mailer.Busy() then ns.Locks.ToggleItem(row.item.itemID, row.item.link, "Mailworthy window") end
@@ -136,6 +157,72 @@ local function createStayRows(top)
     end
 end
 
+-- Bindings (Routes): one row per binding with Skip once (this mailbox visit) and Remove,
+-- then the way into the friends window. The mail list below shows where each item goes.
+local function createRouteRows()
+    for i = 1, UI.ROUTE_ROWS do
+        local row = {}
+        local y = ROUTES_TOP - (i - 1) * ROUTE_ROW
+        row.text = W.Label(frame, "GameFontHighlightSmall")
+        row.text:SetPoint("TOPLEFT", 28, y - 5)
+        row.text:SetWidth(300)
+        row.text:SetJustifyH("LEFT")
+        row.skip = W.Button(frame, "Skip once", 84, function()
+            if not row.key then return end
+            if ns.Routes.Skipped(row.key) then ns.Routes.Unskip(row.key) else ns.Routes.SkipOnce(row.key) end
+            UI.Refresh()
+        end, "MailworthyMailSkip" .. i)
+        row.skip:SetPoint("TOPRIGHT", -102, y)
+        row.remove = W.Button(frame, "Remove", 74, function()
+            if row.key and ns.Routes.Remove(row.key) then
+                ns.Print("Binding removed.")
+                UI.Refresh()
+            end
+        end, "MailworthyMailUnbind" .. i)
+        row.remove:SetPoint("TOPRIGHT", -20, y)
+        row.text:Hide()
+        row.skip:Hide()
+        row.remove:Hide()
+        routeRows[i] = row
+    end
+    friendsButton = W.Button(frame, "Send materials to friends...", 200, function() ns.RoutesUI.Show() end,
+        "MailworthyMailFriends")
+    friendsButton:SetPoint("TOPLEFT", 24, ROUTES_TOP - UI.ROUTE_ROWS * ROUTE_ROW - 2)
+end
+
+local function fillRoutes()
+    local list = ns.Routes.List()
+    for i, row in ipairs(routeRows) do
+        local r = list[i]
+        row.key = r and r.key or nil
+        if r and i == UI.ROUTE_ROWS and #list > UI.ROUTE_ROWS then
+            row.text:SetText(string.format("|cffaaaaaa+ %d more bindings: press the button below|r", #list - UI.ROUTE_ROWS + 1))
+            row.key = nil
+            row.text:Show()
+            row.skip:Hide()
+            row.remove:Hide()
+        elseif r then
+            local to, viaAlt = ns.Routes.Recipient(r)
+            local skipped = ns.Routes.Skipped(r.key)
+            row.text:SetText(ns.Routes.What(r) .. " |cffffd100to " .. to .. "|r" .. (viaAlt and " (their bank alt)" or "")
+                .. (skipped and " |cff888888- skipped this time|r" or ""))
+            row.skip:SetText(skipped and "Undo skip" or "Skip once")
+            row.text:Show()
+            row.skip:Show()
+            row.remove:Show()
+        elseif i == 1 then
+            row.text:SetText("|cff888888No bindings: everything goes by value to your bank alt.|r")
+            row.text:Show()
+            row.skip:Hide()
+            row.remove:Hide()
+        else
+            row.text:Hide()
+            row.skip:Hide()
+            row.remove:Hide()
+        end
+    end
+end
+
 local function pageButton(name, list)
     local b = W.Button(frame, "", 70, function()
         local rows = list == "mail" and UI.MAIL_ROWS or UI.STAY_ROWS
@@ -158,8 +245,9 @@ function UI.Create()
     toName:SetPoint("TOPLEFT", 24, -50)
     toNote = W.Label(frame, "GameFontDisableSmall")
     toNote:SetPoint("TOPRIGHT", -26, -54)
+    createRouteRows()
 
-    local mailTop = -84
+    local mailTop = MAIL_TOP
     local h = W.Label(frame, "GameFontNormal")
     h:SetPoint("TOPLEFT", 22, mailTop)
     h:SetText("Mailing")
@@ -220,7 +308,7 @@ local function fillMail(items)
             local chip = UI.CHIPS[item.result.route] or UI.CHIPS.common
             row.icon:SetTexture(item.icon)
             row.name:SetText(UI.ItemText(item.link, item.count, item.stacks))
-            row.chip:SetText(chip[1])
+            row.chip:SetText(item.result.to and ("to " .. firstName(item.result.to)) or chip[1])
             row.chipBg:SetColorTexture(chip[2], chip[3], chip[4], 0.9)
             row.gain:SetText(item.result.gain and ("+" .. money(item.result.gain)) or "")
             row.button:Show()
@@ -275,22 +363,23 @@ function UI.Refresh(keepScan)
     end
     mailCount:SetText(string.format("%d items in %d mail%s", t.items, t.mails, t.mails == 1 and "" or "s"))
     stayCount:SetText(string.format("%d item%s", #result.keep, #result.keep == 1 and "" or "s"))
+    fillRoutes()
     fillMail(result.mail)
     fillStay(result.keep)
     pageLabel(mailPage, result.mail, UI.MAIL_ROWS)
     pageLabel(stayPage, result.keep, UI.STAY_ROWS)
 
+    local friends = t.routed > 0 and string.format("; %d stack%s to friends", t.routed, t.routed == 1 and "" or "s") or ""
     if result.priced then
         totalLine:SetText("+" .. money(t.gain) .. " more than vendoring")
-        totalNote:SetText(string.format("after the %d%% auction cut, deposits (%dh listing) and postage (%s)",
+        totalNote:SetText(string.format("after the %d%% auction cut, deposits (%dh listing) and postage (%s)%s",
             math.floor(result.settings.cut * 100 + 0.5), ns.Valuation.DURATION_HOURS[result.settings.duration],
-            money(t.postage)))
+            money(t.postage), friends))
     else
         totalLine:SetText(string.format("%d common item%s to mail", t.items, t.items == 1 and "" or "s"))
-        totalNote:SetText("No Auctionator prices: mailing white items only. Postage " .. money(t.postage) .. ".")
+        totalNote:SetText("No Auctionator prices: mailing white items only. Postage " .. money(t.postage) .. "." .. friends)
     end
-    sendButton:SetText(ns.Mailer.Busy() and "Sending..." or (bankAlt and not isBankAlt)
-        and ("Send to " .. firstName(bankAlt)) or "Send")
+    sendButton:SetText(ns.Mailer.Busy() and "Sending..." or UI.SendText(t.recipients, bankAlt, isBankAlt))
     pricesLine:SetText(string.format("Prices: %s  ·  Disenchant values: %s",
         result.priced and "Auctionator" or "none", result.settings.disenchant and "on" or "off"))
     local status = ns.Mailer.Status()
@@ -339,6 +428,7 @@ end
 local function refreshIfShown()
     if frame and frame:IsShown() then UI.Refresh() end
 end
+UI.RefreshIfShown = refreshIfShown
 
 ns.On("PLAYER_LOGIN", function()
     UI.Create()
@@ -350,6 +440,8 @@ ns.On("PLAYER_LOGIN", function()
     end)
     local settings = ns.SettingsUI.Frame()
     if settings then settings:HookScript("OnHide", refreshIfShown) end
+    local friends = ns.RoutesUI.Frame()
+    if friends then friends:HookScript("OnHide", refreshIfShown) end
 end)
 ns.On("BAG_UPDATE_DELAYED", function()
     if not ns.Mailer.Busy() then refreshIfShown() end
