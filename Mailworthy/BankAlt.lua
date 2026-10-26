@@ -102,6 +102,7 @@ end
 function BankAlt.Settings()
     local s = ns.Config.Values()
     if BankAlt.Mode() ~= "vendor" then s.postage = 0 end
+    s.routes = {} -- tags say what the market says; bindings (Routes) only apply when mailing
     return s
 end
 

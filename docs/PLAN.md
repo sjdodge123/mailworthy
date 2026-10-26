@@ -117,6 +117,7 @@ the same pattern that made the More-menu entry taint gamepad input (alpha2).
 | Postage | **30c per attached item** (measured 2026-10-13) | account |
 | Locked items | none | **per character** |
 | Minimap button | shown | account |
+| Bindings ("send my Enchanting materials to Bob", operator 2026-10-26) | none; `/mw friends` or the settings' "Send materials to friends" button: pick a player (party, guild, own characters, Mailworthy users; online first, their professions suggested from the guild roster's `profession1ID` / `profession2ID`, the known-character record or their Mailworthy's hello), then the profession. Each binding: price cap stepper (5g each by default; at or above it the normal rule applies and the item goes to the bank alt), scope, "To them" / "To their alt" (when their Mailworthy has named one), Remove. The Mailworthy window shows them with Skip once (until the mailbox closes) and Remove | account (per realm + faction) or **per character**; this character's bindings win |
 
 ### Bank alt picker (no mistypes)
 
@@ -224,6 +225,39 @@ the bank alt's recorded skill.
 
 Each adapter returns copper per unit or `nil`, plus its source name. The
 preview shows which source priced each line.
+
+## Bindings: a profession's materials to a friend (operator, 2026-10-26)
+
+"Send my enchanting mats to a guild member, bind that, and it sends them that way until
+cancelled." `Routes.lua` holds the bindings; `Routes.Divert` is pure: after the normal
+verdict, a trade good a bound profession uses (`Valuation.PROFESSION_MATS`) becomes `mail`
+with route `friend` and `to` = the bound player, whatever its value, unless the verdict is
+a hard keep (locked, soulbound, quest, in use, tool, info not loaded) or the smoothed unit
+price is at or above the binding's **cap** (then the normal rule applies: the item goes to
+the bank alt, and the scan says why). A binding beats "your Tailoring needs it": an
+explicit choice over the default keep. The bank alt's tags ignore bindings.
+
+- **Scope:** all the account's characters on the realm + faction (`MailworthyDB.routes`)
+  or this character (`MailworthyCharDB.routes`); this character's win; first match wins.
+- **Skip once:** a session flag per binding, cleared at `MAIL_CLOSED`; the window row
+  says "skipped this time" with Undo. **Remove** in the window and the friends window.
+- **Mailer:** `Plan(items, bankAlt)` makes the bank alt's mails first, then one run per
+  binding (recipient + materials) with subject "Mailworthy 2/3: Enchanting materials" and a
+  one-line body naming the sender; `Blocker` needs a bank alt only for the bank alt's
+  mails and refuses a binding that points at this character. Records `to` per item.
+- **Who can be bound:** party / raid units, the guild through `C_Club` member info
+  (`GetGuildRosterInfo` fallback; the roster is asked for with `C_GuildInfo.GuildRoster()`,
+  10 s apart), the account's known characters (with their recorded professions), and
+  Mailworthy users heard from. Names lose any "-Realm" suffix.
+- **Hellos (`Comms.lua`, `/mw feature comms`):** `H1|<bank alt>|<skill lines>` to GUILD and
+  PARTY / RAID at login (8 s), on group changes, on a bank alt change (10 s apart), and in
+  answer to `A1` (the friends window asks, 30 s apart). Peers are data: names cleaned and
+  length-checked, professions must be known crafting skill lines, kept 60 days in
+  `MailworthyDB.peers`. A binding's "To their alt" uses the alt the peer's **latest** hello
+  named; unknown alt = to them. The operator accepted the risk (a peer names its own alt)
+  as an opt-in per binding; the window always shows the actual recipient.
+- Two presses with the controller: the friends window is all buttons (Nav / PadKey
+  "settings" set).
 
 ## Mailing
 
@@ -342,6 +376,8 @@ only in `## OptionalDeps`).
 | `SettingsUI.lua` / `Widgets.lua` | the settings window (bank alt picker, steppers, toggles); shared window helpers | busted + in game |
 | `MinimapButton.lua` | minimap button that opens settings (from LedgerLink) | busted |
 | `Report.lua` | `/mw report`, one copyable report; AH sale mails (house cut) | busted |
+| `Routes.lua` / `RoutesUI.lua` | bindings (a profession's materials to a player): store, pure divert with price cap, skip once, candidates (party, guild, own characters, peers); the friends window | busted |
+| `Comms.lua` | hellos between Mailworthys (bank alt, professions) over addon messages | busted |
 
 SavedVariables: `MailworthyDB` (account: characters, bank alt per
 realm+faction, name history, settings, blocked actions) and

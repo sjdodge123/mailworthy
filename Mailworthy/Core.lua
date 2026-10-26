@@ -17,6 +17,9 @@ function ns.Init()
     MailworthyDB.selftest = nil -- discovery builds' self-test data (answers, test results, old log)
     MailworthyDB.log = type(MailworthyDB.log) == "table" and MailworthyDB.log or {}
     MailworthyCharDB.lockedItems = MailworthyCharDB.lockedItems or {} -- itemID -> { link, at }
+    MailworthyCharDB.routes = MailworthyCharDB.routes or {}           -- this character's bindings (Routes.lua)
+    MailworthyDB.routes = MailworthyDB.routes or {}                   -- realm|faction -> the account's bindings
+    MailworthyDB.peers = MailworthyDB.peers or {}                     -- realm|faction -> Mailworthy users heard from
     MailworthyDB.features = MailworthyDB.features or {}
 end
 
@@ -24,7 +27,7 @@ end
 -- can be isolated with /mw feature <name> off + /reload instead of a new build.
 ns.Features = { DEFAULTS = {
     mailButton = true, padTriangle = true, padNav = true, padLock = true, altClickLock = true, slotBorder = true,
-    minimapButton = true, bankAltTags = true, tooltipLines = true,
+    minimapButton = true, bankAltTags = true, tooltipLines = true, comms = true,
 } }
 
 function ns.Features.Describe()
@@ -94,10 +97,12 @@ local HELP = {
         .. " In the Mailworthy window, pressing an item locks or unlocks it.",
     "/mw or /mw settings - bank alt, minimum gain, disenchant, listing length, keep your professions' materials"
         .. " (also: tags, lock glow, minimap button)",
+    "/mw friends - send a profession's materials to a guild member, party member or one of your characters"
+        .. " (bindings; the Mailworthy window shows them with Skip once)",
     "/mw locks - list this character's locked items",
     "/mw scan - what Mailworthy would mail and why (sends nothing)",
     "/mw summary - on your bank alt: what to list, disenchant or vendor",
-    "/mw feature <mailButton|padTriangle|padNav|padLock|altClickLock|slotBorder|minimapButton|bankAltTags|tooltipLines>"
+    "/mw feature <mailButton|padTriangle|padNav|padLock|altClickLock|slotBorder|minimapButton|bankAltTags|tooltipLines|comms>"
         .. " on|off"
         .. " - isolate a problem (then /reload)",
     "/mw report - a copyable report for bug reports",
@@ -118,6 +123,8 @@ function ns.HandleSlash(msg)
         featureCommand(rest)
     elseif cmd == "locks" then
         ns.Locks.PrintList()
+    elseif cmd == "friends" or cmd == "bindings" then
+        ns.RoutesUI.Show()
     elseif cmd == "scan" then
         ns.Bags.Scan()
     elseif cmd == "summary" then

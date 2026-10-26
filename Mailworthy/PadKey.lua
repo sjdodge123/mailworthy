@@ -11,7 +11,7 @@
 --   window  mail window focused, Mailworthy window open:    Triangle closes,
 --           D-pad moves Mailworthy's highlight (Nav), Cross presses, Circle closes
 --   bags    bags focused:  L3 locks / unlocks the selected item (Locks)
---   settings  the settings window open, anywhere (out of combat): D-pad moves,
+--   settings  the settings, friends, summary or report window open, anywhere (out of combat): D-pad moves,
 --           Cross presses, Circle closes it. Our own window, so no Blizzard
 --           panel needs focus; the bindings go as soon as it closes.
 --
@@ -74,7 +74,7 @@ function PadKey.Wanted()
     if InCombatLockdown() or not ns.MailButton.GamepadUI() then return nil end
     -- "settings": our free-standing windows (settings, bank alt summary, report), anywhere.
     local standalone = false
-    for _, mod in ipairs({ ns.SettingsUI, ns.BankAlt, ns.Report }) do
+    for _, mod in ipairs({ ns.SettingsUI, ns.RoutesUI, ns.BankAlt, ns.Report }) do
         local f = mod and mod.Frame()
         if f and f:IsShown() then standalone = true end
     end

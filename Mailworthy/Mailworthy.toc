@@ -19,6 +19,8 @@ Border.lua
 Prices.lua
 Valuation.lua
 Config.lua
+Routes.lua
+Comms.lua
 Bags.lua
 Mailer.lua
 Widgets.lua
@@ -26,6 +28,7 @@ MailButton.lua
 Nav.lua
 PadKey.lua
 SettingsUI.lua
+RoutesUI.lua
 MinimapButton.lua
 MailWindow.lua
 BankAlt.lua

@@ -1,0 +1,458 @@
+-- Bindings: "send my Enchanting materials to Bob" (operator, 2026-10-26). A binding
+-- ties one crafting profession to one player (a guild member, a party member or
+-- one of the player's own characters): every trade good that profession uses
+-- (Valuation.PROFESSION_MATS) is mailed to that player instead of being valued
+-- for the auction house, until the binding is removed. Saved for all the
+-- account's characters on this realm + faction (MailworthyDB.routes) or for this
+-- character only (MailworthyCharDB.routes); this character's bindings win.
+--
+-- Safety: locks, soulbound / quest / in-use items and profession tools still
+-- stay; a binding never mails what the normal rule wouldn't touch. The price
+-- cap ("to my alt above 5g each", a stepper on the binding) keeps a material
+-- the market suddenly wants: at or above the cap the normal rule applies and
+-- the item goes to the bank alt. "Skip once" drops a binding for this mailbox
+-- visit (cleared at MAIL_CLOSED). The recipient is always shown in the window.
+--
+-- Who can be bound: the party / raid (unit tokens), the guild (C_Club member
+-- info, which carries each member's two professions and presence, as Blizzard's
+-- Communities roster reads it on Forever; GetGuildRosterInfo as the fallback),
+-- the account's known characters, and whoever Comms heard from. Every game call
+-- is guarded; a missing API just means a shorter list.
+local _, ns = ...
+
+local Routes = {}
+ns.Routes = Routes
+
+Routes.CAP_STEPS = { 5000, 10000, 20000, 50000, 100000, 250000, 500000, 1000000 } -- copper per unit; nil = no cap
+Routes.DEFAULT_CAP = 50000  -- 5g each: "an insane market high" while levelling (operator, 2026-10-26)
+Routes.MAX = 12             -- bindings per scope
+Routes.SCOPES = { account = "All my characters", character = "This character" }
+Routes.ROUTE = "friend"     -- the verdict route of a diverted item
+
+-- Verdicts a binding never overrides (AGENTS safety: never a locked item, and
+-- nothing the game wouldn't let us attach).
+Routes.HARD_KEEPS = {
+    locked = true, soulbound = true, ["quest item"] = true, ["in use"] = true,
+    ["profession tool"] = true, ["item info not loaded yet"] = true,
+}
+
+local skipped = {} -- route key -> true for this mailbox visit
+
+local function call(fn, ...)
+    if type(fn) ~= "function" then return nil end
+    local results = { pcall(fn, ...) }
+    if not results[1] then return nil end
+    return unpack(results, 2, table.maxn(results))
+end
+
+local function realmKey()
+    local _, realm, faction = ns.Characters.Current()
+    return tostring(realm) .. "|" .. tostring(faction)
+end
+
+local function accountList()
+    MailworthyDB.routes = type(MailworthyDB.routes) == "table" and MailworthyDB.routes or {}
+    local key = realmKey()
+    MailworthyDB.routes[key] = type(MailworthyDB.routes[key]) == "table" and MailworthyDB.routes[key] or {}
+    return MailworthyDB.routes[key]
+end
+
+local function charList()
+    MailworthyCharDB.routes = type(MailworthyCharDB.routes) == "table" and MailworthyCharDB.routes or {}
+    return MailworthyCharDB.routes
+end
+
+local function listFor(scope)
+    return scope == "character" and charList() or accountList()
+end
+
+--- Pure: a player name as mail wants it: spaces collapsed, any "-Realm" suffix dropped
+--- (guild rosters and addon messages carry one; a Forever name never has a hyphen).
+function Routes.Clean(name)
+    name = ns.Config.Clean(name)
+    if not name then return nil end
+    name = name:match("^([^%-]+)") or name
+    return ns.Config.Clean(name)
+end
+
+--- The crafting professions a binding can name: { { id, name, mats }, ... } by name.
+function Routes.Professions()
+    local list = {}
+    for id, p in pairs(ns.Valuation.PROFESSION_MATS) do list[#list + 1] = { id = id, name = p.name, mats = p.mats } end
+    table.sort(list, function(a, b) return a.name < b.name end)
+    return list
+end
+
+function Routes.ProfessionName(id)
+    local p = ns.Valuation.PROFESSION_MATS[tonumber(id) or -1]
+    return p and p.name or nil
+end
+
+--- Pure: "Enchanting materials" (the profession's materials, for rows and subjects).
+function Routes.What(route)
+    return (Routes.ProfessionName(route.profession) or "?") .. " materials"
+end
+
+function Routes.Key(profession, to)
+    return tostring(profession) .. "|" .. tostring(to):lower()
+end
+
+--- Pure: the item is a trade good the binding's profession uses.
+function Routes.Matches(route, item)
+    if item.classID ~= ns.Valuation.TRADE_GOODS then return false end
+    local p = ns.Valuation.PROFESSION_MATS[tonumber(route.profession) or -1]
+    return p ~= nil and p.subclasses[item.subclassID] == true
+end
+
+--- Where a binding's mail goes right now: the bound player, or, when the binding says
+--- "to their bank alt" and that player's own Mailworthy has told us one, that alt.
+function Routes.Recipient(route)
+    if route.viaAlt and ns.Comms then
+        local peer = ns.Comms.Peer(route.to)
+        if peer and peer.bankAlt then return peer.bankAlt, true end
+    end
+    return route.to, false
+end
+
+--- Pure: divert an item to a binding. `verdict` is Valuation.Evaluate's result for the
+--- item, `routes` the active bindings (Routes.Active()). Returns the new verdict, or nil
+--- when no binding applies; a second return names the binding whose cap kept the item on
+--- the normal rule.
+function Routes.Divert(item, verdict, price, settings, routes)
+    if verdict and verdict.action == "keep" and Routes.HARD_KEEPS[verdict.reason] then return nil end
+    for _, route in ipairs(routes or {}) do
+        if Routes.Matches(route, item) then
+            local unit
+            if type(price) == "table" and price.ah ~= nil
+                and (price.age == nil or price.age <= (settings and settings.maxAgeDays or math.huge)) then
+                unit = ns.Valuation.SmoothedPrice(price)
+            end
+            if route.cap and unit and unit >= route.cap then return nil, route end
+            local to, viaAlt = Routes.Recipient(route)
+            local n = item.count or 1
+            return {
+                action = "mail", route = Routes.ROUTE, to = to, viaAlt = viaAlt, key = route.key, what = Routes.What(route),
+                reason = Routes.What(route) .. " go to " .. tostring(to),
+                vendor = (item.vendor or 0) * n, postage = (settings and settings.postage or 30) * (item.stacks or 1),
+                ahUnit = unit,
+            }
+        end
+    end
+    return nil
+end
+
+-- Saved bindings ----------------------------------------------------------------
+
+local function withKeys(list, scope)
+    local out = {}
+    for _, r in ipairs(list) do
+        if type(r) == "table" and r.to and r.profession then
+            local copy = {}
+            for k, v in pairs(r) do copy[k] = v end
+            copy.scope, copy.key = scope, Routes.Key(r.profession, r.to)
+            out[#out + 1] = copy
+        end
+    end
+    return out
+end
+
+--- Every binding that applies to this character: this character's first, then the
+--- account's for this realm + faction. Each carries `scope` and `key`.
+function Routes.List()
+    local list = withKeys(charList(), "character")
+    for _, r in ipairs(withKeys(accountList(), "account")) do list[#list + 1] = r end
+    return list
+end
+
+function Routes.Count() return #Routes.List() end
+
+--- The bindings in force for this mailbox visit (not skipped once).
+function Routes.Active()
+    local list = {}
+    for _, r in ipairs(Routes.List()) do
+        if not skipped[r.key] then list[#list + 1] = r end
+    end
+    return list
+end
+
+local function find(key)
+    for _, scope in ipairs({ "character", "account" }) do
+        local list = listFor(scope)
+        for i, r in ipairs(list) do
+            if type(r) == "table" and Routes.Key(r.profession, r.to) == key then return list, i, r, scope end
+        end
+    end
+    return nil
+end
+
+function Routes.Get(key)
+    local _, _, r, scope = find(key)
+    if not r then return nil end
+    local copy = {}
+    for k, v in pairs(r) do copy[k] = v end
+    copy.scope, copy.key = scope, key
+    return copy
+end
+
+--- Add a binding. opts: scope ("account" default / "character"), cap (copper; false = none),
+--- viaAlt. Returns the binding, or nil and why.
+function Routes.Add(name, profession, opts)
+    opts = opts or {}
+    name = Routes.Clean(name)
+    if not name then return nil, "no name" end
+    if name:lower() == tostring(ns.PlayerName()):lower() then return nil, "that's this character" end
+    profession = tonumber(profession)
+    if not Routes.ProfessionName(profession) then return nil, "not a crafting profession" end
+    local key = Routes.Key(profession, name)
+    if find(key) then return nil, "already bound" end
+    local scope = opts.scope == "character" and "character" or "account"
+    local list = listFor(scope)
+    if #list >= Routes.MAX then return nil, "too many bindings" end
+    local route = { to = name, profession = profession, cap = opts.cap == nil and Routes.DEFAULT_CAP or (opts.cap or nil),
+        viaAlt = opts.viaAlt == true, at = call(GetServerTime) or time() }
+    list[#list + 1] = route
+    ns.Log.Add("routes", "bound %s to %s (%s)", Routes.What(route), name, scope)
+    return Routes.Get(key)
+end
+
+function Routes.Remove(key)
+    local list, i, r = find(key)
+    if not list then return false end
+    table.remove(list, i)
+    skipped[key] = nil
+    ns.Log.Add("routes", "unbound %s to %s", Routes.What(r), r.to)
+    return true
+end
+
+--- Move a binding between "account" and "character".
+function Routes.SetScope(key, scope)
+    local list, i, r, current = find(key)
+    if not list or current == scope or not Routes.SCOPES[scope] then return false end
+    local target = listFor(scope)
+    if #target >= Routes.MAX then return false end
+    table.remove(list, i)
+    target[#target + 1] = r
+    ns.Log.Add("routes", "%s to %s now %s", Routes.What(r), r.to, scope)
+    return true
+end
+
+function Routes.ToggleScope(key)
+    local r = Routes.Get(key)
+    if not r then return false end
+    return Routes.SetScope(key, r.scope == "account" and "character" or "account")
+end
+
+--- Pure: the next cap in direction +1 / -1; past the top step the cap goes (nil = none).
+function Routes.NextCap(cap, dir)
+    local steps = Routes.CAP_STEPS
+    if cap == nil then
+        if dir > 0 then return nil end
+        return steps[#steps]
+    end
+    local i, nearest = 1, math.huge
+    for j, v in ipairs(steps) do
+        if math.abs(v - cap) < nearest then i, nearest = j, math.abs(v - cap) end
+    end
+    if dir > 0 then return steps[i + 1] end -- nil past the last step: no cap
+    return steps[math.max(1, i - 1)]
+end
+
+function Routes.StepCap(key, dir)
+    local _, _, r = find(key)
+    if not r then return end
+    r.cap = Routes.NextCap(r.cap, dir)
+    ns.Log.Add("routes", "%s to %s: cap %s", Routes.What(r), r.to, r.cap and ns.Valuation.Money(r.cap) or "none")
+end
+
+function Routes.SetViaAlt(key, on)
+    local _, _, r = find(key)
+    if not r then return end
+    r.viaAlt = on == true
+end
+
+--- Pure: "to my alt above 5g each" / "no price cap".
+function Routes.CapText(route)
+    if not route.cap then return "no price cap" end
+    return "to my alt at " .. ns.Valuation.Money(route.cap) .. " each or more"
+end
+
+--- Pure: "Enchanting materials to Bob Surname".
+function Routes.Describe(route)
+    return Routes.What(route) .. " to " .. tostring(route.to)
+end
+
+-- Skip once (this mailbox visit) --------------------------------------------------
+
+function Routes.SkipOnce(key)
+    if find(key) then skipped[key] = true end
+end
+
+function Routes.Unskip(key) skipped[key] = nil end
+function Routes.Skipped(key) return skipped[key] == true end
+function Routes.ClearSkips() skipped = {} end
+
+ns.On("MAIL_CLOSED", function() Routes.ClearSkips() end)
+
+-- Candidates: who can be bound ------------------------------------------------------
+
+local function presenceOnline(presence)
+    local enum = rawget(_G, "Enum")
+    local p = type(enum) == "table" and enum.ClubMemberPresence or {}
+    local offline, unknown = p.Offline or 3, p.Unknown or 0
+    return presence ~= nil and presence ~= offline and presence ~= unknown
+end
+
+local function addCandidate(list, byName, c)
+    c.name = Routes.Clean(c.name)
+    if not c.name or c.name:lower() == tostring(ns.PlayerName()):lower() then return end
+    local entry = byName[c.name:lower()]
+    if not entry then
+        entry = { name = c.name, sources = {}, professions = {}, professionSet = {}, online = false }
+        byName[c.name:lower()] = entry
+        list[#list + 1] = entry
+    end
+    entry.sources[c.source] = true
+    entry.online = entry.online or c.online == true
+    entry.class, entry.level = entry.class or c.class, entry.level or c.level
+    for _, id in ipairs(c.professions or {}) do
+        id = tonumber(id)
+        if Routes.ProfessionName(id) and not entry.professionSet[id] then
+            entry.professionSet[id] = true
+            entry.professions[#entry.professions + 1] = id
+        end
+    end
+end
+
+local function groupCandidates(list, byName)
+    local n = tonumber((call(GetNumGroupMembers))) or 0
+    if n == 0 then return end
+    local raid = call(IsInRaid) == true
+    for i = 1, n do
+        local unit = raid and ("raid" .. i) or ("party" .. (i - 1))
+        if unit ~= "party0" then
+            local name = call(GetUnitName, unit, true) or call(UnitName, unit)
+            if name then
+                local _, class = call(UnitClass, unit)
+                addCandidate(list, byName, { name = name, source = "party", online = call(UnitIsConnected, unit) ~= false,
+                    class = class, level = call(UnitLevel, unit) })
+            end
+        end
+    end
+end
+
+local function guildCandidates(list, byName)
+    if call(IsInGuild) ~= true then return end
+    local club = rawget(_G, "C_Club")
+    local clubId = type(club) == "table" and call(club.GetGuildClubId) or nil
+    local members = clubId and call(club.GetClubMembers, clubId) or nil
+    if type(members) == "table" and #members > 0 then
+        for _, memberId in ipairs(members) do
+            local info = call(club.GetMemberInfo, clubId, memberId)
+            if type(info) == "table" and info.name and not info.isSelf then
+                addCandidate(list, byName, { name = info.name, source = "guild", online = presenceOnline(info.presence),
+                    level = info.level, professions = { info.profession1ID, info.profession2ID } })
+            end
+        end
+        return
+    end
+    for i = 1, tonumber((call(GetNumGuildMembers))) or 0 do
+        local name, _, _, level, _, _, _, _, online, _, class = call(GetGuildRosterInfo, i)
+        if name then
+            addCandidate(list, byName, { name = name, source = "guild", online = online == true, level = level, class = class })
+        end
+    end
+end
+
+local function altCandidates(list, byName)
+    for _, entry in ipairs(ns.Characters.Mailable()) do
+        local ids = {}
+        for _, p in ipairs(entry.professions or {}) do ids[#ids + 1] = p.skillLine end
+        addCandidate(list, byName, { name = entry.name, source = "alt", class = entry.class, level = entry.level,
+            professions = ids })
+    end
+end
+
+local function peerCandidates(list, byName)
+    if not ns.Comms then return end
+    for _, peer in pairs(ns.Comms.Peers()) do
+        addCandidate(list, byName, { name = peer.name, source = "mailworthy", professions = peer.professions })
+        local entry = byName[tostring(Routes.Clean(peer.name) or ""):lower()]
+        if entry then entry.peer = peer end
+    end
+end
+
+--- Pure: a candidate's professions Mailworthy can bind, by name: { { id, name }, ... }.
+function Routes.Suggested(candidate)
+    local list = {}
+    for _, id in ipairs(candidate.professions or {}) do list[#list + 1] = { id = id, name = Routes.ProfessionName(id) } end
+    table.sort(list, function(a, b) return a.name < b.name end)
+    return list
+end
+
+--- Pure: "Bob Surname - Enchanting, Tailoring - online - guild, Mailworthy".
+function Routes.CandidateText(c)
+    local parts = { c.name }
+    local profs = {}
+    for _, p in ipairs(Routes.Suggested(c)) do profs[#profs + 1] = p.name end
+    if #profs > 0 then parts[#parts + 1] = table.concat(profs, ", ") end
+    if c.online then parts[#parts + 1] = "online" end
+    local where = {}
+    for _, s in ipairs({ "party", "guild", "alt" }) do
+        if c.sources[s] then where[#where + 1] = s == "alt" and "my character" or s end
+    end
+    if c.sources.mailworthy or c.peer then where[#where + 1] = "Mailworthy" end
+    if #where > 0 then parts[#parts + 1] = table.concat(where, ", ") end
+    return table.concat(parts, " - ")
+end
+
+--- Everyone this character could bind: online players first, then the account's own
+--- characters, then Mailworthy users, then party before guild, by name. Each: { name, sources = { party / guild / alt /
+--- mailworthy }, online, class, level, professions = { ids... }, peer }.
+function Routes.Candidates()
+    local list, byName = {}, {}
+    groupCandidates(list, byName)
+    guildCandidates(list, byName)
+    altCandidates(list, byName)
+    peerCandidates(list, byName)
+    local rank = { party = 1, guild = 2, alt = 3 }
+    local function best(c)
+        local r = 9
+        for s, n in pairs(rank) do if c.sources[s] and n < r then r = n end end
+        return r
+    end
+    table.sort(list, function(a, b)
+        if a.online ~= b.online then return a.online end
+        local aa, ab = a.sources.alt == true, b.sources.alt == true -- own characters: mail always arrives
+        if aa ~= ab then return aa end
+        local pa, pb = a.peer ~= nil, b.peer ~= nil
+        if pa ~= pb then return pa end
+        local ra, rb = best(a), best(b)
+        if ra ~= rb then return ra < rb end
+        return a.name < b.name
+    end)
+    return list
+end
+
+local lastRosterRequest = -math.huge
+--- Ask the game for a fresh guild roster (what Blizzard's mail window does when the
+--- auto-complete list is empty), at most every 10 s.
+function Routes.RequestRoster()
+    local now = call(GetTime) or 0
+    if now - lastRosterRequest < 10 then return end
+    lastRosterRequest = now
+    local guild = rawget(_G, "C_GuildInfo")
+    if call(IsInGuild) == true and type(guild) == "table" then call(guild.GuildRoster) end
+end
+
+--- One line per binding for /mw report.
+function Routes.ReportLines()
+    local lines = {}
+    for _, r in ipairs(Routes.List()) do
+        local to, viaAlt = Routes.Recipient(r)
+        lines[#lines + 1] = string.format("binding: %s (%s, %s%s%s)", Routes.Describe(r),
+            r.scope == "character" and "this character" or "all my characters", Routes.CapText(r),
+            viaAlt and (", via their bank alt " .. to) or (r.viaAlt and ", via their bank alt (not reported yet)" or ""),
+            skipped[r.key] and ", skipped this visit" or "")
+    end
+    return lines
+end

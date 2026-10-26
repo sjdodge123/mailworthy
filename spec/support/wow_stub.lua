@@ -31,6 +31,9 @@ local function defaultState()
         inbox = {}, invoices = {},
         mods = {}, bindings = {}, bindingOwners = {}, activeFrame = nil, now = 1000, gamepadUI = false,
         navButton = nil,
+        -- bindings: guild = nil (not in one) or { clubId, members = { { name, level, class, online, professions } } },
+        -- group = nil or { raid, members = { ... } } (party: the others; raid: everyone), addon messages sent / prefixes
+        guild = nil, group = nil, addonMessages = {}, prefixes = {}, rosterRequests = 0,
     }
 end
 
@@ -228,13 +231,86 @@ _G.ClearOverrideBindings = function(owner)
 end
 _G.GetBindingAction = function(key) return s().bindings[key] or "" end
 
--- Character
-_G.GetUnitName = function() return s().name end
-_G.UnitName = function() return (s().name:match("^(%S+)")) end
+-- Character, party / raid units
+local function groupUnit(unit)
+    local g = s().group
+    if type(unit) ~= "string" or not g then return nil end
+    local kind, i = unit:match("^(%a+)(%d+)$")
+    if kind == "party" and not g.raid then return g.members[tonumber(i)] end
+    if kind == "raid" and g.raid then return g.members[tonumber(i)] end
+    return nil
+end
+_G.GetUnitName = function(unit)
+    if unit == nil or unit == "player" then return s().name end
+    local m = groupUnit(unit)
+    return m and m.name or nil
+end
+_G.UnitName = function(unit)
+    if unit == nil or unit == "player" then return (s().name:match("^(%S+)")) end
+    local m = groupUnit(unit)
+    return m and (m.name:match("^(%S+)")) or nil
+end
 _G.GetRealmName = function() return s().realm end
 _G.UnitFactionGroup = function() return s().faction end
-_G.UnitClass = function() return unpack(s().class, 1, 3) end
-_G.UnitLevel = function() return s().level end
+_G.UnitClass = function(unit)
+    if unit == nil or unit == "player" then return unpack(s().class, 1, 3) end
+    local m = groupUnit(unit)
+    if m then return m.class or "Warrior", (m.class or "WARRIOR"):upper(), 1 end
+end
+_G.UnitLevel = function(unit)
+    if unit == nil or unit == "player" then return s().level end
+    local m = groupUnit(unit)
+    return m and m.level or nil
+end
+_G.UnitIsConnected = function(unit)
+    local m = groupUnit(unit)
+    return m ~= nil and m.online ~= false
+end
+_G.GetNumGroupMembers = function()
+    local g = s().group
+    if not g then return 0 end
+    return g.raid and #g.members or (#g.members + 1)
+end
+_G.IsInRaid = function() return s().group ~= nil and s().group.raid == true end
+
+-- Guild: C_Club member info (presence 1 = online, 3 = offline, as Enum.ClubMemberPresence), the
+-- GetGuildRosterInfo fallback when the club has no members, roster requests counted.
+_G.IsInGuild = function() return s().guild ~= nil end
+_G.GetNumGuildMembers = function() return s().guild and #s().guild.members or 0 end
+_G.GetGuildRosterInfo = function(i)
+    local m = s().guild and s().guild.members[i]
+    if not m then return nil end
+    return m.name, "Member", 1, m.level, m.class, "Zone", "", "", m.online == true, 0, (m.class or "WARRIOR"):upper()
+end
+_G.C_GuildInfo = { GuildRoster = function() s().rosterRequests = s().rosterRequests + 1 end }
+_G.C_Club = {
+    GetGuildClubId = function() return s().guild and s().guild.clubId or nil end,
+    GetClubMembers = function(clubId)
+        local ids = {}
+        local g = s().guild
+        if g and g.clubId == clubId and g.club ~= false then
+            for i in ipairs(g.members) do ids[#ids + 1] = i end
+        end
+        return ids
+    end,
+    GetMemberInfo = function(clubId, i)
+        local g = s().guild
+        local m = g and g.clubId == clubId and g.members[i]
+        if not m then return nil end
+        return { isSelf = m.name == s().name, memberId = i, name = m.name .. (m.realm and ("-" .. m.realm) or ""),
+            presence = m.online and 1 or 3, level = m.level, classID = 1,
+            profession1ID = m.professions and m.professions[1], profession2ID = m.professions and m.professions[2] }
+    end,
+}
+
+-- Addon messages: what Mailworthy sends is recorded; CHAT_MSG_ADDON is fired by the tests.
+_G.C_ChatInfo = {
+    RegisterAddonMessagePrefix = function(prefix) s().prefixes[prefix] = true; return 0 end,
+    SendAddonMessage = function(prefix, message, channel, target)
+        table.insert(s().addonMessages, { prefix = prefix, message = message, channel = channel, target = target })
+        return 0
+    end,
+}
 _G.GetServerTime = function() return s().serverTime end
 _G.InCombatLockdown = function() return s().inCombat end
 _G.GetBuildInfo = function() return "1.60.1", "70338", "Oct  9 2026", 16001 end

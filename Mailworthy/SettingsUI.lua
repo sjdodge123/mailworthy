@@ -1,6 +1,6 @@
 -- The settings window: bank alt (picked, declared by the bank alt itself, or typed),
 -- minimum gain, disenchant, listing length, tags, locked-item glow, profession
--- materials, minimap button. Keyboard/mouse: click. Controller: the D-pad moves Mailworthy's
+-- materials, minimap button, the way into the friends window (bindings). Keyboard/mouse: click. Controller: the D-pad moves Mailworthy's
 -- own highlight, Cross presses, Circle closes (PadKey "settings" set, Nav); every
 -- setting is a button, so nothing needs typing. The name box is an optional
 -- fallback the player clicks into (the game never moves focus: no SetFocus).
@@ -15,11 +15,11 @@ local UI = {}
 ns.SettingsUI = UI
 
 UI.MAX_CHOICES = 6
-local WIDTH, HEIGHT, ROW = 420, 670, 26
+local WIDTH, HEIGHT, ROW = 420, 702, 26
 
 local frame, nameBox, nameHint, current, emptyHint, legend
 local choiceRows = {}
-local amountLabel, pctLabel, disenchantButton, minimapButton, tagsButton, glowButton, matsButton, hereButton
+local amountLabel, pctLabel, disenchantButton, minimapButton, tagsButton, glowButton, matsButton, hereButton, friendsButton
 local durationButtons = {}
 local pendingUnknown -- a typed name Mailworthy hasn't seen, waiting for a second press
 
@@ -213,6 +213,8 @@ function UI.Create()
         UI.Refresh()
     end, "MailworthySettingsMats")
     matsButton:SetPoint("TOPLEFT", 24, -600)
+    friendsButton = W.Button(frame, "", 364, function() ns.RoutesUI.Show() end, "MailworthySettingsFriends")
+    friendsButton:SetPoint("TOPLEFT", 24, -632)
     W.Button(frame, "Done", 100, function() frame:Hide() end, "MailworthySettingsDone")
         :SetPoint("TOPRIGHT", -24, -536)
     legend = W.Label(frame, "GameFontHighlightSmall")
@@ -266,6 +268,9 @@ function UI.Refresh()
     end
     matsButton:SetText(string.format("Keep my professions' materials: %s%s", v.keepProfessionMats and "on" or "off",
         #crafting > 0 and (" - " .. table.concat(crafting, ", ")) or " - no crafting profession here"))
+    local bindings = ns.Routes.Count()
+    friendsButton:SetText("Send materials to friends: " .. (bindings == 0 and "no bindings yet..."
+        or (bindings .. " binding" .. (bindings == 1 and "" or "s") .. "...")))
     legend:SetText(ns.MailButton.GamepadUI() and W.Legend() or "")
 end
 
