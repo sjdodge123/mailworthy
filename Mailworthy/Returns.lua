@@ -34,6 +34,8 @@ function Returns.On() return on and Returns.Available() end
 function Returns.Set(value)
     on = value == true
     ns.Log.Add("returns", "return to sender %s", on and "on" or "off")
+    -- The bag tags count Return to sender (R): redraw them (Codex review, 2026-11-13).
+    if ns.BankAlt and ns.BankAlt.Redraw then pcall(ns.BankAlt.Redraw) end
 end
 
 function Returns.Toggle()

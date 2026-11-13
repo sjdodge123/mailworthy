@@ -547,7 +547,8 @@ function BankAlt.RefreshWindow()
     header:SetText(c.result.priced and "With today's prices" or "No auction prices here: install Auctionator or TSM")
     for key, row in pairs(rows) do
         -- The chip as the bag tag reads (BA / BH follow where this character banks).
-        local tag = BankAlt.Tag(key == "pin" and (BankAlt.BanksHere() and "here" or "b") or key)
+        -- Pins follow this character's pin mode (BH by the setting too: Codex review, 2026-11-13).
+        local tag = BankAlt.Tag(key == "pin" and (ns.Pins.HereBecause() and "here" or "b") or key)
         row.chipBg:SetColorTexture(tag.bg[1], tag.bg[2], tag.bg[3], 0.9)
         row.chip:SetText(tag.text .. " " .. (key == "pin" and "pinned" or tag.label:lower()))
         local text, value = ROW_TEXT[key](summary[key])
