@@ -119,10 +119,10 @@ local HELP = {
     "/mw ledger - what other players mailed you beyond what you sent back, and Export log (every mail sent"
         .. " and received)",
     "/mw summary - on your bank alt (or without one): what to list, disenchant or vendor",
-    "/mw feature <mailButton|padTriangle|padNav|padLock|padPin|altClickLock|pinClick|slotBorder|minimapButton|bankAltTags"
     "At a vendor: the \"Mailworthy: sell V\" button under the merchant window ({PAD4} with a controller, or /mw vendor)"
         .. " lists the items tagged V and sells them, 12 stacks a press (the Buyback tab can undo a press).",
-    "/mw feature <mailButton|padTriangle|padNav|padLock|altClickLock|slotBorder|vendorButton|padVendor|minimapButton|bankAltTags"
+    "/mw feature <mailButton|padTriangle|padNav|padLock|padPin|altClickLock|pinClick|slotBorder|vendorButton|padVendor"
+        .. "|minimapButton|bankAltTags"
         .. "|tooltipLines|comms|staleNudge|tiers|tierCheck|guildTemplate|ledger|questNeeds|autoOpen|returnToSender|bankAltMail"
         .. "|peerMark|versionNotice|tripNudge|crafterOffer"
         .. "|baganatorTags|bagnonTags|arkInventoryTags|betterBagsTags|auctionatorTags> on|off"

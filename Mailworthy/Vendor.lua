@@ -13,7 +13,11 @@
 --     can always be undone at the same merchant; the window says how many are left for the next;
 --   * each slot is re-read right before it is sold (same item, same count, not locked by the
 --     game); anything that changed is skipped;
---   * selling stops when the merchant closes or combat starts.
+--   * selling stops when the merchant closes or combat starts;
+--   * the V verdicts are the bag tags' (BankAlt.Settings): an item a friend's binding takes is F, not
+--     V, so it is never listed; and an item another player mailed this character (the mail ledger,
+--     Returns.Current) is never sold, whatever its tag: it may go back to them (Return to sender), and
+--     the window says how many stayed for that reason (2026-11-13).
 --
 -- The way in: a "Mailworthy: sell V (n)" button under the merchant window (created at login on
 -- UIParent, then parented, like the mail button), or Triangle with a controller while the
@@ -43,6 +47,8 @@ local function money(c) return ns.Valuation.Money(c) end
 function Vendor.Frame() return frame end
 function Vendor.Button() return button end
 function Vendor.Busy() return selling end
+--- The window's list as drawn, for specs.
+function Vendor.ListText() return listText and listText:GetText() end
 --- The stacks the window lists right now (what Sell would sell), for specs.
 function Vendor.Batch() return batch end
 
@@ -53,14 +59,31 @@ function Vendor.AtMerchant()
     return type(merchant) ~= "table" or type(merchant.IsShown) ~= "function" or merchant:IsShown() == true
 end
 
+--- What another player mailed this character and it hasn't mailed back (item ID -> list), or {}.
+local function owedBack()
+    if not (ns.Returns.Available() and ns.Ledger) then return {} end
+    local ok, owed = pcall(ns.Returns.Current)
+    return ok and type(owed) == "table" and owed or {}
+end
+
+local heldForReturn = 0 -- stacks with a V tag left off the list: another player mailed them here
+
 --- Every bag stack with a V verdict, in bag order: { bag, slot, itemID, link, count, price }
---- (price = what the vendor pays for the stack). Valued as the bag tags are.
+--- (price = what the vendor pays for the stack). Valued as the bag tags are. Never an item another
+--- player mailed this character (owedBack): those may go back to them.
 function Vendor.Stacks()
     local stacks = {}
     local result = ns.Bags.Evaluate(ns.BankAlt.Settings())
+    local owed = owedBack()
+    heldForReturn = 0
     for _, list in ipairs({ result.keep, result.mail }) do
         for _, item in ipairs(list) do
-            if ns.BankAlt.Verdict(item) == "v" and not item.locked and not item.noValue and (item.vendor or 0) > 0 then
+            local isV = ns.BankAlt.Verdict(item) == "v"
+            if isV and owed[item.itemID] and #owed[item.itemID] > 0 then
+                heldForReturn = heldForReturn + #item.slots
+                isV = false
+            end
+            if isV and not item.locked and not item.noValue and (item.vendor or 0) > 0 then
                 for _, s in ipairs(item.slots) do
                     stacks[#stacks + 1] = { bag = s.bag, slot = s.slot, itemID = item.itemID, link = item.link,
                         count = s.count, price = item.vendor * s.count }
@@ -215,6 +238,11 @@ function Vendor.Refresh()
     if left > 0 then
         lines[#lines + 1] = string.format("|cffaaaaaa%d more after these: press Sell again (the Buyback tab holds %d).|r",
             left, Vendor.BATCH)
+    end
+    if heldForReturn > 0 then
+        lines[#lines + 1] = string.format("|cffaaaaaa%d V stack%s left off: another player mailed %s to you"
+            .. " (Return to sender at a mailbox).|r", heldForReturn, heldForReturn == 1 and "" or "s",
+            heldForReturn == 1 and "it" or "them")
     end
     if status then lines[#lines + 1] = "|cffffd100" .. status .. "|r" end
     sub:SetText("These are tagged V: a vendor pays more than the auction house or disenchanting would bring."

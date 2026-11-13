@@ -54,6 +54,22 @@ describe("selling V items at a vendor", function()
         for _, line in ipairs(ns.Log.Lines()) do assert.is_nil(line:find("error", 1, true), line) end
     end)
 
+    it("never lists what another player mailed this character: it may go back to them (2026-11-13)", function()
+        ns.Fire("MAIL_SHOW")
+        WowStub.state.inbox = { { sender = "Bob Surname", subject = "for you", daysLeft = 29.9,
+            items = { { itemID = 2589, name = "Linen Cloth", count = 20 } } } }
+        TakeInboxItem(1, 1)
+        ns.Fire("MAIL_SUCCESS", 2589)
+        WowStub.state.inbox = {}
+        WowStub.runTimers(2)
+        ns.Fire("MAIL_CLOSED")
+        for _, s in ipairs(ns.Vendor.Stacks()) do assert.are_not.equal(2589, s.itemID, "Bob's Linen Cloth is listed") end
+        merchant()
+        ns.Vendor.Toggle("spec")
+        assert.truthy(ns.Vendor.ListText():find("2 V stacks left off: another player mailed them to you", 1, true),
+            ns.Vendor.ListText())
+    end)
+
     it("lists exactly the V stacks, in bag order, with what the vendor pays", function()
         local stacks = ns.Vendor.Stacks()
         local got = {}
