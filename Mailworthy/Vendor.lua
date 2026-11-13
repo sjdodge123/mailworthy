@@ -60,8 +60,10 @@ function Vendor.AtMerchant()
 end
 
 --- What another player mailed this character and it hasn't mailed back (item ID -> list), or {}.
+--- Read from the mail ledger whatever the Return to sender switch says: turning that button off
+--- doesn't make another player's item ours to sell (Codex review, 2026-11-13).
 local function owedBack()
-    if not (ns.Returns.Available() and ns.Ledger) then return {} end
+    if not ns.Ledger then return {} end
     local ok, owed = pcall(ns.Returns.Current)
     return ok and type(owed) == "table" and owed or {}
 end
@@ -113,10 +115,14 @@ function Vendor.StillThere(stack)
     local info = ns.Locks.ItemAt(stack.bag, stack.slot)
     if not info or not info.itemID then return false, "the slot is empty" end
     if info.itemID ~= stack.itemID then return false, "a different item is there now" end
+    -- The whole link: a random-suffix variant has the item ID but not the item listed (Codex review).
+    if stack.link and info.hyperlink and info.hyperlink ~= stack.link then return false, "a different item is there now" end
     if (tonumber(info.stackCount) or 1) ~= stack.count then return false, "the stack changed" end
     if info.isLocked then return false, "in use" end
     if info.hasNoValue then return false, "no vendor buys it" end
     if ns.Locks.IsItemLocked(info.itemID) then return false, "locked" end
+    -- A quest may have started asking for it since the list was made (Codex review): never sold.
+    if ns.Quests.For(info.hyperlink or stack.link) then return false, "a quest needs it" end
     return true
 end
 

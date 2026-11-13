@@ -70,6 +70,35 @@ describe("selling V items at a vendor", function()
             ns.Vendor.ListText())
     end)
 
+    it("re-checks each slot right before it sells: a quest need, a different variant (Codex review)", function()
+        local stack = { bag = 0, slot = 3, itemID = 2589, link = WowStub.link(2589, "Linen Cloth"), count = 20 }
+        assert.is_true(ns.Vendor.StillThere(stack))
+        local other = WowStub.item(2589, "Linen Cloth of the Bear", { count = 20, sell = 13, class = 7, subclass = 5 })
+        WowStub.setBag(0, 3, other)
+        local ok, why = ns.Vendor.StillThere(stack)
+        assert.is_false(ok, "the same item ID, another item")
+        assert.equal("a different item is there now", why)
+        put(0, 3, WowStub.item(2589, "Linen Cloth", { count = 20, sell = 13, class = 7, subclass = 5 }), 14)
+        WowStub.state.quests = { { title = "Bandages", objectives = { { text = "Linen Cloth: 0/20", type = "item" } } } }
+        ns.Fire("QUEST_LOG_UPDATE")
+        ok, why = ns.Vendor.StillThere(stack)
+        assert.is_false(ok)
+        assert.equal("a quest needs it", why)
+    end)
+
+    it("what another player mailed stays off the list with Return to sender switched off too (Codex review)", function()
+        ns.Fire("MAIL_SHOW")
+        WowStub.state.inbox = { { sender = "Bob Surname", subject = "for you", daysLeft = 29.9,
+            items = { { itemID = 2589, name = "Linen Cloth", count = 20 } } } }
+        TakeInboxItem(1, 1)
+        ns.Fire("MAIL_SUCCESS", 2589)
+        WowStub.state.inbox = {}
+        WowStub.runTimers(2)
+        ns.Fire("MAIL_CLOSED")
+        MailworthyDB.features.returnToSender = false
+        for _, s in ipairs(ns.Vendor.Stacks()) do assert.are_not.equal(2589, s.itemID) end
+    end)
+
     it("lists exactly the V stacks, in bag order, with what the vendor pays", function()
         local stacks = ns.Vendor.Stacks()
         local got = {}
