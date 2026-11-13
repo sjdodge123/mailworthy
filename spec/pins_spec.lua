@@ -18,14 +18,18 @@ describe("bank pins", function()
         _G.Menu = { ModifyMenu = function(tag, fn) WowStub.menuModifiers[tag] = fn end }
     end)
 
-    it("Ctrl+Alt+click pins the item for the bank and again unpins it; Alt alone still only locks", function()
+    it("Ctrl+Alt+click moves the pin on: bank, vendor, none; Alt alone still only locks", function()
         WowStub.state.mods = { alt = true, ctrl = true }
         HandleModifiedItemClick("link", WowStub.itemLocation(0, 3))
         assert.equal("bank", ns.Pins.Kind(2770))
         assert.is_false(ns.Locks.IsItemLocked(2770), "a pin is not a lock")
         assert.truthy(WowStub.printed[#WowStub.printed]:find("Bank pin on", 1, true))
         HandleModifiedItemClick("link", WowStub.itemLocation(0, 4)) -- the other stack: the same item
+        assert.equal("vendor", ns.Pins.Kind(2770))
+        assert.truthy(WowStub.printed[#WowStub.printed]:find("Vendor pin on", 1, true))
+        HandleModifiedItemClick("link", WowStub.itemLocation(0, 3))
         assert.is_nil(ns.Pins.Kind(2770))
+        assert.truthy(WowStub.printed[#WowStub.printed]:find("Pin removed", 1, true))
 
         WowStub.state.mods = { alt = true }
         HandleModifiedItemClick("link", WowStub.itemLocation(0, 3))
@@ -79,7 +83,8 @@ describe("bank pins", function()
         ns.Pins.OnChanged(function(itemID, kind) seen[#seen + 1] = { itemID, kind } end)
         ns.Pins.Toggle(0, 3, "test")
         ns.Pins.Toggle(0, 3, "test")
-        assert.same({ { 2770, "bank" }, { 2770 } }, seen)
+        ns.Pins.Toggle(0, 3, "test")
+        assert.same({ { 2770, "bank" }, { 2770, "vendor" }, { 2770 } }, seen)
     end)
 
     it("/mw pins lists them by name; /mw report carries them", function()
@@ -195,6 +200,57 @@ describe("bank pins", function()
             assert.equal(ns.MailWindow.CHIPS.bank, ns.MailWindow.ChipFor({ route = "bank" }))
             local where = ns.MailWindow.TooltipLines({ result = r }, false, false, "Roknua Themicrulah", false)
             assert.equal("Mailing to Roknua: you pinned it for your bank alt (BA).", where)
+        end)
+
+        -- Vendor pins (shindo107's feat/vendor-pin, rebuilt on the pin mode, 2026-11-13).
+        it("a vendor pin keeps the item and tags it V, whatever the market says, in V's colour", function()
+            local it = item({ pin = "vendor" })
+            it.result = ns.Valuation.Evaluate(it, { ah = 9000, age = 0 }, settings())
+            assert.equal("keep", it.result.action)
+            assert.equal(ns.Valuation.VENDOR_PIN_REASON, it.result.reason)
+            assert.equal(25, it.result.vendor)
+            assert.equal("v", ns.BankAlt.Verdict(it))
+            it.advice = "v"
+            local lines = ns.BankAlt.TooltipLines(it, nil, settings())
+            local text = {}
+            for _, l in ipairs(lines) do text[#text + 1] = l[1] end
+            assert.truthy(table.concat(text, " "):find("you pinned it for the vendor", 1, true), table.concat(text, " "))
+            assert.truthy(lines[1][1]:find("[V: Vendor, pinned]", 1, true), lines[1][1])
+            assert.same(ns.Palette.V.fg, { lines[2][2], lines[2][3], lines[2][4] })
+        end)
+
+        it("a vendor pin tags a soulbound item too (an outgrown quest reward); no binding takes a vendor pin", function()
+            local it = item({ pin = "vendor", bound = true, quality = 2, classID = 4, vendor = 300, count = 1 })
+            it.result = ns.Valuation.Evaluate(it, nil, settings())
+            assert.equal("v", ns.BankAlt.Verdict(it))
+            assert.is_true(it.result.bound)
+            assert.is_nil(ns.Routes.HARD_KEEPS[it.result.reason], "like every pin, not a hard keep: Return to sender wins")
+            assert.is_nil(ns.Routes.Divert(it, it.result, nil, settings(), { { to = "Bob Surname", profession = 333 } }))
+        end)
+
+        it("a vendor pin leaves a lock, a quest item, an item in use, a conjured item, a tool and an unsellable one alone", function()
+            for field, reason in pairs({ locked = "locked", quest = "quest item", inUse = "in use",
+                conjured = ns.Conjured.REASON }) do
+                local r = ns.Valuation.Evaluate(item({ pin = "vendor", [field] = true }), { ah = 174, age = 0 }, settings())
+                assert.equal(reason, r.reason, field)
+                assert.is_nil(r.vendorPin)
+            end
+            local r = ns.Valuation.Evaluate(item({ pin = "vendor", questFor = "Redridge Goulash" }), nil, settings())
+            assert.equal("a quest needs it", r.reason)
+            r = ns.Valuation.Evaluate(item({ pin = "vendor", itemID = 2901, classID = 2, subclassID = 14 }),
+                { ah = 174, age = 0 }, settings())
+            assert.equal("profession tool", r.reason, "a Mining Pick stays")
+            r = ns.Valuation.Evaluate(item({ pin = "vendor", vendor = 0 }), { ah = 174, age = 0 }, settings())
+            assert.equal("ah", r.route, "no vendor price: valued as usual")
+            r = ns.Valuation.Evaluate(item({ pin = "vendor", vendor = 0, bound = true }), nil, settings())
+            assert.equal("soulbound", r.reason)
+        end)
+
+        it("a vendor pin glows and tags in V's colour, and the glow says why", function()
+            ns.Pins.Set(2770, "Copper Ore", ns.Pins.VENDOR, "spec")
+            assert.equal(ns.Pins.VENDOR, ns.Pins.Effective(2770))
+            assert.equal(ns.Palette.V, ns.Pins.Palette(2770))
+            assert.truthy(ns.Border.PinTooltip(ns.Pins.VENDOR):find("(V): it stays for the vendor", 1, true))
         end)
 
         it("the bags carry the pin into the rule", function()

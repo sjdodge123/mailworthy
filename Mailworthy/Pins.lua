@@ -1,5 +1,13 @@
--- Pins: "always bank this item". A pin belongs to the ITEM (its item ID), like a lock (Locks.lua),
--- but it is saved for the whole account (MailworthyDB.pins), so every character knows it.
+-- Pins: "always bank this item" and "always vendor this item" (a vendor pin: shindo107's
+-- feat/vendor-pin, 2026-11-11). A pin belongs to the ITEM (its item ID), like a lock (Locks.lua),
+-- but it is saved for the whole account (MailworthyDB.pins), so every character knows it. One action
+-- moves it on: none -> bank -> vendor -> none.
+--
+-- A vendor pin (V): never mailed, tagged V on every character, whatever the auction house says, so
+-- the vendor window (Vendor.lua) sells it; soulbound or not (an outgrown quest reward), since a
+-- vendor buys what can't be mailed. Never past a lock, a quest's item, a conjured item, an item in
+-- use or a profession tool; it needs a vendor price. Like a bank pin it beats a binding, and Return
+-- to sender beats it (what another player mailed goes back to them).
 --
 -- Where a pinned item is banked is each character's own setting (operator, 2026-11-13: "a new
 -- setting that controls what that ctrl alt click toggle does, send to alt or mark for local bank
@@ -34,6 +42,8 @@ ns.Pins = Pins
 
 Pins.BANK = "bank" -- the saved kind; as a destination: bank on the bank alt (BA)
 Pins.HERE = "here" -- a destination only: bank it here, on this character (BH)
+Pins.VENDOR = "vendor" -- the saved kind and the destination: sell it to a vendor (V)
+Pins.NEXT = { [Pins.BANK] = Pins.VENDOR } -- the cycle: none -> bank -> vendor -> none
 -- A BA pin's colour (operator, 2026-11-13: green, not gold, which the quest border uses). Every
 -- colour comes from Palette.lua: a BH pin glows in BH's.
 Pins.COLOR = ns.Palette.BA.fg
@@ -64,16 +74,19 @@ end
 Pins.WHY = { setting = "your Pinned items setting", ["no bank alt"] = "no bank alt is set",
     ["bank alt"] = "this is your bank alt" }
 
---- Where this character banks an item's pin: Pins.BANK (the bank alt), Pins.HERE, or nil (no pin).
+--- Where this character sends an item's pin: Pins.BANK (the bank alt), Pins.HERE (bank it here),
+--- Pins.VENDOR, or nil (no pin).
 function Pins.Effective(itemID)
-    if Pins.Kind(itemID) ~= Pins.BANK then return nil end
+    local kind = Pins.Kind(itemID)
+    if kind == Pins.VENDOR then return Pins.VENDOR end
+    if kind ~= Pins.BANK then return nil end
     return Pins.HereBecause() and Pins.HERE or Pins.BANK
 end
 
---- The Palette entry for an item's pin here (BA / BH), or nil.
+--- The Palette entry for an item's pin here (BA / BH / V), or nil.
 function Pins.Palette(itemID)
     local where = Pins.Effective(itemID)
-    return where == Pins.HERE and ns.Palette.BH or where == Pins.BANK and ns.Palette.BA or nil
+    return ({ [Pins.HERE] = ns.Palette.BH, [Pins.BANK] = ns.Palette.BA, [Pins.VENDOR] = ns.Palette.V })[where]
 end
 
 --- Set this character's pin mode (Settings: "Pinned items"). Not while a send runs (what is on
@@ -118,6 +131,12 @@ function Pins.Set(itemID, link, kind, how)
     elseif kind == Pins.BANK then
         ns.Print(string.format("Bank pin on %s: Send mails it to your bank alt (BA) from every character that"
             .. " sends its pins there.", tostring(link)))
+    elseif kind == Pins.VENDOR then
+        ns.Print(string.format("Vendor pin on %s: it stays for the vendor and shows V, on every character."
+            .. " Ctrl+Alt+click again to unpin.", tostring(link)))
+    end
+    if kind and kind ~= Pins.BANK and ns.Locks.IsItemLocked(itemID) then
+        ns.Print("It is locked on this character too, and a lock wins: it stays here until you unlock it.")
     end
     if kind == Pins.BANK then
         -- This character's profession uses it: the pin still wins, once said (PinWarning.lua).
@@ -125,7 +144,7 @@ function Pins.Set(itemID, link, kind, how)
         if ns.Locks.IsItemLocked(itemID) then
             ns.Print("It is locked on this character too, and a lock wins: it stays here until you unlock it.")
         end
-    else
+    elseif kind == nil then
         ns.Print(string.format("Pin removed from %s.", tostring(link)))
     end
     for _, fn in ipairs(listeners) do pcall(fn, itemID, kind) end
@@ -144,7 +163,12 @@ function Pins.Toggle(bag, slot, how)
     end
     local info = ns.Locks.ItemAt(bag, slot)
     if not info or not info.itemID then return nil end
-    return Pins.Set(info.itemID, info.hyperlink, Pins.Kind(info.itemID) == nil and Pins.BANK or nil, how)
+    local now = Pins.Kind(info.itemID)
+    local kind = Pins.Set(info.itemID, info.hyperlink, now == nil and Pins.BANK or Pins.NEXT[now], how)
+    if kind == Pins.VENDOR and info.hasNoValue then
+        ns.Print("No vendor buys it, so the vendor pin does nothing for this item.")
+    end
+    return kind
 end
 
 --- Is any item pinned on this account?
@@ -171,13 +195,18 @@ end
 function Pins.PrintList()
     local list = Pins.List()
     if #list == 0 then
-        ns.Print(ns.Gamepad.Fill("No pinned items. Ctrl+Alt+click an item in your bags (controller: {PADRSTICK}) to always"
-            .. " bank it."))
+        ns.Print(ns.Gamepad.Fill("No pinned items. Ctrl+Alt+click an item in your bags (controller: {PADRSTICK}): once to"
+            .. " always bank it, twice to always vendor it, a third time to unpin."))
         return
     end
-    local names = {}
-    for i, entry in ipairs(list) do names[i] = tostring(entry.link or entry.name) end
-    ns.Print("Bank pins (on this character " .. Pins.ModeText() .. "): " .. table.concat(names, ", "))
+    for _, kind in ipairs({ { Pins.BANK, "Bank pins (on this character " .. Pins.ModeText() .. "): " },
+        { Pins.VENDOR, "Vendor pins (never mailed, tagged V): " } }) do
+        local names = {}
+        for _, entry in ipairs(list) do
+            if entry.kind == kind[1] then names[#names + 1] = tostring(entry.link or entry.name) end
+        end
+        if #names > 0 then ns.Print(kind[2] .. table.concat(names, ", ")) end
+    end
 end
 
 --- For /mw report.

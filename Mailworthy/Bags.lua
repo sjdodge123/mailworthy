@@ -219,7 +219,8 @@ function Bags.Evaluate(settings)
         value(item)
         local list = owed and owed[item.itemID]
         local r = item.result
-        local hard = ns.Valuation.Unmailable(r) or (r.action == "keep" and ns.Routes.HARD_KEEPS[r.reason])
+        -- A soulbound item never goes back to anyone, vendor-pinned or not (its keep reason is the pin's).
+        local hard = ns.Valuation.Unmailable(r) or (r.action == "keep" and ns.Routes.HARD_KEEPS[r.reason]) or item.bound
         local parts, rest = {}, nil
         -- Return to sender beats a bank pin: what another player mailed goes back to them, shown as
         -- any return; the rest of a pinned item goes to the bank alt (operator, 2026-11-13:

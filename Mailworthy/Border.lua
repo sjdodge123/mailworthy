@@ -81,9 +81,9 @@ function Border.Show(button, shown, color)
     end
 end
 
---- Is this item bank-pinned (Pins.lua)?
+--- Is this item pinned (Pins.lua: bank or vendor)?
 local function pinned(itemID)
-    return itemID ~= nil and ns.Pins ~= nil and ns.Pins.Kind(itemID) == ns.Pins.BANK
+    return itemID ~= nil and ns.Pins ~= nil and ns.Pins.Kind(itemID) ~= nil
 end
 
 --- Is the Mailworthy window open? It lives under the mail frame's tabs, so it is visible only
@@ -144,7 +144,7 @@ end
 --- A pin changed (Pins.OnChanged): a new pin flashes green like a new lock flashes blue.
 function Border.OnPinChanged(itemID, kind)
     if itemID == nil then return end
-    flash("pin", itemID, kind == (ns.Pins and ns.Pins.BANK))
+    flash("pin", itemID, kind ~= nil)
 end
 
 --- Why an item glows. The controller's key is the game's own icon for the left stick press, so
@@ -160,6 +160,9 @@ end
 function Border.PinTooltip(where, stays)
     local unpin = " Ctrl+Alt+click it (" .. ns.Gamepad.Glyph(ns.Gamepad.STICK_RIGHT_PRESS, 14) .. " on a controller) to unpin."
     if stays then return "Pinned in Mailworthy, but it stays: " .. tostring(stays) .. ", which a pin can't change." .. unpin end
+    if where == ns.Pins.VENDOR then
+        return "Pinned in Mailworthy (V): it stays for the vendor, never mailed; the vendor window sells it." .. unpin
+    end
     if where == ns.Pins.HERE then
         return "Pinned in Mailworthy (BH): it stays on this character, to bank here ("
             .. tostring(ns.Pins.WHY[ns.Pins.HereBecause()]) .. ")." .. unpin

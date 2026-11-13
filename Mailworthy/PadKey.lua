@@ -213,7 +213,7 @@ function PadKey.RefreshHint()
         parts[#parts + 1] = ns.Gamepad.Glyph(ns.Gamepad.STICK_LEFT_PRESS, 14) .. " Mailworthy: lock / unlock item"
     end
     if ns.Features.On("padPin") then
-        parts[#parts + 1] = ns.Gamepad.Glyph(ns.Gamepad.STICK_RIGHT_PRESS, 14) .. " bank pin"
+        parts[#parts + 1] = ns.Gamepad.Glyph(ns.Gamepad.STICK_RIGHT_PRESS, 14) .. " pin: bank / vendor"
     end
     PadKey.bagHint:SetText(ns.MailButton.GamepadUI() and table.concat(parts, "   ") or "")
 end

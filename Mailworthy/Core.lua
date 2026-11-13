@@ -104,6 +104,7 @@ local HELP = {
     "Lock an item (it stays locked wherever it moves): Alt+click it, or {PADLSTICK} in your bags (controller).",
     "Pin an item to always bank it: Ctrl+Alt+click it, or {PADRSTICK} in your bags (controller). Settings > Pinned"
         .. " items picks where, per character: BA (Send mails it to your bank alt) or BH (it stays, to bank here)."
+        .. " Again: always vendor it (it stays, tagged V). A third time unpins."
         .. " /mw pins lists them; /mw pinwarning on|off.",
     "Locked items glow blue while the Mailworthy window is open (settings: always); a new lock glows a moment anywhere."
         .. " In the Mailworthy window, pressing an item locks or unlocks it.",
