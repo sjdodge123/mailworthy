@@ -497,6 +497,11 @@ function Valuation.Evaluate(item, price, settings)
     -- A bank-here pin (BH: this character's setting, no bank alt, or the bank alt itself): it stays
     -- to go in this character's own bank. Not a hard keep: Return to sender still wins (operator,
     -- 2026-11-13), as over a BA pin.
+    -- Item data first, for either pin: an item whose data hasn't loaded is a hard keep, so not even
+    -- Return to sender takes it (Codex review, 2026-11-13).
+    if (item.pin == Valuation.PIN_HERE or item.pin == Valuation.PIN_BANK) and item.vendor == nil then
+        return keep("item info not loaded yet")
+    end
     if item.pin == Valuation.PIN_HERE then
         return keep(Valuation.PIN_HERE_REASON, { pinned = true, vendor = (item.vendor or 0) * (item.count or 1) })
     end

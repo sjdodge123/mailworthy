@@ -67,6 +67,11 @@ function UI.Create()
     text:SetJustifyH("LEFT")
     W.Button(frame, "OK, keep the pin", 186, close, "MailworthyPinWarningOK"):SetPoint("TOPLEFT", 24, -150)
     W.Button(frame, "Unpin it", 186, function()
+        -- Not mid-send, like every pin change: what is on its way was previewed (Codex review, 2026-11-13).
+        if ns.Mailer.Busy() then
+            ns.Print(ns.Pins.BUSY)
+            return
+        end
         if current and ns.Pins.Kind(current.itemID) then
             ns.Pins.Set(current.itemID, current.link, nil, "pin warning")
         end

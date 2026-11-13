@@ -66,12 +66,25 @@ describe("pin mode and tags", function()
             assert.equal("bank", ns.Pins.Kind(2770), "the pin itself is the account's")
         end)
 
-        it("can't change while a send runs", function()
+        it("can't change while a send runs, from Settings or from the warning", function()
             local busy = ns.Mailer.Busy
             ns.Mailer.Busy = function() return true end
             assert.is_nil(ns.Pins.SetMode(ns.Pins.HERE, "spec"))
             assert.equal(ns.Pins.BANK, ns.Pins.Mode())
+            ns.Pins.Set(2770, "Copper Ore", ns.Pins.BANK, "spec")
+            ns.PinWarning.Show(2770, "Copper Ore", "Blacksmithing")
+            _G.MailworthyPinWarningUnpin:Click()
+            assert.equal("bank", ns.Pins.Kind(2770), "Unpin it waits for the send (Codex review)")
             ns.Mailer.Busy = busy
+        end)
+
+        it("a pin waits for the item's data, BH or BA: not even Return to sender takes it (Codex review)", function()
+            for _, pin in ipairs({ ns.Valuation.PIN_HERE, ns.Valuation.PIN_BANK }) do
+                local item = { link = "x", itemID = 1, count = 1, stacks = 1, quality = 1, vendor = nil, pin = pin }
+                local r = ns.Valuation.Evaluate(item, { ah = 500, age = 0 }, ns.Valuation.Settings({}, false))
+                assert.equal("item info not loaded yet", r.reason, pin)
+                assert.is_true(ns.Routes.HARD_KEEPS[r.reason])
+            end
         end)
 
         it("the Settings button flips it and says where pins go, in the tag's letters", function()
@@ -174,6 +187,14 @@ describe("pin mode and tags", function()
             assert.equal("AH", tagOf(combined.Items[1]), "the rest as the market says")
             assert.equal(ns.Palette.F, ns.BankAlt.Tag("friend"))
             assert.equal(ns.Palette.R, ns.BankAlt.Tag("return"))
+            -- Return to sender switched on or off redraws the tags at once (Codex review).
+            local redraws = 0
+            local redraw = ns.BankAlt.Redraw
+            ns.BankAlt.Redraw = function() redraws = redraws + 1 end
+            ns.Returns.Set(true)
+            ns.Returns.Set(false)
+            ns.BankAlt.Redraw = redraw
+            assert.equal(2, redraws)
             assert.equal("return", ns.BankAlt.Verdict({ result = { action = "mail", route = "return", to = "Bob" } }))
             local lines = ns.BankAlt.TooltipLines({ advice = "return", result = { action = "mail", route = "return", to = "Bob" } },
                 nil, ns.BankAlt.Settings())
@@ -190,6 +211,18 @@ describe("pin mode and tags", function()
             assert.equal(1, s.pin.stacks)
             assert.equal(0, s.b.stacks)
             assert.equal(0, s.v.stacks, "Linen Cloth is pinned, not vendored")
+        end)
+
+        it("its pinned row's chip follows the pin mode: BH on a main set to bank here (Codex review)", function()
+            ns.Pins.Set(2589, "Linen Cloth", ns.Pins.BANK, "spec")
+            ns.Pins.SetMode(ns.Pins.HERE, "spec")
+            ns.BankAlt.ShowWindow()
+            local found
+            for _, f in ipairs(ns.BankAlt.Frame().fontStrings or {}) do
+                if tostring(f.text):find("pinned", 1, true) then found = f.text end
+            end
+            if found then assert.equal("BH pinned", found) end
+            assert.equal(ns.Palette.BH, ns.BankAlt.Tag(ns.Pins.HereBecause() and "here" or "b"))
         end)
     end)
 
