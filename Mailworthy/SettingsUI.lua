@@ -1,7 +1,7 @@
 -- The settings window (media/ux-pass-prototype.png), one task at a time:
 --   main view: the bank alt on one row with Change..., then "What gets mailed"
 --     (minimum gain, listing length, disenchant, profession materials, sell what I
---     gather), "In your
+--     gather, send by tag: AH / DE / B / V), "In your
 --     bags" (tags, lock glow) and "More" (friends, guild, bank alt summary, mail ledger,
 --     minimap button, locked items);
 --   pick view (Change... / Choose...; a bank alt is optional since 2026-11-08): the known
@@ -22,10 +22,11 @@ local UI = {}
 ns.SettingsUI = UI
 
 UI.MAX_CHOICES = 6
-local WIDTH, MAIN_HEIGHT, ROW, VERSION_ROW = 420, 548, 26, 20
+local WIDTH, MAIN_HEIGHT, ROW, VERSION_ROW = 420, 574, 26, 20
 
 local frame, nameBox, nameHint, current, emptyHint, legend, pricesLine, versionLine, changeButton
 local choiceRows = {}
+local sendButtons = {} -- verdict tag ("ah", "de", "b", "v") -> its Send switch
 local amountLabel, pctLabel, disenchantButton, minimapButton, tagsButton, glowButton, matsButton, hereButton, friendsButton
 local gatherButton, guildButton, locksButton, pinButton
 local durationButtons = {}
@@ -264,7 +265,16 @@ local function createRule()
     end)
     disenchantButton:SetPoint("TOPLEFT", 24, -210)
     matsButton = toggle(372, "Mats", function()
-        ns.Config.Set("keepProfessionMats", not ns.Config.Get("keepProfessionMats"))
+        -- Three states: on (kept here) -> off (valued like anything else) -> on my bank alt -> on.
+        local keepHere, toAlt = ns.Config.Get("keepProfessionMats"), ns.Config.Get("matsToBankAlt")
+        if keepHere and not toAlt then
+            ns.Config.Set("keepProfessionMats", false)
+        elseif not keepHere then
+            ns.Config.Set("keepProfessionMats", true)
+            ns.Config.Set("matsToBankAlt", true)
+        else
+            ns.Config.Set("matsToBankAlt", false)
+        end
         if ns.BankAlt then ns.BankAlt.Redraw() end
     end)
     matsButton:SetPoint("TOPLEFT", 24, -236)
@@ -273,58 +283,70 @@ local function createRule()
         if ns.BankAlt then ns.BankAlt.Redraw() end
     end)
     gatherButton:SetPoint("TOPLEFT", 24, -262)
+    -- What Send takes of the bank alt's share, by verdict (Bags.ApplySendSwitches): one switch per tag.
+    local send = add(mainWidgets, W.Label(frame, "GameFontHighlight"))
+    send:SetPoint("TOPLEFT", 28, -292)
+    send:SetText("Send by tag")
+    for i, tag in ipairs(ns.Valuation.SEND_ORDER) do
+        local key = ns.Valuation.SEND[tag]
+        local b = toggle(64, "Send" .. ns.Valuation.SEND_LABEL[tag], function()
+            ns.Config.Set(key, not ns.Config.Get(key))
+        end)
+        b:SetPoint("TOPLEFT", 124 + (i - 1) * 68, -288)
+        sendButtons[tag] = b
+    end
 end
 
 local function createBagsAndMore()
-    heading(mainWidgets, "In your bags", -298)
+    heading(mainWidgets, "In your bags", -324)
     tagsButton = toggle(182, "Tags", function()
         ns.Config.Set("tagsEverywhere", not ns.Config.Flag("tagsEverywhere"))
         if ns.BankAlt then ns.BankAlt.Redraw() end
     end)
-    tagsButton:SetPoint("TOPLEFT", 24, -320)
+    tagsButton:SetPoint("TOPLEFT", 24, -346)
     glowButton = toggle(182, "Glow", function()
         ns.Config.Set("glowEverywhere", not ns.Config.Flag("glowEverywhere"))
         if ns.Border then ns.Border.RefreshAll() end
     end)
-    glowButton:SetPoint("TOPLEFT", 214, -320)
+    glowButton:SetPoint("TOPLEFT", 214, -346)
     -- Where this character banks its pinned items (Pins.lua; operator, 2026-11-13): BA or BH.
     pinButton = toggle(372, "Pins", function()
         ns.Pins.SetMode(ns.Pins.Mode() == ns.Pins.HERE and ns.Pins.BANK or ns.Pins.HERE, "settings")
     end)
-    pinButton:SetPoint("TOPLEFT", 24, -346)
-    heading(mainWidgets, "More", -382)
+    pinButton:SetPoint("TOPLEFT", 24, -372)
+    heading(mainWidgets, "More", -408)
     friendsButton = add(mainWidgets, W.Button(frame, "", 182, function() ns.RoutesUI.Show(frame) end,
         "MailworthySettingsFriends"))
-    friendsButton:SetPoint("TOPLEFT", 24, -404)
+    friendsButton:SetPoint("TOPLEFT", 24, -430)
     add(mainWidgets, W.Button(frame, "Bank alt summary...", 182, function()
         if ns.BankAlt then ns.BankAlt.ShowWindow(frame) end
-    end, "MailworthySettingsSummary")):SetPoint("TOPLEFT", 214, -404)
+    end, "MailworthySettingsSummary")):SetPoint("TOPLEFT", 214, -430)
     -- 2026-11-07: "I want a new button for guild inside the mailworthy settings"
     guildButton = add(mainWidgets, W.Button(frame, "", 182, function() ns.RoutesUI.ShowGuild(frame) end,
         "MailworthySettingsGuild"))
-    guildButton:SetPoint("TOPLEFT", 24, -430)
+    guildButton:SetPoint("TOPLEFT", 24, -456)
     add(mainWidgets, W.Button(frame, "Mail ledger...", 182, function() ns.LedgerUI.Show(frame) end,
-        "MailworthySettingsLedger")):SetPoint("TOPLEFT", 214, -430)
+        "MailworthySettingsLedger")):SetPoint("TOPLEFT", 214, -456)
     minimapButton = toggle(182, "Minimap", function()
         ns.Config.Set("minimapHidden", ns.Config.MinimapShown())
         if ns.MinimapButton then ns.MinimapButton.Refresh() end
     end)
-    minimapButton:SetPoint("TOPLEFT", 24, -456)
+    minimapButton:SetPoint("TOPLEFT", 24, -482)
     -- QoL pass D (2026-11-09): the locked items window; the count is in the label.
     locksButton = add(mainWidgets, W.Button(frame, "", 182, function() ns.LocksUI.Show(frame) end,
         "MailworthySettingsLocks"))
-    locksButton:SetPoint("TOPLEFT", 214, -456)
+    locksButton:SetPoint("TOPLEFT", 214, -482)
     pricesLine = add(mainWidgets, W.Label(frame, "GameFontDisableSmall"))
-    pricesLine:SetPoint("TOPLEFT", 28, -498)
+    pricesLine:SetPoint("TOPLEFT", 28, -524)
     pricesLine:SetWidth(270)
     pricesLine:SetJustifyH("LEFT")
     -- A newer Mailworthy is out (Version.lua): under the Prices line; the window grows to fit it.
     versionLine = add(mainWidgets, W.Label(frame, "GameFontHighlightSmall"))
-    versionLine:SetPoint("TOPLEFT", 28, -516)
+    versionLine:SetPoint("TOPLEFT", 28, -542)
     versionLine:SetWidth(WIDTH - 56)
     versionLine:SetJustifyH("LEFT")
     add(mainWidgets, W.Button(frame, "Done", 100, function() frame:Hide() end, "MailworthySettingsDone"))
-        :SetPoint("TOPRIGHT", -24, -492)
+        :SetPoint("TOPRIGHT", -24, -518)
 end
 
 function UI.Create()
@@ -427,15 +449,21 @@ local function fillMain(bankAlt, here, choices)
         deAddon or "era tables"))
     W.SetToggled(disenchantButton, v.disenchant == true)
     local crafting = ns.Bags.CraftingText(ns.Characters.Professions()) -- "First Aid 80, Tailoring 130"
-    -- Per character (Config.CHARACTER): a bank alt can sell what its own profession would keep.
+    -- Per character (Config.CHARACTER): kept here, mailed to the bank alt (BA), or valued like the rest.
     matsButton:SetText(string.format("This character keeps its profession materials: %s (%s)",
-        v.keepProfessionMats and "on" or "off", crafting ~= "" and crafting or "no crafting profession here"))
+        not v.keepProfessionMats and "off" or v.matsToBankAlt and "on my bank alt (BA)" or "on (BH)",
+        crafting ~= "" and crafting or "no crafting profession here"))
     W.SetToggled(matsButton, v.keepProfessionMats == true)
     local gathering = {}
     for _, p in ipairs(ns.Valuation.GatheringProfessions(ns.Characters.Professions())) do gathering[#gathering + 1] = p.name end
     gatherButton:SetText(string.format("Sell what I gather: %s (%s)", v.sellGathered and "on" or "off",
         #gathering > 0 and table.concat(gathering, ", ") or "no gathering profession here"))
     W.SetToggled(gatherButton, v.sellGathered == true)
+    for tag, b in pairs(sendButtons) do
+        local on = v[ns.Valuation.SEND[tag]] == true
+        b:SetText(ns.Valuation.SEND_TAG[tag] .. ": " .. (on and "on" or "off")) -- the bag tag's own letters
+        W.SetToggled(b, on)
+    end
     tagsButton:SetText("Bag tags: " .. (ns.Config.Flag("tagsEverywhere") and "every character" or "bank alt + after Send"))
     W.SetToggled(tagsButton, ns.Config.Flag("tagsEverywhere") == true)
     glowButton:SetText("Lock glow: " .. (ns.Config.Flag("glowEverywhere") and "always" or "in Mailworthy"))

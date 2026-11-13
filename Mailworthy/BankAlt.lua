@@ -143,6 +143,7 @@ function BankAlt.Settings()
     local s = ns.Config.Values()
     if BankAlt.Mode() ~= "sent" then s.postage = 0 end
     if ns.Returns.On() then s.returns = ns.Returns.Current() end
+    s.forTags = true -- the send switches don't change a tag (Bags.ApplySendSwitches)
     return s
 end
 
@@ -394,6 +395,7 @@ function BankAlt.TooltipLines(item, record, settings)
     end
     if record then
         local was = (record.route == "bank" and "Bank") or (record.route == "common" and "Common item")
+            or (record.route == ns.Valuation.VENDOR and "Vendor")
             or (record.route == ns.Valuation.NO_PRICE and "No auction price yet")
             or (BankAlt.Tag(record.route) and BankAlt.Tag(record.route).label) or tostring(record.reason)
         lines[#lines + 1] = { string.format("Mailed for: %s%s, %s, from %s", was,

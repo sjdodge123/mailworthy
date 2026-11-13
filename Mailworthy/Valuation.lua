@@ -46,8 +46,23 @@ Valuation.DEFAULTS = {
     maxAgeDays = 7,       -- older Auctionator prices don't count
     disenchant = false,   -- Valuation.Settings switches it on when a disenchant addon is installed
     keepProfessionMats = true, -- materials this character's crafting professions use stay (operator, 2026-10-22)
+    -- With keepProfessionMats: those materials wait on the bank alt instead of in this character's
+    -- bank (the B tag, mailed like the other banked items; the Bank send switch gates them too).
+    matsToBankAlt = false,
     sellGathered = false,      -- ... except what its gathering professions gather (operator, 2026-11-06: off by default)
+    -- What Send takes of the bank alt's share, by verdict (Valuation.SEND; applied by Bags.ApplySendSwitches):
+    sendAuction = true,    -- items for the auction house (the AH tag)
+    sendDisenchant = true, -- items to disenchant (DE)
+    sendBank = true,       -- items to bank for a later phase (B)
+    sendVendor = false,    -- items a vendor pays more for (V): they stay unless the player wants them sent too
 }
+
+-- The setting behind each verdict tag (BankAlt.Verdict), in the order the settings window shows them.
+Valuation.SEND = { ah = "sendAuction", de = "sendDisenchant", b = "sendBank", v = "sendVendor" }
+Valuation.SEND_ORDER = { "ah", "de", "b", "v" }
+Valuation.SEND_LABEL = { ah = "Auction", de = "Disenchant", b = "Bank", v = "Vendor" }
+Valuation.SEND_TAG = { ah = "AH", de = "DE", b = "BA", v = "V" } -- as the bag tags read (Palette: what Send mails is BA)
+Valuation.VENDOR = "vendor" -- the route of a vendor (V) item mailed because sendVendor is on
 
 -- What each crafting profession needs from the trade goods (class 7) in the bags, by
 -- the profession's skill line ID (GetProfessionInfo's 7th return) and the item's
@@ -475,6 +490,7 @@ Valuation.ProfessionKeep = professionKeep
 ---   { ah = copper per unit or nil, age = days or nil, de = copper per item or nil }
 ---   history = Prices.History rows (optional), exact = true / false / nil }
 --- Returns { action = "mail" | "keep", route = "ah" | "de" | "common" | "bank" | "noprice" (mail only;
+---   Bags.ApplySendSwitches may add "vendor";
 ---   bank = mail it and hold it, listRoute = the route it would have had; noprice = no auction price
 ---   yet, the bank alt holds it), reason, failed (a "no price" keep: the price call failed),
 ---   vendor, deposit, depositCounted, postage, ahUnit (the smoothed unit price), median / medianDays
@@ -520,11 +536,24 @@ function Valuation.Evaluate(item, price, settings)
         -- decision by the user and needs to be honored"); pinConflict names the profession, so the
         -- window and the tooltip say so (and PinWarning offers a way out).
         return { action = "mail", route = "bank", listRoute = "common", reason = "bank: you pinned it", pinned = true,
-            pinConflict = (professionKeep(item, settings)),
+            -- With "on my bank alt" the materials go there anyway: no conflict to report.
+            pinConflict = not settings.matsToBankAlt and (professionKeep(item, settings)) or nil,
             vendor = (item.vendor or 0) * (item.count or 1), postage = (settings.postage or 0) * (item.stacks or 1) }
     end
     local profession, _, untilSkill, convert, window = professionKeep(item, settings)
     if profession then
+        -- "On my bank alt" (shindo107's feat/craft-mats-to-alt): mailed there and banked (BA), not kept
+        -- here. Never one to convert (that is crafted now, here), never before the item's data or with a
+        -- failed price call, and without a price source only what the rule mails then: white items and
+        -- staples.
+        if settings.matsToBankAlt and not convert and item.vendor ~= nil
+            and not (type(price) == "table" and price.failed)
+            and (price ~= nil or item.quality == 1 or ((item.quality or 0) >= 1 and Valuation.IsStaple(item))) then
+            return { action = "mail", route = "bank", listRoute = "common", craftBank = true,
+                reason = "bank: your " .. profession .. " needs it", untilSkill = untilSkill, window = window,
+                neededBy = profession, vendor = item.vendor * (item.count or 1),
+                postage = (settings.postage or 0) * (item.stacks or 1) }
+        end
         return keep("your " .. profession .. " needs it", { untilSkill = untilSkill, convert = convert,
             window = window, neededBy = profession })
     end

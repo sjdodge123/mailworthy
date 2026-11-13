@@ -63,6 +63,7 @@ UI.CHIPS = {
     common = paletteChip("Common", P.COMMON),
     bank = paletteChip("BA bank", P.BA), -- mailed to the bank alt to bank there
     noprice = paletteChip("No price", P.NOPRICE), -- no auction price yet: the bank alt holds it (2026-11-08)
+    vendor = paletteChip("V vendor", P.V), -- a V item mailed because "Send: V" is on
     friend = paletteChip("to a friend", P.F), -- the chip says "to <first name>", in F's colour
     ["return"] = paletteChip("back to sender", P.R), -- the chip says "back to <first name>", in R's colour
     pinned = paletteChip("BA pinned", P.BA), -- a bank pin (Pins.lua) to the bank alt: its tag and glow's colour
