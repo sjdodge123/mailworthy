@@ -88,7 +88,7 @@ function Report.Build()
             .. "lock glow %s, bags 0-%d, profession materials %s",
             ns.Valuation.DURATION_HOURS[v.duration], ns.Bags.MinGainText(v), math.floor(v.minGainPct * 100 + 0.5),
             v.disenchant and "on" or "off", v.maxAgeDays,
-            ns.Config.Flag("tagsEverywhere") and "every character" or "bank alt only",
+            ns.Config.Flag("tagsEverywhere") and "every character" or ("bank alt only, here: " .. tostring(ns.BankAlt.Mode())),
             ns.Config.Flag("glowEverywhere") and "always" or "with the Mailworthy window open", ns.Bags.LastBag(),
             ns.Bags.ProfessionMatsText(ns.Bags.Evaluate(v).settings)),
         "prices: " .. (ns.Prices.SourceText() or "none")
@@ -100,6 +100,11 @@ function Report.Build()
         ns.PadKey.Report(),
         "locked items (this character): " .. ns.Locks.Describe(),
         "pinned items (account): " .. ns.Pins.Describe(),
+        string.format("pins here: %s; pin warning %s; profession materials here: %s", ns.Pins.ModeText(),
+            ns.Config.Flag("hidePinWarning") and "off" or "on",
+            type(MailworthyCharDB.settings) == "table" and MailworthyCharDB.settings.keepProfessionMats ~= nil
+                and (MailworthyCharDB.settings.keepProfessionMats and "kept (this character)" or "sold (this character)")
+                or "account setting"),
         "last send: " .. tostring(ns.Mailer.Status() or "none this session"),
     }
     for _, entry in pairs(MailworthyDB.characters) do lines[#lines + 1] = "known character: " .. ns.Characters.Describe(entry) end

@@ -101,8 +101,9 @@ local HELP = {
     "At a mailbox: open the Send Mail tab and the Mailworthy window opens (the Mailworthy button under the mail window"
         .. " toggles it). Controller: Send Mail tab ({PADRSHOULDER}); {PAD4} closes and reopens it.",
     "Lock an item (it stays locked wherever it moves): Alt+click it, or {PADLSTICK} in your bags (controller).",
-    "Pin an item to always bank it (Send mails it to your bank alt, on every character): Ctrl+Alt+click it, or"
-        .. " {PADRSTICK} in your bags (controller). /mw pins lists them.",
+    "Pin an item to always bank it: Ctrl+Alt+click it, or {PADRSTICK} in your bags (controller). Settings > Pinned"
+        .. " items picks where, per character: BA (Send mails it to your bank alt) or BH (it stays, to bank here)."
+        .. " /mw pins lists them; /mw pinwarning on|off.",
     "Locked items glow blue while the Mailworthy window is open (settings: always); a new lock glows a moment anywhere."
         .. " In the Mailworthy window, pressing an item locks or unlocks it.",
     "/mw or /mw settings - bank alt, minimum gain, disenchant, listing length, keep your professions' materials"
@@ -142,6 +143,9 @@ function ns.HandleSlash(msg)
         ns.LocksUI.Show()
     elseif cmd == "pins" then
         ns.Pins.PrintList()
+    elseif cmd == "pinwarning" then
+        ns.Config.Set("hidePinWarning", rest == "off")
+        ns.Print("Pin warning " .. (rest == "off" and "off." or "on: pinning an item your profession uses warns once."))
     elseif cmd == "friends" or cmd == "bindings" then
         ns.RoutesUI.Show()
     elseif cmd == "guild" then

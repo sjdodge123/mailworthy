@@ -143,17 +143,30 @@ describe("bank pins", function()
             assert.is_nil(r.pinned)
         end)
 
-        it("the tag is B and the tooltip says why, here and on the bank alt", function()
+        it("the tag is BA where pins go to the bank alt, BH where they stay, and the tooltip says why", function()
+            ns.Config.SetBankAlt("Roknua Themicrulah")
             local it = item()
             it.result = ns.Valuation.Evaluate(it, { ah = 174, age = 0 }, settings())
             assert.equal("b", ns.BankAlt.Verdict(it))
+            assert.equal(ns.Palette.BA, ns.BankAlt.Tag("b"))
             it.advice = "b"
             local lines = ns.BankAlt.TooltipLines(it, nil, settings())
             local text = {}
             for _, l in ipairs(lines) do text[#text + 1] = l[1] end
-            assert.truthy(table.concat(text, " "):find("you pinned this item for your bank alt", 1, true), table.concat(text, " "))
-            assert.truthy(lines[1][1]:find("[Pinned]", 1, true), "the label")
-            assert.same(ns.Pins.COLOR, { lines[2][2], lines[2][3], lines[2][4] }, "the reason in the pin's green")
+            assert.truthy(table.concat(text, " "):find("Bank it on your bank alt: you pinned it", 1, true), table.concat(text, " "))
+            assert.truthy(lines[1][1]:find("[BA: Bank on alt, pinned]", 1, true), lines[1][1])
+            assert.same(ns.Palette.BA.fg, { lines[2][2], lines[2][3], lines[2][4] }, "the reason in BA's colour")
+            -- Bank here (BH): the pin keeps it, and says why.
+            local here = item({ pin = ns.Valuation.PIN_HERE })
+            here.result = ns.Valuation.Evaluate(here, { ah = 174, age = 0 }, settings())
+            assert.equal("keep", here.result.action)
+            assert.equal("here", ns.BankAlt.Verdict(here))
+            here.advice = "here"
+            ns.Pins.SetMode(ns.Pins.HERE, "spec")
+            lines = ns.BankAlt.TooltipLines(here, nil, settings())
+            assert.truthy(lines[1][1]:find("[BH: Bank here, pinned]", 1, true), lines[1][1])
+            assert.truthy(lines[2][1]:find("this character banks its pins here", 1, true), lines[2][1])
+            assert.same(ns.Palette.BH.fg, { lines[2][2], lines[2][3], lines[2][4] })
         end)
 
         it("no price source: a pinned item goes anyway, white or not, junk too (operator, 2026-11-13)", function()
@@ -173,14 +186,15 @@ describe("bank pins", function()
             assert.is_true(r.failed)
         end)
 
-        it("the chip and the row tooltip in the Mailworthy window say pinned, in green", function()
+        it("the chip and the row tooltip in the Mailworthy window say pinned, in BA's colour", function()
             local r = ns.Valuation.Evaluate(item(), { ah = 174, age = 0 }, settings())
             assert.equal(ns.MailWindow.CHIPS.pinned, ns.MailWindow.ChipFor(r))
-            assert.same(ns.Pins.COLOR, { ns.MailWindow.CHIPS.pinned[2], ns.MailWindow.CHIPS.pinned[3],
+            assert.equal("BA pinned", ns.MailWindow.CHIPS.pinned[1])
+            assert.same(ns.Palette.BA.bg, { ns.MailWindow.CHIPS.pinned[2], ns.MailWindow.CHIPS.pinned[3],
                 ns.MailWindow.CHIPS.pinned[4] })
             assert.equal(ns.MailWindow.CHIPS.bank, ns.MailWindow.ChipFor({ route = "bank" }))
             local where = ns.MailWindow.TooltipLines({ result = r }, false, false, "Roknua Themicrulah", false)
-            assert.equal("Mailing to Roknua: you pinned it for your bank alt.", where)
+            assert.equal("Mailing to Roknua: you pinned it for your bank alt (BA).", where)
         end)
 
         it("the bags carry the pin into the rule", function()

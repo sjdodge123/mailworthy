@@ -34,8 +34,25 @@ end
 
 -- Settings -------------------------------------------------------------------
 
+-- Settings each character keeps for itself (MailworthyCharDB.settings), over the account's value
+-- until it sets one: an enchanter bank alt can sell its dust while the mains keep their materials
+-- (operator, 2026-11-13: "a setting to change that suggestion, so that my bank alt can know to AH
+-- the materials instead of saving them").
+Config.CHARACTER = { keepProfessionMats = true }
+
+local function charSettings()
+    if type(MailworthyCharDB) ~= "table" then return {} end
+    MailworthyCharDB.settings = type(MailworthyCharDB.settings) == "table" and MailworthyCharDB.settings or {}
+    return MailworthyCharDB.settings
+end
+
 function Config.Values()
-    return ns.Valuation.Settings(db().settings, ns.Prices.DisenchantAddonInstalled())
+    local s = ns.Valuation.Settings(db().settings, ns.Prices.DisenchantAddonInstalled())
+    for key in pairs(Config.CHARACTER) do
+        local own = charSettings()[key]
+        if own ~= nil then s[key] = own end
+    end
+    return s
 end
 
 function Config.Get(key) return Config.Values()[key] end
@@ -64,10 +81,15 @@ ns.On("PLAYER_LOGIN", function() Config.FirstSeen() end)
 
 -- Saved switches outside the decision rule. glowEverywhere: the locked-item glow
 -- in the bags away from the mailbox too (off: only while a mailbox is open).
-Config.FLAGS = { minimapHidden = true, tagsEverywhere = true, glowEverywhere = true }
+Config.FLAGS = { minimapHidden = true, tagsEverywhere = true, glowEverywhere = true, hidePinWarning = true }
 
 function Config.Set(key, value)
     if ns.Valuation.DEFAULTS[key] == nil and not Config.FLAGS[key] then return end
+    if Config.CHARACTER[key] then
+        charSettings()[key] = value
+        ns.Log.Add("config", "%s = %s (this character)", key, tostring(value))
+        return
+    end
     db().settings[key] = value
     ns.Log.Add("config", "%s = %s", key, tostring(value))
 end

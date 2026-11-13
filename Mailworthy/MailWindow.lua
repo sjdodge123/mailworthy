@@ -53,20 +53,39 @@ local shownAlt -- the bank alt the list on screen was drawn for (UI.Send compare
 local pages = { mail = 1, stay = 1 }
 local marked -- a name on screen carries the Mailworthy mark: the footer says what it means
 
+-- The chips on the Mailing rows: { text, r, g, b }, each in its bag tag's colour with its letters
+-- (Palette.lua: the tag, the glow, the chip and the tooltip agree; operator, 2026-11-13).
+local function paletteChip(text, entry) return { text, entry.bg[1], entry.bg[2], entry.bg[3] } end
+local P = ns.Palette
 UI.CHIPS = {
-    ah = { "Auction", 0.2, 0.4, 0.75 },
-    de = { "Disenchant", 0.45, 0.25, 0.65 },
-    common = { "Common", 0.4, 0.4, 0.4 },
-    bank = { "Bank", 0.15, 0.5, 0.45 },
-    noprice = { "No price", 0.35, 0.35, 0.5 }, -- no auction price yet: the bank alt holds it (2026-11-08)
-    friend = { "to a friend", 0.55, 0.35, 0.12 }, -- the chip says "to <first name>"
-    ["return"] = { "back to sender", 0.5, 0.3, 0.5 }, -- the chip says "back to <first name>"
-    pinned = { "Pinned", ns.Pins.COLOR[1], ns.Pins.COLOR[2], ns.Pins.COLOR[3] }, -- a bank pin (Pins.lua), in its green
+    ah = paletteChip("AH auction", P.AH),
+    de = paletteChip("DE disenchant", P.DE),
+    common = paletteChip("Common", P.COMMON),
+    bank = paletteChip("BA bank", P.BA), -- mailed to the bank alt to bank there
+    noprice = paletteChip("No price", P.NOPRICE), -- no auction price yet: the bank alt holds it (2026-11-08)
+    friend = paletteChip("to a friend", P.F), -- the chip says "to <first name>", in F's colour
+    ["return"] = paletteChip("back to sender", P.R), -- the chip says "back to <first name>", in R's colour
+    pinned = paletteChip("BA pinned", P.BA), -- a bank pin (Pins.lua) to the bank alt: its tag and glow's colour
 }
 
 --- The chip for a result: a pinned item's own, else its route's.
 function UI.ChipFor(r)
     return (r.pinned and UI.CHIPS.pinned) or UI.CHIPS[r.route] or UI.CHIPS.common
+end
+
+--- Pure: a bank-here pin's keep (not a BA pin held this visit).
+function UI.PinnedHere(r)
+    return r.pinned == true and r.action == "keep" and r.reason == ns.Valuation.PIN_HERE_REASON
+end
+
+--- Pure: the Staying row's reason in the colour of the tag the bags show for it: BH (bank it here:
+--- a bank-here pin, this character's crafting) in BH's teal, "BH " in front; the rest as it is.
+function UI.StayText(r)
+    local text = UI.StayReason(r)
+    if UI.PinnedHere(r) or ns.Valuation.BankForCraft(r) then
+        return P.Hex(P.BH.fg) .. "BH " .. text .. "|r"
+    end
+    return text
 end
 
 function UI.Frame() return frame end
@@ -252,13 +271,20 @@ function UI.TooltipLines(item, staying, pad, bankAlt, busy)
             return "Locked in Mailworthy: it stays in your bags and is never mailed.",
                 busy and UI.BUSY_LINE or (verb .. " to unlock.")
         end
-        local where = ns.Valuation.BankForCraft(r) and ("Bank it: " .. UI.WhyKept(r) .. ".")
+        local where = (UI.PinnedHere(r) and "BH: it stays, to bank here: you pinned it, and "
+                .. tostring(ns.Pins.ModeText()) .. ".")
+            or (ns.Valuation.BankForCraft(r) and ("BH: bank it here: " .. UI.WhyKept(r) .. "."))
             or ("It stays: " .. UI.StayReason(r) .. ".")
         return where, busy and UI.BUSY_LINE or (verb .. " to lock it, so it always stays.")
     end
     local to = r.to or bankAlt
     local where = to and ((r.route == "return" and "Going back to " or "Mailing to ") .. firstName(to)
-        .. (r.pinned and ": you pinned it for your bank alt." or ".")) or "Mailing."
+        .. (r.pinned and ": you pinned it for your bank alt (BA)." or ".")) or "Mailing."
+    -- The pin beats this character's own profession (operator, 2026-11-13): said on the row too.
+    if r.pinConflict then
+        where = where .. string.format(" Your %s uses it, but the pin wins (Settings > Pinned items: Bank here keeps it).",
+            tostring(r.pinConflict))
+    end
     return where, busy and UI.BUSY_LINE or (verb .. " to lock: it stays in your bags and is never mailed.")
 end
 
@@ -287,7 +313,9 @@ end
 
 local function addLines(tooltip)
     local where, press = UI.TooltipLines(tipRow.item, tipRow.staying, tipPad, ns.Config.BankAlt(), ns.Mailer.Busy())
-    local c = (tipRow.item.result or {}).pinned and ns.Pins.COLOR or ns.Border.COLOR -- a pin's line in its green
+    local r = tipRow.item.result or {}
+    -- A pin's line in its destination's colour (BA when mailed, BH when it stays), like its glow and tag.
+    local c = UI.PinnedHere(r) and P.BH.fg or r.pinned and P.BA.fg or ns.Border.COLOR
     tipAdded = true
     tooltip:AddLine(" ")
     tooltip:AddLine(where, c[1], c[2], c[3], true)
@@ -728,7 +756,7 @@ end
 
 local function fillStayRow(row, item)
     row.name:SetText(UI.ItemText(item.link, item.count))
-    local reason = UI.StayReason(item.result)
+    local reason = UI.StayText(item.result)
     if item.result.reason == "locked" then reason = UI.LOCKED_COLOR .. reason .. "|r" end
     row.reason:SetText(reason)
 end

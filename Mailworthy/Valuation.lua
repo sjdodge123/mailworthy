@@ -448,11 +448,27 @@ end
 
 local evaluate
 
-Valuation.PIN_BANK = "bank" -- item.pin: Pins.BANK (Pins.lua loads before this file; kept apart so this stays pure)
+-- item.pin: where this character banks the item's pin (Pins.Effective; Pins.lua loads before this
+-- file, kept apart so this stays pure): on the bank alt (BA) or here (BH).
+Valuation.PIN_BANK = "bank"
+Valuation.PIN_HERE = "here"
+Valuation.PIN_HERE_REASON = "bank here: you pinned it"
+
+--- Pure: the crafting profession of this character that uses the item and keeps it (the keep
+--- below), or nil; with the rest of Valuation.NeededBy's returns.
+local function professionKeep(item, settings)
+    if not settings.keepProfessionMats then return nil end
+    local profession, outgrown, untilSkill, convert, window = Valuation.NeededBy(item, settings.professions,
+        settings.tiers, settings.priceOf)
+    -- "Sell what I gather": what a gathering profession brought in is valued like anything else.
+    if profession and settings.sellGathered and Valuation.GatheredBy(item, settings.professions) then profession = nil end
+    return profession, outgrown, untilSkill, convert, window
+end
+Valuation.ProfessionKeep = professionKeep
 
 --- item: { link, itemID, count, stacks, quality, classID, vendor (copper per unit; nil = not
 ---   loaded yet), bound, quest, conjured (Conjured.Is), questFor (the title of an active quest
----   that needs it), inUse (locked by the game), locked (Mailworthy lock), pin ("bank": Pins.lua) }
+---   that needs it), inUse (locked by the game), locked (Mailworthy lock), pin ("bank" / "here": Pins.Effective) }
 --- price: nil when there's no price source at all (no Auctionator); else
 ---   { ah = copper per unit or nil, age = days or nil, de = copper per item or nil }
 ---   history = Prices.History rows (optional), exact = true / false / nil }
@@ -478,22 +494,33 @@ function Valuation.Evaluate(item, price, settings)
     -- keep above, so a pin never mails what the rule wouldn't touch. It overrides the no-price-source
     -- rule and the grey junk rule (operator, 2026-11-13: "Pins override them"), not the item data
     -- hard keep or a failed price call.
+    -- A bank-here pin (BH: this character's setting, no bank alt, or the bank alt itself): it stays
+    -- to go in this character's own bank. Not a hard keep: Return to sender still wins (operator,
+    -- 2026-11-13), as over a BA pin.
+    -- Item data first, for either pin: an item whose data hasn't loaded is a hard keep, so not even
+    -- Return to sender takes it (Codex review, 2026-11-13).
+    if (item.pin == Valuation.PIN_HERE or item.pin == Valuation.PIN_BANK) and item.vendor == nil then
+        return keep("item info not loaded yet")
+    end
+    if item.pin == Valuation.PIN_HERE then
+        return keep(Valuation.PIN_HERE_REASON, { pinned = true, vendor = (item.vendor or 0) * (item.count or 1) })
+    end
     if item.pin == Valuation.PIN_BANK then
         if item.vendor == nil then return keep("item info not loaded yet") end
         if type(price) == "table" and price.failed then
             return keep("no price", { vendor = item.vendor * (item.count or 1), failed = true })
         end
+        -- The pin beats "keep my professions' materials" (operator, 2026-11-13: "a bank pin is a hard
+        -- decision by the user and needs to be honored"); pinConflict names the profession, so the
+        -- window and the tooltip say so (and PinWarning offers a way out).
         return { action = "mail", route = "bank", listRoute = "common", reason = "bank: you pinned it", pinned = true,
+            pinConflict = (professionKeep(item, settings)),
             vendor = (item.vendor or 0) * (item.count or 1), postage = (settings.postage or 0) * (item.stacks or 1) }
     end
-    if settings.keepProfessionMats then
-        local profession, _, untilSkill, convert, window = Valuation.NeededBy(item, settings.professions,
-            settings.tiers, settings.priceOf)
-        -- "Sell what I gather": what a gathering profession brought in is valued like anything else.
-        if profession and not (settings.sellGathered and Valuation.GatheredBy(item, settings.professions)) then
-            return keep("your " .. profession .. " needs it", { untilSkill = untilSkill, convert = convert,
-                window = window, neededBy = profession })
-        end
+    local profession, _, untilSkill, convert, window = professionKeep(item, settings)
+    if profession then
+        return keep("your " .. profession .. " needs it", { untilSkill = untilSkill, convert = convert,
+            window = window, neededBy = profession })
     end
     local r = evaluate(item, price, settings)
     if settings.keepProfessionMats and r.reason ~= "item info not loaded yet" then

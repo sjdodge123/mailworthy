@@ -37,17 +37,22 @@ local _, ns = ...
 local BankAlt = {}
 ns.BankAlt = BankAlt
 
-BankAlt.TAGS = {
-    ah = { text = "AH", label = "Auction", color = { 0.2, 0.4, 0.75 } },
-    b = { text = "B", label = "Bank", color = { 0.15, 0.5, 0.45 } },
-    -- Kept for this character's own crafting: in the bank, not the bags (operator, 2026-11-11). The
-    -- same B for the player; its own key so the summary ("what to sell") leaves it out.
-    craft = { text = "B", label = "Bank", color = { 0.15, 0.5, 0.45 } },
-    de = { text = "DE", label = "Disenchant", color = { 0.45, 0.25, 0.65 } },
-    v = { text = "V", label = "Vendor now", color = { 0.45, 0.38, 0.2 } },
-    -- A bank-pinned item (Pins.lua): still B, in the pin's green, like its glow (operator, 2026-11-13).
-    pin = { text = "B", label = "Pinned", color = ns.Pins.COLOR },
-}
+local P = ns.Palette
+
+--- Does this character bank here what goes "to the bank" (it is the bank alt, or has none)?
+function BankAlt.BanksHere()
+    return ns.Config.IsBankAltHere() or not ns.Config.BankAlt()
+end
+
+--- The Palette entry (tag letters, colours, label) for a verdict (BankAlt.Verdict). "b" (bank it, not
+--- listed yet) is BA on a character that mails it to the bank alt, BH where it stays: the same item,
+--- told by where it gets banked (operator, 2026-11-13: "Bank here (BH) vs Bank Alt (BA)").
+--- "craft" (this character's own crafting needs it, 2026-11-11) and "here" (a bank-here pin) are BH.
+function BankAlt.Tag(verdict)
+    if verdict == "b" then return BankAlt.BanksHere() and P.BH or P.BA end
+    if verdict == "craft" or verdict == "here" then return P.BH end
+    return ({ ah = P.AH, de = P.DE, v = P.V, friend = P.F, ["return"] = P.R })[verdict]
+end
 
 local money = function(c) return ns.Valuation.Money(c) end
 local tags = setmetatable({}, { __mode = "k" }) -- bag button -> { bg, text }
@@ -68,15 +73,19 @@ function BankAlt.IsBankAlt()
     return ns.Config.IsBankAltHere()
 end
 
-local vendorMode = false -- this session, on this character, after a send
+--- A main that has sent with Mailworthy shows its tags from then on, saved for the character, so a
+--- /reload or a relog keeps them (operator, 2026-11-13: "not just V tags, but all tags"; before,
+--- only V, and only until the session ended).
+local function sentHere() return type(MailworthyCharDB) == "table" and MailworthyCharDB.tagsAfterSend == true end
 
---- "bankalt" (AH / DE / V), "everywhere" (the setting), "self" (no bank alt on this realm and
---- faction: this character sells its own), "vendor" (a main after Send: V only), or nil.
+--- "bankalt", "everywhere" (the setting), "self" (no bank alt on this realm and faction: this
+--- character sells its own), "sent" (a main that has sent: the window's settings), or nil (a main
+--- that never sent: only pinned items are tagged).
 function BankAlt.Mode()
     if BankAlt.IsBankAlt() then return "bankalt" end
     if ns.Config.Flag("tagsEverywhere") then return "everywhere" end
     if not ns.Config.BankAlt() then return "self" end
-    if vendorMode then return "vendor" end
+    if sentHere() then return "sent" end
     return nil
 end
 
@@ -84,11 +93,17 @@ function BankAlt.Active()
     return BankAlt.Mode() ~= nil
 end
 
---- Mailer: everything was mailed. Tag what's left for the vendor (mains only).
+--- Is there anything to draw at all? Every mode tags; a main that never sent tags its pinned items
+--- (a pin always shows its BA / BH tag).
+function BankAlt.Wanted()
+    return ns.Features.On("bankAltTags") and (BankAlt.Active() or ns.Pins.Any())
+end
+
+--- Mailer: a send finished. Tag this main's bags from now on.
 function BankAlt.AfterSend()
-    if vendorMode or BankAlt.IsBankAlt() then return end
-    vendorMode = true
-    ns.Log.Add("bankalt", "vendor tags on after sending")
+    if sentHere() or BankAlt.IsBankAlt() then return end
+    MailworthyCharDB.tagsAfterSend = true
+    ns.Log.Add("bankalt", "tags on after sending (saved)")
     BankAlt.Redraw()
 end
 
@@ -100,8 +115,15 @@ end
 function BankAlt.Verdict(item)
     local r = item.result
     if not r then return nil end
+    if r.pinned and r.action == "keep" and r.reason == ns.Valuation.PIN_HERE_REASON then return "here" end
+    -- A pin valued for the bank alt where pins bank here (BankAlt.BanksHere) is a bank-here pin.
+    if r.pinned and r.action == "mail" and r.route == "bank" and BankAlt.BanksHere() then return "here" end
     if ns.Valuation.BankForCraft(r) then return "craft" end
     if r.action == "mail" then
+        -- Where the mailbox sends it, as the window does (operator, 2026-11-13: tags that ignored
+        -- bindings and Return to sender disagreed with the window).
+        if r.route == "return" then return "return" end
+        if r.to then return "friend" end
         if r.route == "bank" then return "b" end
         return (r.route == "ah" or r.route == "de") and r.route or nil
     end
@@ -113,11 +135,13 @@ function BankAlt.Verdict(item)
 end
 
 --- Settings for the verdicts: on the bank alt (and with "tags everywhere") no postage,
---- since nothing is mailed from there; after a send on a main, the window's own settings.
+--- since nothing is mailed from there; after a send on a main, the window's own settings. The
+--- bindings count (an item a friend's binding takes is F, not AH), and so does Return to sender
+--- while it is on at the mailbox (R): the tags say what the mailbox does (operator, 2026-11-13).
 function BankAlt.Settings()
     local s = ns.Config.Values()
-    if BankAlt.Mode() ~= "vendor" then s.postage = 0 end
-    s.routes = {} -- tags say what the market says; bindings (Routes) only apply when mailing
+    if BankAlt.Mode() ~= "sent" then s.postage = 0 end
+    if ns.Returns.On() then s.returns = ns.Returns.Current() end
     return s
 end
 
@@ -128,17 +152,25 @@ end
 function BankAlt.Refresh()
     cache.dirty = false
     cache.bySlot, cache.byLink, cache.byItemID = {}, {}, {}
+    local keys = {}
     cache.result = ns.Bags.Evaluate(BankAlt.Settings())
+    local mode = BankAlt.Mode()
     for _, list in ipairs({ cache.result.mail, cache.result.keep }) do
         for _, item in ipairs(list) do
-            item.advice = BankAlt.Verdict(item) -- the tooltip's, in every mode
-            item.verdict = item.advice -- the bag tag's: after a send on a main, V only
-            if BankAlt.Mode() == "vendor" and item.verdict ~= "v" then item.verdict = nil end
+            item.advice = BankAlt.Verdict(item) -- the tooltip's
+            item.verdict = item.advice -- the bag tag's
+            -- A main that never sent: its pinned items only (a pin always shows its tag).
+            if mode == nil and not (item.result and item.result.pinned) then item.advice, item.verdict = nil, nil end
+            local tag = item.verdict and BankAlt.Tag(item.verdict)
+            if tag then keys[tag.key] = true end
             cache.byLink[item.link] = item
             cache.byItemID[item.itemID] = cache.byItemID[item.itemID] or item
             for _, s in ipairs(item.slots) do cache.bySlot[s.bag .. ":" .. s.slot] = item end
         end
     end
+    cache.keys = keys
+    -- The legend lists what the bags now show (it doesn't rescan on its own: LegendText).
+    if legend then legend:SetText(BankAlt.LegendText()) end
     return cache.result
 end
 
@@ -170,7 +202,7 @@ end
 --- bag / slot; a view without bag slots (Auctionator's) passes nil for them and its item's link,
 --- else its item ID (Border.RefreshButton).
 function BankAlt.Decorate(button, bag, slot, itemID, link)
-    local want = ns.Features.On("bankAltTags") and BankAlt.Active()
+    local want = BankAlt.Wanted()
     local item
     if want then
         local c = current()
@@ -180,18 +212,23 @@ function BankAlt.Decorate(button, bag, slot, itemID, link)
             item = (link and c.byLink[link]) or (itemID and c.byItemID[itemID]) or nil
         end
     end
-    local tag = item and item.verdict
-        and (item.verdict == "b" and item.result and item.result.pinned and BankAlt.TAGS.pin or BankAlt.TAGS[item.verdict])
+    local tag = item and item.verdict and BankAlt.Tag(item.verdict)
     if not tag then
         local t = tags[button]
         if t then t.bg:Hide() t.text:Hide() end
         return
     end
     local t = tagFor(button)
-    t.bg:SetColorTexture(tag.color[1], tag.color[2], tag.color[3], 0.95)
+    t.bg:SetColorTexture(tag.bg[1], tag.bg[2], tag.bg[3], 0.95)
     t.text:SetText(tag.text)
     t.bg:Show()
     t.text:Show()
+end
+
+--- The valued bag item with this item ID (the tags' scan), or nil; for the glow's tooltip.
+function BankAlt.ItemFor(itemID)
+    if itemID == nil or not BankAlt.Wanted() then return nil end
+    return current().byItemID[itemID]
 end
 
 --- Does this button show one of our tags right now? (Baganator: our corner widget holds its corner
@@ -210,13 +247,20 @@ function BankAlt.AnchorTag(button, region)
     if region then t.bg:SetAllPoints(region) else t.bg:SetPoint("TOPLEFT", 2, -2) end
 end
 
---- The legend under the bags ("" while no tags show), shared by Blizzard's bags and the bag addons.
+--- Pure: the legend for the tags in `keys` (a set of Palette keys), in Palette.ORDER; "" for none.
+function BankAlt.LegendFor(keys)
+    local parts = {}
+    for _, key in ipairs(P.ORDER) do
+        if keys[key] then parts[#parts + 1] = P.Letters(P[key]) .. " " .. P.LEGEND[key] end
+    end
+    return #parts > 0 and ("Mailworthy: " .. table.concat(parts, "   ")) or ""
+end
+
+--- The legend under the bags: the tags the last scan put on the bags ("" for none), shared by
+--- Blizzard's bags and the bag addons. Never a scan of its own: the tags' scan sets it.
 function BankAlt.LegendText()
-    local mode = ns.Features.On("bankAltTags") and BankAlt.Mode()
-    if mode == "vendor" then return "Mailworthy: |cffd0b070V|r sell to a vendor" end
-    if not mode then return "" end
-    return "Mailworthy: |cff6f9fffAH|r auction   |cff40b0a0B|r bank   |cffb080e0DE|r disenchant"
-        .. "   |cffd0b070V|r vendor now"
+    if not BankAlt.Wanted() then return "" end
+    return BankAlt.LegendFor(cache.keys or {})
 end
 
 local function redraw()
@@ -262,56 +306,92 @@ function BankAlt.OtherLine(item, noBankAlt)
     return "Keep", "Stays in your bags: " .. ns.MailWindow.StayReason(r) .. "."
 end
 
---- Pure: the tooltip lines for one item: { { text, r, g, b }, ... }.
+-- A warning inside a tooltip: something that breaks the usual pattern (operator, 2026-11-13:
+-- "anything breaking that consistency is explained in the tooltip or with an explicit warning").
+BankAlt.WARN = { 1, 0.5, 0.25 }
+
+--- Pure: why this character banks its pins here (Pins.HereBecause), in words for the tooltip.
+local HERE_BECAUSE = {
+    setting = "this character banks its pins here (Settings: Pinned items)",
+    ["no bank alt"] = "no bank alt is set, so it stays to bank here. Pick a bank alt to have pins mailed to it",
+    ["bank alt"] = "this is your bank alt, where pins are banked",
+}
+
+--- Pure: the line that says what the tag means, for a tagged item.
+local function tagText(verdict, item, settings)
+    local r, p = item.result, item.price or {}
+    local unit = r.ahUnit or p.ah
+    local basis = (r.scans or 1) > 1 and string.format(" (%d-day median)", r.scans) or ""
+    local unpin = " Ctrl+Alt+click it again to unpin."
+    if verdict == "ah" then
+        return string.format("Auction price today: %s each%s%s. After the %d%% cut and the %dh deposit: %s more than a vendor.",
+            money(unit), basis, ageText(p.age), math.floor(settings.cut * 100 + 0.5),
+            ns.Valuation.DURATION_HOURS[settings.duration], money(r.gain))
+    elseif verdict == "here" then
+        return "Bank it here: you pinned it, and " .. (HERE_BECAUSE[ns.Pins.HereBecause()] or HERE_BECAUSE.setting) .. "."
+            .. unpin
+    elseif verdict == "b" and r.pinned then
+        return "Bank it on your bank alt: you pinned it, so Send mails it there (/mw pins lists pins)." .. unpin
+    elseif verdict == "b" then
+        local why = tostring(r.reason):gsub("^bank: ", "")
+        return (BankAlt.BanksHere() and "Bank it here, don't list it yet: " or "Bank it on your bank alt, don't list it yet: ")
+            .. why .. ". " .. (r.gain
+            and string.format("Listed today it would bring %s%s more than a vendor.", unit and (money(unit) .. " each, ") or "",
+                money(r.gain))
+            or "No auction price yet, so the gain is unknown.")
+    elseif verdict == "craft" then
+        return "Bank it here: " .. ns.MailWindow.WhyKept(r) .. ". It waits in your bank, not your bags, until you craft."
+            .. " (Settings: Keep my professions' materials, per character.)"
+    elseif verdict == "friend" then
+        return string.format("Goes to %s at the mailbox: %s.", tostring(r.to),
+            r.what and (tostring(r.what) .. " binding") or "a binding")
+    elseif verdict == "return" then
+        return string.format("Goes back to %s at the mailbox: they mailed it to you, and Return to sender is on.",
+            tostring(r.to))
+    elseif verdict == "de" then
+        return string.format("Disenchanting today: %s, %s more than a vendor.", money(p.de), money(r.gain))
+    elseif p.ah then
+        return string.format("Auction price today: %s each%s%s. After the %d%% cut and the deposit that's %s, "
+            .. "so sell it to a vendor (%s).", money(unit), basis, ageText(p.age), math.floor(settings.cut * 100 + 0.5),
+            (r.gain or 0) > 0 and ("under your " .. money(r.threshold) .. " minimum gain") or "less than a vendor pays",
+            money(r.vendor))
+    end
+    return string.format("Worth no more than a vendor today: sell it (%s).", money(r.vendor))
+end
+
+--- Pure: the tooltip lines for one item: { { text, r, g, b }, ... }. Every tagged line is in its
+--- tag's colour (Palette), like the tag, the glow and the window's chip.
 --- `item` is the valued bag item (or nil when it isn't in the bags), `record` the
 --- MailworthyDB.mailed entry (or nil).
 function BankAlt.TooltipLines(item, record, settings)
     local lines = {}
     local verdict = item and (item.advice or item.verdict)
-    local pinned = verdict == "b" and item.result and item.result.pinned
-    local tag = verdict and (pinned and BankAlt.TAGS.pin or BankAlt.TAGS[verdict])
+    local tag = verdict and BankAlt.Tag(verdict)
+    local r = item and item.result or {}
     local otherLabel, otherText
     if not tag then otherLabel, otherText = BankAlt.OtherLine(item, ns.Bags.HoldReason() or false) end
-    local label = tag and tag.label or otherLabel
+    local label = tag and (tag.text .. ": " .. tag.label .. (r.pinned and ", pinned" or "")) or otherLabel
     if not label and not record then return lines end
     lines[1] = { "Mailworthy" .. (label and ("  |cffffffff[" .. label .. "]|r") or ""), 1, 0.82, 0 }
     if otherText then lines[#lines + 1] = { otherText, 1, 1, 1 } end
     if tag then
-        local r, p = item.result, item.price or {}
-        local unit = r.ahUnit or p.ah
-        local basis = (r.scans or 1) > 1 and string.format(" (%d-day median)", r.scans) or ""
-        local text
-        if verdict == "ah" then
-            text = string.format("Auction price today: %s each%s%s. After the %d%% cut and the %dh deposit: %s more than a vendor.",
-                money(unit), basis, ageText(p.age), math.floor(settings.cut * 100 + 0.5),
-                ns.Valuation.DURATION_HOURS[settings.duration], money(r.gain))
-        elseif verdict == "b" and r.pinned then
-            text = "Bank it: you pinned this item for your bank alt (/mw pins lists them). Ctrl+Alt+click it again to unpin."
-        elseif verdict == "b" then
-            local why = tostring(r.reason):gsub("^bank: ", "")
-            text = "Bank it, don't list it yet: " .. why .. ". " .. (r.gain
-                and string.format("Listed today it would bring %s%s more than a vendor.", unit and (money(unit) .. " each, ") or "",
-                    money(r.gain))
-                or "No auction price yet, so the gain is unknown.")
-        elseif verdict == "craft" then
-            text = "Bank it: " .. ns.MailWindow.WhyKept(r) .. ". It waits in your bank, not your bags, until you craft."
-        elseif verdict == "de" then
-            text = string.format("Disenchanting today: %s, %s more than a vendor.", money(p.de), money(r.gain))
-        elseif p.ah then
-            text = string.format("Auction price today: %s each%s%s. After the %d%% cut and the deposit that's %s, "
-                .. "so sell it to a vendor (%s).", money(unit), basis, ageText(p.age), math.floor(settings.cut * 100 + 0.5),
-                (r.gain or 0) > 0 and ("under your " .. money(r.threshold) .. " minimum gain") or "less than a vendor pays",
-                money(r.vendor))
-        else
-            text = string.format("Worth no more than a vendor today: sell it (%s).", money(r.vendor))
+        lines[#lines + 1] = { tagText(verdict, item, settings), tag.fg[1], tag.fg[2], tag.fg[3] }
+        -- A BA pin beats this character's own profession (operator, 2026-11-13): said every time.
+        if r.pinConflict then
+            lines[#lines + 1] = { string.format("Your %s uses it, but the pin wins. To keep it here: Settings > Pinned"
+                .. " items: Bank here (BH), or unpin it.", tostring(r.pinConflict)), BankAlt.WARN[1], BankAlt.WARN[2],
+                BankAlt.WARN[3] }
         end
-        local c = pinned and ns.Pins.COLOR or { 1, 1, 1 } -- a pin's line in its green, like its glow and tag
-        lines[#lines + 1] = { text, c[1], c[2], c[3] }
+        -- Pinned to the bank alt, but the bank alt is skipped this visit: it waits for the next one.
+        if verdict == "b" and r.pinned and ns.Bags.BankAltSkipped() then
+            lines[#lines + 1] = { "Bank alt skipped this visit: it stays, and goes next time.", BankAlt.WARN[1],
+                BankAlt.WARN[2], BankAlt.WARN[3] }
+        end
     end
     if record then
-        local was = BankAlt.TAGS[record.route] and BankAlt.TAGS[record.route].label
-            or (record.route == "bank" and "Bank") or (record.route == "common" and "Common item")
-            or (record.route == ns.Valuation.NO_PRICE and "No auction price yet") or tostring(record.reason)
+        local was = (record.route == "bank" and "Bank") or (record.route == "common" and "Common item")
+            or (record.route == ns.Valuation.NO_PRICE and "No auction price yet")
+            or (BankAlt.Tag(record.route) and BankAlt.Tag(record.route).label) or tostring(record.reason)
         lines[#lines + 1] = { string.format("Mailed for: %s%s, %s, from %s", was,
             record.gain and (" +" .. money(record.gain)) or "", date("%b %d", record.at or 0), tostring(record.from)),
             0.55, 0.75, 1 }
@@ -341,14 +421,16 @@ local function onTooltip(tooltip, data)
     local link = select(2, call(rawget(_G, "TooltipUtil") and TooltipUtil.GetDisplayedItem, tooltip))
     local itemID = type(data) == "table" and tonumber(data.id) or nil
     local shown, shownResult = windowItem(link, itemID)
-    if not shown and not BankAlt.Active() then return end
+    if not shown and not BankAlt.Active() and not ns.Pins.Any() then return end
     local c = shown and { result = shownResult } or current()
     local item = shown and { result = shown.result, price = shown.price, advice = BankAlt.Verdict(shown) }
         or (link and c.byLink[link]) or (itemID and c.byItemID[itemID]) or nil
-    itemID = itemID or (shown and shown.itemID) or (item and item.itemID)
-    -- On a main after sending, only the vendor verdict: "Mailed for" belongs on the bank alt.
     local mode = BankAlt.Mode()
-    local record = mode and mode ~= "vendor" and itemID and type(MailworthyDB.mailed) == "table"
+    -- A main that never sent says something only about its pinned items (their tag shows).
+    if not shown and mode == nil and not (item and item.verdict) then return end
+    itemID = itemID or (shown and shown.itemID) or (item and item.itemID)
+    -- On a main, no "Mailed for": that belongs on the bank alt.
+    local record = mode and mode ~= "sent" and itemID and type(MailworthyDB.mailed) == "table"
         and MailworthyDB.mailed[itemID] or nil
     if type(record) ~= "table" then record = nil end
     local lines = BankAlt.TooltipLines(item, record, c.result and c.result.settings or BankAlt.Settings())
@@ -381,11 +463,14 @@ end
 --- Pure: totals per verdict for the summary window.
 function BankAlt.Summary(result)
     local s = { ah = { stacks = 0, items = 0, gain = 0 }, b = { stacks = 0, items = 0, gain = 0 },
-        de = { stacks = 0, items = 0, gain = 0 }, v = { stacks = 0, items = 0, vendor = 0, wasAuction = 0 } }
+        de = { stacks = 0, items = 0, gain = 0 }, v = { stacks = 0, items = 0, vendor = 0, wasAuction = 0 },
+        pin = { stacks = 0, items = 0, gain = 0 } }
     local mailed = type(MailworthyDB.mailed) == "table" and MailworthyDB.mailed or {}
     for _, list in ipairs({ result.mail, result.keep }) do
         for _, item in ipairs(list) do
             local v = item.verdict
+            -- Pinned items have their own row (operator, 2026-11-13), not "for a later phase".
+            if (v == "b" or v == "here") and item.result and item.result.pinned then v = "pin" end
             local t = v and s[v]
             if t then
                 t.stacks, t.items = t.stacks + item.stacks, t.items + item.count
@@ -410,6 +495,7 @@ local ROW_TEXT = {
         return string.format("%d stack%s to bank for a later phase", t.stacks, t.stacks == 1 and "" or "s"), "+" .. money(t.gain)
     end,
     de = function(t) return string.format("%d item%s to disenchant", t.items, t.items == 1 and "" or "s"), "+" .. money(t.gain) end,
+    pin = function(t) return string.format("%d pinned stack%s to bank", t.stacks, t.stacks == 1 and "" or "s"), "" end,
     v = function(t)
         return string.format("%d stack%s to sell to a vendor%s", t.stacks, t.stacks == 1 and "" or "s",
             t.wasAuction > 0 and string.format(" (%d mailed for the auction house)", t.wasAuction) or ""), money(t.vendor)
@@ -419,7 +505,7 @@ local ROW_TEXT = {
 function BankAlt.CreateWindow()
     if frame then return frame end
     local W = ns.Widgets
-    frame = W.Window("MailworthySummaryFrame", 440, 258)
+    frame = W.Window("MailworthySummaryFrame", 440, 286)
     frame:SetPoint("CENTER")
     local title = W.Label(frame, "GameFontNormalLarge")
     title:SetPoint("TOPLEFT", 22, -18)
@@ -427,17 +513,14 @@ function BankAlt.CreateWindow()
     header = W.Label(frame, "GameFontNormal")
     header:SetPoint("TOPLEFT", 24, -50)
     rows = {}
-    for i, key in ipairs({ "ah", "b", "de", "v" }) do
+    for i, key in ipairs({ "ah", "b", "pin", "de", "v" }) do
         local row = {}
         local y = -74 - (i - 1) * 28
         row.chipBg = frame:CreateTexture(nil, "BORDER")
         row.chipBg:SetSize(84, 16)
         row.chipBg:SetPoint("TOPLEFT", 26, y)
-        local c = BankAlt.TAGS[key].color
-        row.chipBg:SetColorTexture(c[1], c[2], c[3], 0.9)
-        local chip = W.Label(frame, "GameFontHighlightSmall")
-        chip:SetPoint("CENTER", row.chipBg, "CENTER")
-        chip:SetText(BankAlt.TAGS[key].label)
+        row.chip = W.Label(frame, "GameFontHighlightSmall")
+        row.chip:SetPoint("CENTER", row.chipBg, "CENTER")
         row.text = W.Label(frame, "GameFontHighlight")
         row.text:SetPoint("TOPLEFT", 120, y - 1)
         row.value = W.Label(frame, "GameFontHighlight")
@@ -457,6 +540,11 @@ function BankAlt.RefreshWindow()
     local summary = BankAlt.Summary(c.result)
     header:SetText(c.result.priced and "With today's prices" or "No auction prices here: install Auctionator or TSM")
     for key, row in pairs(rows) do
+        -- The chip as the bag tag reads (BA / BH follow where this character banks).
+        -- Pins follow this character's pin mode (BH by the setting too: Codex review, 2026-11-13).
+        local tag = BankAlt.Tag(key == "pin" and (ns.Pins.HereBecause() and "here" or "b") or key)
+        row.chipBg:SetColorTexture(tag.bg[1], tag.bg[2], tag.bg[3], 0.9)
+        row.chip:SetText(tag.text .. " " .. (key == "pin" and "pinned" or tag.label:lower()))
         local text, value = ROW_TEXT[key](summary[key])
         row.text:SetText(text)
         row.value:SetText(value)

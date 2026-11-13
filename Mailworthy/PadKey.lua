@@ -78,7 +78,7 @@ function PadKey.Wanted()
     -- "settings": our free-standing windows (settings, friends, ledger, locked items, bank alt summary,
     -- report), anywhere.
     local standalone = false
-    for _, mod in ipairs({ ns.SettingsUI, ns.RoutesUI, ns.LedgerUI, ns.LocksUI, ns.BankAlt, ns.Report }) do
+    for _, mod in ipairs({ ns.SettingsUI, ns.RoutesUI, ns.LedgerUI, ns.LocksUI, ns.PinWarning, ns.BankAlt, ns.Report }) do
         local f = mod and mod.Frame()
         if f and f:IsShown() then standalone = true end
     end

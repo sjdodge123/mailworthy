@@ -146,12 +146,16 @@ describe("settings window", function()
         _G.MailworthySettingsGlow:Click()
         assert.is_true(ns.Config.Flag("glowEverywhere"))
         assert.equal("Lock glow: always", _G.MailworthySettingsGlow:GetText())
-        assert.equal("Keep my professions' materials: on (no crafting profession here)", _G.MailworthySettingsMats:GetText())
+        assert.equal("This character keeps its profession materials: on (no crafting profession here)",
+            _G.MailworthySettingsMats:GetText())
         WowStub.state.professions[2] = { index = 9, name = "Enchanting", rank = 1, maxRank = 75, skillLine = 333 }
         _G.MailworthySettingsMats:Click()
         assert.is_false(ns.Config.Get("keepProfessionMats"))
-        assert.equal("Keep my professions' materials: off (Enchanting 1)",
+        assert.equal("This character keeps its profession materials: off (Enchanting 1)",
             _G.MailworthySettingsMats:GetText())
+        -- Per character (operator, 2026-11-13: an enchanter bank alt sells its dust, the mains keep theirs).
+        assert.is_false(MailworthyCharDB.settings.keepProfessionMats)
+        assert.is_nil(MailworthyDB.settings.keepProfessionMats, "the account's value is left alone")
         assert.equal("Sell what I gather: off (Mining)", _G.MailworthySettingsGather:GetText(), "the stub character mines")
         _G.MailworthySettingsGather:Click()
         assert.is_true(ns.Config.Get("sellGathered"))

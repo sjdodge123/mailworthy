@@ -15,6 +15,7 @@ Blocked.lua
 Characters.lua
 Gamepad.lua
 Locks.lua
+Palette.lua
 Pins.lua
 Border.lua
 Prices.lua
@@ -46,6 +47,7 @@ SettingsUI.lua
 RoutesUI.lua
 LedgerUI.lua
 LocksUI.lua
+PinWarning.lua
 MinimapButton.lua
 MailWindow.lua
 BankAlt.lua
