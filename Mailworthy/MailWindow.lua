@@ -63,6 +63,7 @@ UI.CHIPS = {
     common = paletteChip("Common", P.COMMON),
     bank = paletteChip("BA bank", P.BA), -- mailed to the bank alt to bank there
     noprice = paletteChip("No price", P.NOPRICE), -- no auction price yet: the bank alt holds it (2026-11-08)
+    vendor = paletteChip("V vendor", P.V), -- a V item mailed because "Send: V" is on
     friend = paletteChip("to a friend", P.F), -- the chip says "to <first name>", in F's colour
     ["return"] = paletteChip("back to sender", P.R), -- the chip says "back to <first name>", in R's colour
     pinned = paletteChip("BA pinned", P.BA), -- a bank pin (Pins.lua) to the bank alt: its tag and glow's colour
@@ -82,6 +83,7 @@ end
 --- a bank-here pin, this character's crafting) in BH's teal, "BH " in front; the rest as it is.
 function UI.StayText(r)
     local text = UI.StayReason(r)
+    if r.vendorPin then return P.Hex(P.V.fg) .. "V " .. text .. "|r" end
     if UI.PinnedHere(r) or ns.Valuation.BankForCraft(r) then
         return P.Hex(P.BH.fg) .. "BH " .. text .. "|r"
     end
@@ -315,7 +317,7 @@ local function addLines(tooltip)
     local where, press = UI.TooltipLines(tipRow.item, tipRow.staying, tipPad, ns.Config.BankAlt(), ns.Mailer.Busy())
     local r = tipRow.item.result or {}
     -- A pin's line in its destination's colour (BA when mailed, BH when it stays), like its glow and tag.
-    local c = UI.PinnedHere(r) and P.BH.fg or r.pinned and P.BA.fg or ns.Border.COLOR
+    local c = r.vendorPin and P.V.fg or UI.PinnedHere(r) and P.BH.fg or r.pinned and P.BA.fg or ns.Border.COLOR
     tipAdded = true
     tooltip:AddLine(" ")
     tooltip:AddLine(where, c[1], c[2], c[3], true)

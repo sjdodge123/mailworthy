@@ -29,6 +29,7 @@ end
 ns.Features = { DEFAULTS = {
     mailButton = true, padTriangle = true, padNav = true, padLock = true, altClickLock = true, slotBorder = true,
     pinClick = true, padPin = true,
+    vendorButton = true, padVendor = true,
     minimapButton = true, bankAltTags = true, tooltipLines = true, comms = true, staleNudge = true, crafterOffer = true,
     tiers = true, tierCheck = true, guildTemplate = true, ledger = true, questNeeds = true, autoOpen = true,
     returnToSender = true, bankAltMail = true, peerMark = true, versionNotice = true, tripNudge = true,
@@ -103,6 +104,7 @@ local HELP = {
     "Lock an item (it stays locked wherever it moves): Alt+click it, or {PADLSTICK} in your bags (controller).",
     "Pin an item to always bank it: Ctrl+Alt+click it, or {PADRSTICK} in your bags (controller). Settings > Pinned"
         .. " items picks where, per character: BA (Send mails it to your bank alt) or BH (it stays, to bank here)."
+        .. " Again: always vendor it (it stays, tagged V). A third time unpins."
         .. " /mw pins lists them; /mw pinwarning on|off.",
     "Locked items glow blue while the Mailworthy window is open (settings: always); a new lock glows a moment anywhere."
         .. " In the Mailworthy window, pressing an item locks or unlocks it.",
@@ -118,7 +120,10 @@ local HELP = {
     "/mw ledger - what other players mailed you beyond what you sent back, and Export log (every mail sent"
         .. " and received)",
     "/mw summary - on your bank alt (or without one): what to list, disenchant or vendor",
-    "/mw feature <mailButton|padTriangle|padNav|padLock|padPin|altClickLock|pinClick|slotBorder|minimapButton|bankAltTags"
+    "At a vendor: the \"Mailworthy: sell V\" button under the merchant window ({PAD4} with a controller, or /mw vendor)"
+        .. " lists the items tagged V and sells them, 12 stacks a press (the Buyback tab can undo a press).",
+    "/mw feature <mailButton|padTriangle|padNav|padLock|padPin|altClickLock|pinClick|slotBorder|vendorButton|padVendor"
+        .. "|minimapButton|bankAltTags"
         .. "|tooltipLines|comms|staleNudge|tiers|tierCheck|guildTemplate|ledger|questNeeds|autoOpen|returnToSender|bankAltMail"
         .. "|peerMark|versionNotice|tripNudge|crafterOffer"
         .. "|baganatorTags|bagnonTags|arkInventoryTags|betterBagsTags|auctionatorTags> on|off"
@@ -156,6 +161,8 @@ function ns.HandleSlash(msg)
         ns.LedgerUI.Show()
     elseif cmd == "summary" then
         ns.BankAlt.ShowWindow()
+    elseif cmd == "vendor" then
+        ns.Vendor.Toggle("/mw vendor")
     elseif cmd == "" or cmd == "settings" then
         ns.SettingsUI.Show()
     else

@@ -638,6 +638,32 @@ describe("critical path: mailing", function()
         assertSafeAndComplete(ns, preview, { [BANK_ALT] = true })
     end)
 
+    it("a vendor pin: the pinned items never leave, priced, soulbound or wanted by a binding", function()
+        -- shindo107's feat/vendor-pin: "always vendor this". A green the rule would mail for the auction
+        -- house, a soulbound green, and a material a binding would take: all three stay, tagged V.
+        WowStub.setBag(2, 6, WowStub.item(10940, "Strange Dust", { count = 20, sell = 2, class = 7, subclass = 12 }))
+        prices[WowStub.link(10940, "Strange Dust")] = 3
+        ns.Routes.Add(BOB, ENCHANTING)
+        mailbox()
+        _G.MailworthyMailButton:Click()
+        assert.equal(BANK_ALT, previewed(ns)[6515], "the green goes until it is pinned")
+        for _, pin in ipairs({ { 6515, "Spellbinder Robes" }, { 6125, "Brawler's Pants" }, { 10940, "Strange Dust" } }) do
+            ns.Pins.Set(pin[1], WowStub.link(pin[1], pin[2]), ns.Pins.VENDOR, "spec")
+        end
+        local preview = previewed(ns)
+        assert.is_nil(preview[6515], "the vendor-pinned green stays")
+        assert.is_nil(preview[6125], "the vendor-pinned soulbound green stays")
+        assert.is_nil(preview[10940], "the vendor-pinned dust stays: the binding doesn't take it")
+        local tagged = {}
+        for _, it in ipairs(ns.MailWindow.Result().keep) do tagged[it.itemID] = ns.BankAlt.Verdict(it) end
+        assert.equal("v", tagged[6515])
+        assert.equal("v", tagged[6125])
+        assert.equal("v", tagged[10940])
+        _G.MailworthyMailSend:Click()
+        deliver(ns)
+        assertSafeAndComplete(ns, preview, { [BANK_ALT] = true })
+    end)
+
     it("no bank alt: a pinned item stays in the bags like the rest of the bank alt's share", function()
         MailworthyDB.bankAlts = {}
         ns.Pins.Set(4865, WowStub.link(4865, "Ruined Pelt"), ns.Pins.BANK, "spec")
@@ -690,6 +716,144 @@ describe("critical path: mailing", function()
         _G.MailworthyMailSend:Click()
         deliver(ns)
         assertSafeAndComplete(ns, preview, { [BANK_ALT] = true, [ENGINEER] = true })
+    end)
+
+    it("Send by tag (mouse): Vendor on mails what a vendor beats, never junk; Auction off keeps the auction items", function()
+        -- shindo107's feat/craft-mats-to-alt: "V" on sends what the auction house prices under a vendor,
+        -- so the bank alt can sell it. "Grey junk stays" and "an item whose price call failed stays"
+        -- (AGENTS.md Safety) hold whatever the switch says (2026-11-13: the branch mailed junk).
+        WowStub.setBag(2, 6, WowStub.item(2589, "Linen Cloth", { count = 20, sell = 13, class = 7, subclass = 5 }))
+        prices[WowStub.link(2589, "Linen Cloth")] = 14 -- a vendor pays more: V
+        mailbox()
+        _G.MailworthyMailButton:Click()
+        local before = previewed(ns)
+        assert.is_nil(before[4865], "junk stays by default")
+        assert.equal(BANK_ALT, before[2770], "the ore goes for the auction house by default")
+        ns.SettingsUI.Show(ns.MailWindow.Frame())
+        _G.MailworthySettingsSendVendor:Click()
+        _G.MailworthySettingsSendAuction:Click()
+        ns.SettingsUI.Frame():Hide()
+        local preview = previewed(ns)
+        assert.equal(BANK_ALT, preview[2589], "Vendor on: the linen a vendor beats goes to the bank alt")
+        assert.is_nil(preview[4865], "grey junk stays, Vendor on or not")
+        assert.is_nil(preview[2770], "Auction off: the ore stays")
+        assert.is_nil(preview[6515], "Auction off: the priced green stays")
+        assert.equal(BANK_ALT, preview[2318], "an unpriced item has no tag: it goes as before")
+        _G.MailworthyMailSend:Click()
+        deliver(ns)
+        assertSafeAndComplete(ns, preview, { [BANK_ALT] = true })
+    end)
+
+    it("Send by tag (controller): Cross on the V switch in the settings, then Send mails as previewed", function()
+        WowStub.setBag(2, 6, WowStub.item(2589, "Linen Cloth", { count = 20, sell = 13, class = 7, subclass = 5 }))
+        prices[WowStub.link(2589, "Linen Cloth")] = 14
+        WowStub.state.gamepadUI = true
+        WowStub.state.activeFrame = MailFrame
+        mailbox()
+        local watcher = _G.MailworthyPadWatcher
+        watcher.scripts.OnUpdate(watcher, 0.2)
+        _G.MailworthyPadTriangle:Click()
+        watcher.scripts.OnUpdate(watcher, 0.2)
+        ns.SettingsUI.Show(ns.MailWindow.Frame())
+        watcher.scripts.OnUpdate(watcher, 0.2)
+        assert.is_true(_G.MailworthySettingsSendVendor:IsShown())
+        ns.Nav.Select(_G.MailworthySettingsSendVendor)
+        WowStub.state.now = WowStub.state.now + 1
+        _G.MailworthyPadCross:Click()
+        assert.equal("V: on", _G.MailworthySettingsSendVendor:GetText())
+        ns.SettingsUI.Frame():Hide()
+        watcher.scripts.OnUpdate(watcher, 0.2)
+        local preview = previewed(ns)
+        assert.equal(BANK_ALT, preview[2589], "the linen goes to the bank alt")
+        assert.is_nil(preview[4865], "grey junk stays")
+        ns.Nav.Select(_G.MailworthyMailSend)
+        WowStub.state.now = WowStub.state.now + 1
+        _G.MailworthyPadCross:Click()
+        deliver(ns)
+        assertSafeAndComplete(ns, preview, { [BANK_ALT] = true })
+    end)
+
+    it("Send by tag with Vendor on but no price source: junk and non-white items still stay", function()
+        _G.Auctionator = nil
+        ns.Config.Set("sendVendor", true)
+        mailbox()
+        _G.MailworthyMailButton:Click()
+        local preview = previewed(ns)
+        assert.is_nil(preview[4865], "junk stays without prices, whatever the switch says")
+        assert.is_nil(preview[6515], "a green stays without prices")
+        _G.MailworthyMailSend:Click()
+        deliver(ns)
+        assertSafeAndComplete(ns, preview, { [BANK_ALT] = true })
+        for i in ipairs(WowStub.state.sent) do
+            for _, it in ipairs(WowStub.state.sentItems[i]) do assert.equal(1, it.quality, "item " .. it.itemID) end
+        end
+    end)
+
+    it("my professions' materials on my bank alt (mouse): previewed to the bank alt, then exactly that is sent", function()
+        -- A new way to mail, behind a setting that is off by default: what this character's own
+        -- crafting needs is kept here unless the player picks "on my bank alt" in the settings.
+        WowStub.state.professions[2] = { index = 9, name = "Leatherworking", rank = 30, maxRank = 75, skillLine = 165 }
+        prices[WowStub.link(2318, "Light Leather")] = 25
+        mailbox()
+        _G.MailworthyMailButton:Click()
+        assert.is_nil(previewed(ns)[2318], "by default the leatherworker's leather stays")
+        ns.SettingsUI.Show(ns.MailWindow.Frame())
+        _G.MailworthySettingsMats:Click() -- off
+        _G.MailworthySettingsMats:Click() -- on my bank alt
+        assert.truthy(_G.MailworthySettingsMats:GetText():find("on my bank alt", 1, true))
+        ns.SettingsUI.Frame():Hide()
+        local preview = previewed(ns)
+        assert.equal(BANK_ALT, preview[2318], "the leather goes to the bank alt")
+        _G.MailworthyMailSend:Click()
+        deliver(ns)
+        assertSafeAndComplete(ns, preview, { [BANK_ALT] = true })
+    end)
+
+    it("my professions' materials on my bank alt (controller): Cross on the switch, then Send mails as previewed", function()
+        WowStub.state.professions[2] = { index = 9, name = "Leatherworking", rank = 30, maxRank = 75, skillLine = 165 }
+        prices[WowStub.link(2318, "Light Leather")] = 25
+        WowStub.state.gamepadUI = true
+        WowStub.state.activeFrame = MailFrame
+        mailbox()
+        local watcher = _G.MailworthyPadWatcher
+        watcher.scripts.OnUpdate(watcher, 0.2)
+        _G.MailworthyPadTriangle:Click()
+        watcher.scripts.OnUpdate(watcher, 0.2)
+        ns.SettingsUI.Show(ns.MailWindow.Frame())
+        watcher.scripts.OnUpdate(watcher, 0.2)
+        ns.Nav.Select(_G.MailworthySettingsMats)
+        for _ = 1, 2 do
+            WowStub.state.now = WowStub.state.now + 1
+            _G.MailworthyPadCross:Click()
+        end
+        assert.truthy(_G.MailworthySettingsMats:GetText():find("on my bank alt", 1, true))
+        ns.SettingsUI.Frame():Hide()
+        watcher.scripts.OnUpdate(watcher, 0.2)
+        local preview = previewed(ns)
+        assert.equal(BANK_ALT, preview[2318])
+        ns.Nav.Select(_G.MailworthyMailSend)
+        WowStub.state.now = WowStub.state.now + 1
+        _G.MailworthyPadCross:Click()
+        deliver(ns)
+        assertSafeAndComplete(ns, preview, { [BANK_ALT] = true })
+    end)
+
+    it("my professions' materials on my bank alt: the B switch off, or no bank alt, and they stay", function()
+        WowStub.state.professions[2] = { index = 9, name = "Leatherworking", rank = 30, maxRank = 75, skillLine = 165 }
+        prices[WowStub.link(2318, "Light Leather")] = 25
+        ns.Config.Set("matsToBankAlt", true)
+        ns.Config.Set("sendBank", false)
+        mailbox()
+        _G.MailworthyMailButton:Click()
+        local preview = previewed(ns)
+        assert.is_nil(preview[2318], "Send by tag B off: the banked materials stay")
+        _G.MailworthyMailSend:Click()
+        deliver(ns)
+        assertSafeAndComplete(ns, preview, { [BANK_ALT] = true })
+        ns.Config.Set("sendBank", true)
+        ns.Config.ClearBankAlt()
+        ns.MailWindow.Refresh()
+        assert.is_nil(previewed(ns)[2318], "no bank alt: nowhere to send them")
     end)
 
     it("a bank alt picked after the preview holds Send until the list shows it (Codex review)", function()
@@ -993,6 +1157,21 @@ describe("critical path: mailing", function()
         mailbox()
         _G.MailworthyMailButton:Click()
         assert.is_nil(previewed(ns)[2592], "Return to sender off: the pin keeps it here")
+        _G.MailworthyMailReturn:Click()
+        local preview = previewed(ns)
+        assert.equal(BOB, preview[2592], "on: back to Bob, pinned or not")
+        assertReturnsShown()
+        _G.MailworthyMailSend:Click()
+        deliver(ns)
+        assertSafeAndComplete(ns, preview, { [BANK_ALT] = true, [BOB] = true, [MAIN] = true })
+    end)
+
+    it("Return to sender and a vendor pin: Return to sender still wins, like over every pin", function()
+        taken()
+        ns.Pins.Set(2592, WowStub.link(2592, "Wool Cloth"), ns.Pins.VENDOR, "spec") -- Bob mailed it
+        mailbox()
+        _G.MailworthyMailButton:Click()
+        assert.is_nil(previewed(ns)[2592], "Return to sender off: the vendor pin keeps it")
         _G.MailworthyMailReturn:Click()
         local preview = previewed(ns)
         assert.equal(BOB, preview[2592], "on: back to Bob, pinned or not")

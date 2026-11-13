@@ -105,6 +105,22 @@ than at the vendor goes to your bank alt. The rest stays in your bags to vendor.
   or take it out of every corner to turn Mailworthy off there). Another
   character's bags and the bank get no tags (the bank's locked items still glow).
   `/mw feature baganatorTags off` (or `bagnonTags`, `arkInventoryTags`, `betterBagsTags`) turns one off.
+- **Sell the V items at a vendor:** at a merchant, the **Mailworthy: sell V (N)** button under the
+  merchant window (or `/mw vendor`; Triangle on a controller while the merchant window has the
+  focus) opens a list of the stacks the bag tags call **V**, with what the vendor pays for each.
+  **Sell** sells that list and nothing else, 12 stacks a press (the buyback list holds 12, so
+  one press can always be bought back), re-reading each slot right before it sells it; it
+  stops when the merchant closes and at combat. Locked, soulbound, quest, conjured and in-use
+  items and tools are never on the list (a soulbound item only when you vendor-pinned it), and
+  nothing is sold without the press. An item a friend's binding takes is **F**, not V, so it is
+  never listed, and neither is anything another player mailed you (it may go back to them with
+  Return to sender; the window says how many stacks stayed for that reason).
+- **Vendor pins:** Ctrl+Alt+click (R3) a pinned item again and it becomes a vendor pin: it stays
+  in your bags, tagged **V** on every character whatever the auction house says, so the vendor
+  window sells it (a soulbound item too: an outgrown quest reward). A third press unpins. Never
+  past a lock, a quest's item, a conjured item, an item in use or a profession tool; Return to
+  sender beats it, as it beats every pin.
+  `/mw feature vendorButton off` removes the button, `/mw feature padVendor off` the controller key.
 - **Send a profession's materials to a friend** (`/mw friends`, or the settings'
   **Friends...** button): pick a guild member, party member or one of your own
   characters (online players first; their professions are shown and suggested), then the
@@ -215,6 +231,11 @@ than at the vendor goes to your bank alt. The rest stays in your bags to vendor.
   uses at skill 300 (Essence of Water, Righteous Orb, Star Ruby, Arcanite, ...) still go to
   the auction house; lock them to keep them. Gathering professions keep nothing: what they
   gather is what gets sold.
+  The same button (per character) has a third state, **on my bank alt**: these materials are
+  still kept for your crafting, but they wait on the bank alt instead of in this character's
+  bank. They show the **BA** tag and are mailed with the other banked items (Send by tag's
+  **BA** switch holds them back too). Materials to convert now (leather to the next tier) stay here, and so does
+  everything a hard keep covers; you mail them back from the bank alt when you craft.
 - **Materials you've levelled past are mailed again.** First Aid keeps each cloth until the
   next bandage is learnable (Linen Cloth until 80, Wool until 150, ...). Everything else is
   kept until every recipe that uses it, directly or through a part the profession makes
@@ -250,6 +271,15 @@ than at the vendor goes to your bank alt. The rest stays in your bags to vendor.
   skinner-leatherworker, a fisher-cook), what the gathering profession brings in is mailed
   to be sold instead of kept for the craft. Mining counts all metal and stone (ore, stone
   and the bars its smelting makes).
+- **Send by tag** (settings: AH / DE / BA / V, one switch each): what Send takes of the bank
+  alt's share, by the verdict the bag tag shows. **AH** (list it), **DE** (disenchant it) and
+  **BA** (bank it on the alt for a later phase) are on; switch one off and those items stay in
+  your bags (the window says "sending Auction items is off"). **V** (a vendor pays more) is off:
+  switch it on and items the auction house prices under a vendor go to the bank alt too, for it
+  to sell, with their postage counted in the total (it is often more than the item is worth).
+  Grey junk, items with no auction price and failed price lookups still stay. The switches
+  change what is mailed, never a tag; a binding's share, a return, a pinned item and every hard
+  keep are untouched.
 
 ```
 /mw                   settings: bank alt (pick, type, or "This character is my bank alt"), minimum gain, disenchant, listing length, tags, lock glow, profession materials, friends, guild, minimap button
@@ -324,6 +354,8 @@ each in-game round are in [docs/DISCOVERY-SESSION-2.md](docs/DISCOVERY-SESSION-2
 | API / behaviour | What to check | Status |
 |---|---|---|
 | Bank pins (`Pins.lua`): Ctrl+Alt+click on a bag item reaches the `HandleModifiedItemClick` post-hook (the lock's hook, which Alt alone reaches); with Ctrl held Blizzard's dress-up case may also run for gear. Controller: `PADRSTICK` (R3 / RS) bound in the bags with `SetOverrideBindingClick`, like L3; assumed free there, not measured | Ctrl+Alt+click an item: chat says "Bank pin on ...", the slot shows **BA** (with a bank alt; **BH** with Settings > Pinned items on bank here, or none), the Mailworthy window lists it for the bank alt (BA) or keeps it (BH); again unpins. With a controller: R3 on a bag item does the same, and nothing else happens (no camera or target change); `/mw feature padPin off` gives R3 back | open |
+| Selling V items (`Vendor.lua`): `MerchantFrame` (button parented to it, created at login on UIParent; nil-checked), `MERCHANT_SHOW` / `MERCHANT_CLOSED` (registered in `pcall`), `C_Container.UseContainerItem(bag, slot)` selling the stack while the merchant is open (`pcall`), `C_Timer.After` between stacks. Assumed, not measured: `FrameControlsManager:GetActiveFrame()` returns `MerchantFrame` when it has the controller's focus (the Triangle key depends on it) | at a merchant with V-tagged items: the button sits under the window's bottom-right corner, clear of the Merchant / Buyback tabs, and counts the V stacks; Sell sells exactly the listed stacks, 12 at most, all in the buyback tab afterwards; closing the merchant mid-run stops it; a locked item never appears; with a controller, Triangle on the merchant window opens the list, D-pad reaches Sell and Close, and jumping / targeting still work afterwards (no taint) | mouse path **seen in game** as the standalone GenieVendor addon (2026-11-11, same calls and anchor); the window, `/mw vendor` and the controller key **not seen in game** (specs only) |
+| Professions' materials on the bank alt (settings' Mats button, third state; no new API) | on a character with a crafting profession and a bank alt: click the button to "on my bank alt": its materials' tag is BA, the mail window lists them under Mailing with the BA chip and "bank: your <profession> needs it", Send mails them; BA off in Send by tag keeps them; back to "on" and they stay again | **not seen in game** (specs only) |
 | Window and controller (QoL pass B, 2026-11-09): two-way pagers ("<" beside "2/5  >") in the mail window, the ledger and the friends window, placed by anchor to the page button; D-pad Up from the top row to Send, Down from the bottom row to the top (`Nav.SetWrap`); Choose bank alt... on the To line | with a controller at the mailbox: one Up press from the first button lands on Send, Down returns; a list longer than a page shows "<" left of "1/2  >" without overlapping the heading, and both turn the page; with no bank alt, Choose bank alt... opens the picker and picking one fills the list; changing "at least" in Settings moves items between Mailing and Staying while Settings is open | open (2026-11-09) |
 | Send path (QoL pass, 2026-11-09): `GetMoney()` and `GetSendMailPrice()` (both in Forever's `MailFrame.lua`, its own Send check), the `PLAYER_MONEY` event (standard, not found in Forever's source; registered in `pcall`, without it the postage note updates at the next redraw), `PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON)` (the kit `MailFrame.lua` plays; `pcall`) | at a mailbox: Send, then Stop mid-run: the mail on its way arrives, the rest stays, the note says "Stopped after 1 of N"; a full send ends with "Sent N mails to ...: +gain" in the window and one chat line, and one click sound; with less money than the postage Send reads "Postage: ..." greyed out, and looting or selling a little brings it back | open (2026-11-09) |
 | Trip line (2026-11-09): `C_Container.GetContainerNumFreeSlots(bag)` -> `numFreeSlots, bagFamily` (in Forever's `ContainerDocumentation.lua`; pcall'd, one bag without an answer = nothing scanned or said) summed over bags 0..`NUM_BAG_SLOTS` where `bagFamily` is 0, on `BAG_UPDATE_DELAYED` (and `PLAYER_REGEN_ENABLED`). Assumed, not measured: general bags report family 0 and a profession bag a non-zero one; a bag change always follows the loot that fills the bags; the scan at login has item data ready (a scan is repeated only when the bags, settings or bindings change, not when prices or item data arrive later) | away from a mailbox, fill the bags to 4 free slots (the backpack button's number) with something Mailworthy would mail: one chat line "N bag slots left. M items are worth mailing: +X more than vendoring.", the same N as the backpack button; hover the minimap button: "Worth mailing now: ..."; no second chat line until `/reload`; `/mw report` log lines `trip` show each scan. Off: `/mw feature tripNudge off` | open (2026-11-09) |

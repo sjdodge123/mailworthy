@@ -38,7 +38,7 @@ end
 -- until it sets one: an enchanter bank alt can sell its dust while the mains keep their materials
 -- (operator, 2026-11-13: "a setting to change that suggestion, so that my bank alt can know to AH
 -- the materials instead of saving them").
-Config.CHARACTER = { keepProfessionMats = true }
+Config.CHARACTER = { keepProfessionMats = true, matsToBankAlt = true }
 
 local function charSettings()
     if type(MailworthyCharDB) ~= "table" then return {} end

@@ -124,6 +124,26 @@ describe("settings window", function()
             assert.equal("This character is my bank alt", here:GetText())
         end)
 
+    it("Send by tag: one switch per verdict, Auction / Disenchant / Bank on and Vendor off until pressed", function()
+        ns.Config.SetBankAlt("Roknua Themicrulah")
+        ns.SettingsUI.Show()
+        assert.equal("AH: on", _G.MailworthySettingsSendAuction:GetText())
+        assert.equal("DE: on", _G.MailworthySettingsSendDisenchant:GetText())
+        assert.equal("BA: on", _G.MailworthySettingsSendBank:GetText())
+        assert.equal("V: off", _G.MailworthySettingsSendVendor:GetText())
+        _G.MailworthySettingsSendVendor:Click()
+        _G.MailworthySettingsSendAuction:Click()
+        local v = ns.Config.Values()
+        assert.is_true(v.sendVendor)
+        assert.is_false(v.sendAuction)
+        assert.is_true(v.sendDisenchant)
+        assert.equal("V: on", _G.MailworthySettingsSendVendor:GetText())
+        assert.equal("AH: off", _G.MailworthySettingsSendAuction:GetText())
+        assert.is_true(MailworthyDB.settings.sendVendor, "saved")
+        _G.MailworthySettingsSendAuction:Click()
+        assert.is_true(ns.Config.Get("sendAuction"))
+    end)
+
     it("steppers, disenchant, listing length and the minimap button", function()
         ns.Config.SetBankAlt("Roknua Themicrulah")
         ns.SettingsUI.Show()
@@ -146,16 +166,28 @@ describe("settings window", function()
         _G.MailworthySettingsGlow:Click()
         assert.is_true(ns.Config.Flag("glowEverywhere"))
         assert.equal("Lock glow: always", _G.MailworthySettingsGlow:GetText())
-        assert.equal("This character keeps its profession materials: on (no crafting profession here)",
+        assert.equal("This character keeps its profession materials: on (BH) (no crafting profession here)",
             _G.MailworthySettingsMats:GetText())
         WowStub.state.professions[2] = { index = 9, name = "Enchanting", rank = 1, maxRank = 75, skillLine = 333 }
         _G.MailworthySettingsMats:Click()
         assert.is_false(ns.Config.Get("keepProfessionMats"))
         assert.equal("This character keeps its profession materials: off (Enchanting 1)",
             _G.MailworthySettingsMats:GetText())
+        _G.MailworthySettingsMats:Click() -- the third state: kept, on the bank alt
+        assert.is_true(ns.Config.Get("keepProfessionMats"))
+        assert.is_true(ns.Config.Get("matsToBankAlt"))
+        assert.equal("This character keeps its profession materials: on my bank alt (BA) (Enchanting 1)",
+            _G.MailworthySettingsMats:GetText())
+        _G.MailworthySettingsMats:Click() -- and round to on (kept here)
+        assert.is_true(ns.Config.Get("keepProfessionMats"))
+        assert.is_false(ns.Config.Get("matsToBankAlt"))
+        assert.equal("This character keeps its profession materials: on (BH) (Enchanting 1)",
+            _G.MailworthySettingsMats:GetText())
+        _G.MailworthySettingsMats:Click() -- off again, as the lines below expect
         -- Per character (operator, 2026-11-13: an enchanter bank alt sells its dust, the mains keep theirs).
         assert.is_false(MailworthyCharDB.settings.keepProfessionMats)
         assert.is_nil(MailworthyDB.settings.keepProfessionMats, "the account's value is left alone")
+        assert.is_nil(MailworthyDB.settings.matsToBankAlt)
         assert.equal("Sell what I gather: off (Mining)", _G.MailworthySettingsGather:GetText(), "the stub character mines")
         _G.MailworthySettingsGather:Click()
         assert.is_true(ns.Config.Get("sellGathered"))

@@ -116,6 +116,7 @@ function BankAlt.Verdict(item)
     local r = item.result
     if not r then return nil end
     if r.pinned and r.action == "keep" and r.reason == ns.Valuation.PIN_HERE_REASON then return "here" end
+    if r.vendorPin then return "v" end -- a vendor pin (Pins.lua): V whatever the market says
     -- A pin valued for the bank alt where pins bank here (BankAlt.BanksHere) is a bank-here pin.
     if r.pinned and r.action == "mail" and r.route == "bank" and BankAlt.BanksHere() then return "here" end
     if ns.Valuation.BankForCraft(r) then return "craft" end
@@ -142,6 +143,7 @@ function BankAlt.Settings()
     local s = ns.Config.Values()
     if BankAlt.Mode() ~= "sent" then s.postage = 0 end
     if ns.Returns.On() then s.returns = ns.Returns.Current() end
+    s.forTags = true -- the send switches don't change a tag (Bags.ApplySendSwitches)
     return s
 end
 
@@ -327,6 +329,9 @@ local function tagText(verdict, item, settings)
         return string.format("Auction price today: %s each%s%s. After the %d%% cut and the %dh deposit: %s more than a vendor.",
             money(unit), basis, ageText(p.age), math.floor(settings.cut * 100 + 0.5),
             ns.Valuation.DURATION_HOURS[settings.duration], money(r.gain))
+    elseif verdict == "v" and r.vendorPin then
+        return string.format("Vendor it (%s): you pinned it for the vendor (/mw pins lists pins).%s", money(r.vendor),
+            r.bound and " Soulbound, so it can't be mailed, but a vendor buys it." or "") .. unpin
     elseif verdict == "here" then
         return "Bank it here: you pinned it, and " .. (HERE_BECAUSE[ns.Pins.HereBecause()] or HERE_BECAUSE.setting) .. "."
             .. unpin
@@ -390,6 +395,7 @@ function BankAlt.TooltipLines(item, record, settings)
     end
     if record then
         local was = (record.route == "bank" and "Bank") or (record.route == "common" and "Common item")
+            or (record.route == ns.Valuation.VENDOR and "Vendor")
             or (record.route == ns.Valuation.NO_PRICE and "No auction price yet")
             or (BankAlt.Tag(record.route) and BankAlt.Tag(record.route).label) or tostring(record.reason)
         lines[#lines + 1] = { string.format("Mailed for: %s%s, %s, from %s", was,
