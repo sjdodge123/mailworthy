@@ -280,6 +280,13 @@ describe("D-pad reach in every view", function()
         assertNavigable("locked items, opened from Settings", 7)
     end)
 
+    it("the pin warning: keep, unpin, bank here, don't show again", function()
+        ns.PinWarning.Show(2589, WowStub.link(2589, "Linen Cloth"), "Tailoring")
+        tick()
+        assertNavigable("pin warning", 4)
+        ns.PinWarning.Frame():Hide()
+    end)
+
     -- CI's "controller" job runs this file: a new Mailworthy window (Nav.Attach) fails it until a
     -- spec above walks its views.
     it("walked every window the controller can drive", function()

@@ -346,7 +346,7 @@ describe("bag scan without a bank alt, or with it skipped this visit", function(
         local ore = find(result.keep, 2770)
         assert.equal("no bank alt", ore.result.held)
         assert.equal("ah", ore.result.route)
-        assert.equal("Auction +" .. ns.Valuation.Money(ore.result.gain) .. ": no bank alt", ns.MailWindow.StayReason(ore.result))
+        assert.equal("AH auction +" .. ns.Valuation.Money(ore.result.gain) .. ": no bank alt", ns.MailWindow.StayReason(ore.result))
         assert.same({ BOB }, result.totals.recipients)
         assert.equal(0, result.totals.gain, "held items add nothing to the gain line")
         local report = ns.Bags.Report(result)

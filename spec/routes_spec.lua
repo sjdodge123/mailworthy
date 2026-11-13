@@ -589,11 +589,22 @@ describe("bindings", function()
             assert.equal("B", ns.Mailer.Recipients({ { to = "A", attached = {} }, { to = "B", attached = {}, sent = true } }, true))
         end)
 
-        it("the bank alt's tags ignore bindings: they say what the market says", function()
+        -- Rule changed on purpose (operator, 2026-11-13): the tags say what the mailbox does, so an item
+        -- a binding takes is F (to a friend), not the market's AH.
+        it("the bank alt's tags follow the bindings: what a binding takes is F", function()
             ns.Routes.Add(BOB, ENCHANTING)
             MailworthyDB.bankAlts["Classic Beta PvP|Alliance"] = "Rettana Quilwrit"
             local result = ns.BankAlt.Refresh()
-            for _, item in ipairs(result.mail) do assert.is_nil(item.result.to) end
+            local friend = 0
+            for _, item in ipairs(result.mail) do
+                if item.result.to then
+                    friend = friend + 1
+                    assert.equal(BOB, item.result.to)
+                    assert.equal("friend", ns.BankAlt.Verdict(item))
+                    assert.equal(ns.Palette.F, ns.BankAlt.Tag("friend"))
+                end
+            end
+            assert.truthy(friend > 0, "the binding took something")
         end)
     end)
 

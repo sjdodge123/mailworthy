@@ -84,12 +84,16 @@ describe("bank alt view", function()
         assert.equal(1, button.fontStrings[1]:GetAlpha())
     end)
 
-    it("a pinned item's B tag is in the pin's green, like its glow", function()
+    -- Operator, 2026-11-13: one colour per destination (Palette); the bank alt banks its pins here.
+    it("a pinned item on the bank alt is BH, in BH's colour, like its glow", function()
         ns.Pins.Set(2589, WowStub.link(2589, "Linen Cloth"), ns.Pins.BANK, "spec") -- V by the market
         combined:UpdateItems()
-        assert.equal("B", tagOf(combined.Items[2]))
-        local c = combined.Items[2].textures[#combined.Items[2].textures].color
-        assert.same(ns.Pins.COLOR, c)
+        assert.equal("BH", tagOf(combined.Items[2]))
+        local colours = {}
+        for _, tex in ipairs(combined.Items[2].textures) do colours[#colours + 1] = tex.color end
+        assert.truthy(#colours > 0)
+        local function has(c) for _, got in ipairs(colours) do if got and got[1] == c[1] and got[2] == c[2] then return true end end end
+        assert.is_true(has(ns.Palette.BH.bg), "the tag")
         assert.equal("AH", tagOf(combined.Items[1]))
     end)
 
@@ -106,11 +110,11 @@ describe("bank alt view", function()
         combined.Items[5] = WowStub.itemButton(0, 5)
         ns.BankAlt.Redraw()
         combined:UpdateItems()
-        assert.equal("B", tagOf(combined.Items[5]))
+        assert.equal("BH", tagOf(combined.Items[5]), "on the bank alt: bank it here")
         local text = hover(WowStub.link(10940, "Strange Dust"), 10940)
-        assert.truthy(text:find("Mailworthy  |cffffffff[Bank]|r", 1, true), text)
+        assert.truthy(text:find("Mailworthy  |cffffffff[BH: Bank here]|r", 1, true), text)
         -- no postage here: 950 - 50 (half the 1s minimum deposit) - 20 vendor = 8s 80c
-        assert.truthy(text:find("Bank it, don't list it yet: enchanting materials sell once raids open (launch day 35). "
+        assert.truthy(text:find("Bank it here, don't list it yet: enchanting materials sell once raids open (launch day 35). "
             .. "Listed today it would bring 1s each, 8s 80c more than a vendor.", 1, true), text)
         assert.same({ stacks = 1, items = 10, gain = 880 }, ns.BankAlt.Summary(ns.BankAlt.Refresh()).b)
         ns.HandleSlash("summary")
@@ -123,9 +127,9 @@ describe("bank alt view", function()
         combined.Items[5] = WowStub.itemButton(0, 5)
         ns.BankAlt.Redraw()
         combined:UpdateItems()
-        assert.equal("B", tagOf(combined.Items[5]))
+        assert.equal("BH", tagOf(combined.Items[5]))
         local text = hover(WowStub.link(10940, "Strange Dust"), 10940)
-        assert.truthy(text:find("Bank it, don't list it yet: enchanting materials sell once raids open (launch day 35). "
+        assert.truthy(text:find("Bank it here, don't list it yet: enchanting materials sell once raids open (launch day 35). "
             .. "No auction price yet, so the gain is unknown.", 1, true), text)
         assert.same({ stacks = 1, items = 10, gain = 0 }, ns.BankAlt.Summary(ns.BankAlt.Refresh()).b)
     end)
@@ -149,7 +153,7 @@ describe("bank alt view", function()
         MailworthyDB.mailed = { [2589] = { route = "ah", gain = 821, at = WowStub.state.serverTime,
             from = "Tilda Quickfoot", to = "Rettana Quilwrit" } }
         local text = hover(WowStub.link(2589, "Linen Cloth"), 2589)
-        assert.truthy(text:find("Mailworthy  |cffffffff[Vendor now]|r", 1, true), text)
+        assert.truthy(text:find("Mailworthy  |cffffffff[V: Vendor]|r", 1, true), text)
         assert.truthy(text:find("Auction price today: 38c each (scanned today). After the 5% cut and the deposit "
             .. "that's under your 5s minimum gain, so sell it to a vendor (2s).", 1, true), text)
         assert.truthy(text:find("Mailed for: Auction +8s 21c, " .. date("%b %d", WowStub.state.serverTime)
@@ -163,7 +167,7 @@ describe("bank alt view", function()
     -- Operator, 2026-11-08: Sharp Claw and Jade said nothing; 2026-11-11: "if the recommendation is to
     -- keep in my bag because some profession needs it, it should recommend Banking", with a tag and an
     -- explanation like the AH's and the vendor's.
-    it("a profession keep: B on the bag slot, [Bank] in the tooltip, not in the summary", function()
+    it("a profession keep: BH on the bag slot, [BH: Bank here] in the tooltip, not in the summary", function()
         WowStub.state.professions = { { index = 1, name = "Blacksmithing", rank = 60, maxRank = 150, skillLine = 164 } }
         WowStub.setBag(0, 5, WowStub.item(5635, "Sharp Claw", { count = 4, sell = 45, class = 7, subclass = 6 }))
         prices[WowStub.link(5635, "Sharp Claw")] = { ah = 900 }
@@ -172,19 +176,20 @@ describe("bank alt view", function()
         combined.Items[5], combined.Items[6] = WowStub.itemButton(0, 5), WowStub.itemButton(0, 6)
         ns.BankAlt.Redraw()
         combined:UpdateItems()
-        assert.equal("B", tagOf(combined.Items[5]))
-        assert.equal("B", tagOf(combined.Items[6]))
+        assert.equal("BH", tagOf(combined.Items[5]))
+        assert.equal("BH", tagOf(combined.Items[6]))
         local text = hover(WowStub.link(5635, "Sharp Claw"), 5635)
-        assert.truthy(text:find("Mailworthy  |cffffffff[Bank]|r", 1, true), text)
-        assert.truthy(text:find("Bank it: your Blacksmithing needs it (until skill 200). It waits in your bank, "
+        assert.truthy(text:find("Mailworthy  |cffffffff[BH: Bank here]|r", 1, true), text)
+        assert.truthy(text:find("Bank it here: your Blacksmithing needs it (until skill 200). It waits in your bank, "
             .. "not your bags, until you craft.", 1, true), text)
         assert.is_nil(text:find("Stays in your bags", 1, true), text)
         text = hover(WowStub.link(1529, "Jade"), 1529)
-        assert.truthy(text:find("Bank it: your Blacksmithing needs it (until skill 290).", 1, true), text)
+        assert.truthy(text:find("Bank it here: your Blacksmithing needs it (until skill 290).", 1, true), text)
         assert.equal("", hover(WowStub.link(6948, "Hearthstone"), 6948), "soulbound: the game already says so")
         local s = ns.BankAlt.Summary(ns.BankAlt.Refresh())
         assert.same({ stacks = 0, items = 0, gain = 0 }, s.b, "the summary is what to sell: not these")
-        assert.truthy(ns.BankAlt.LegendText():find("B|r bank   ", 1, true))
+        assert.truthy(ns.BankAlt.LegendText():find("BH|r bank here", 1, true), ns.BankAlt.LegendText())
+        assert.is_nil(ns.BankAlt.LegendText():find("BA|r", 1, true), "the legend lists only the tags shown")
     end)
 
     it("tooltip lines are pure: where the window mails it, or why it stays", function()
@@ -193,7 +198,7 @@ describe("bank alt view", function()
             { other({ result = { action = "mail", route = "friend", to = "Bob Surname", what = "Enchanting materials" } }) })
         assert.same({ "Mail", "Goes to your bank alt at the mailbox: common item (no price data)." },
             { other({ result = { action = "mail", route = "common", reason = "common item (no price data)" } }) })
-        assert.same({ "Keep", "Stays in your bags: Auction +5s: bank alt skipped." },
+        assert.same({ "Keep", "Stays in your bags: AH auction +5s: bank alt skipped." },
             { other({ result = { action = "keep", route = "ah", gain = 500, held = "bank alt skipped" } }) })
         assert.same({ "Keep", "Stays in your bags: no auction price yet." },
             { other({ result = { action = "keep", reason = "no price" } }) })
@@ -340,14 +345,24 @@ describe("vendor tags on a main after sending", function()
         for _, b in ipairs(combined.Items) do assert.is_nil(tagOf(b)) end
     end)
 
-    it("after Send: V on what a vendor pays more for, grey junk included; nothing else", function()
+    -- Operator, 2026-11-13: "not just V tags, but all tags", and they survive a /reload.
+    it("after Send: every tag, V on what a vendor pays more for, grey junk included", function()
         send()
         assert.equal(1, #WowStub.state.sent, "the Copper Ore went")
         assert.is_nil(tagOf(combined.Items[1]), "its slot is empty now")
         assert.equal("V", tagOf(combined.Items[2]), "Linen Cloth: the window kept it for the vendor")
         assert.equal("V", tagOf(combined.Items[3]), "grey junk: no auction price, a vendor buys it")
         assert.is_nil(tagOf(combined.Items[4]), "soulbound: nothing to say")
-        assert.equal("vendor", ns.BankAlt.Mode())
+        assert.equal("sent", ns.BankAlt.Mode())
+        assert.is_true(MailworthyCharDB.tagsAfterSend, "saved for this character")
+    end)
+
+    it("the tags after a send survive a /reload", function()
+        send()
+        local saved = { db = MailworthyDB, charDB = MailworthyCharDB }
+        ns = loadAddon(saved)
+        ns.Fire("PLAYER_LOGIN")
+        assert.equal("sent", ns.BankAlt.Mode())
     end)
 
     it("uses the window's settings (postage included), so the tags match what it showed", function()
@@ -396,9 +411,9 @@ describe("vendor tags on a main after sending", function()
         _G.MailworthyMailButton:Click()
         MailworthyDB.mailed = { [2770] = { route = "ah", at = WowStub.state.serverTime, from = "Tilda Quickfoot" } }
         local text = hover(2770, "Copper Ore")
-        assert.truthy(text:find("[Auction]", 1, true), text)
+        assert.truthy(text:find("[AH: Auction]", 1, true), text)
         assert.is_nil(text:find("Mailed for", 1, true), "'Mailed for' is the bank alt's line")
-        assert.truthy(hover(2589, "Linen Cloth"):find("[Vendor now]", 1, true))
+        assert.truthy(hover(2589, "Linen Cloth"):find("[V: Vendor]", 1, true))
         rawset(GameTooltip, "AddLine", nil)
         _G.Enum, _G.TooltipDataProcessor, _G.TooltipUtil = nil, nil, nil
     end)
@@ -414,7 +429,7 @@ describe("vendor tags on a main after sending", function()
         MailworthyDB.mailed[2589] = { route = "ah", at = WowStub.state.serverTime, from = "Rettana Quilwrit" }
         postCall(GameTooltip, { id = 2589 })
         local text = table.concat(lines, "\n")
-        assert.truthy(text:find("[Vendor now]", 1, true), text)
+        assert.truthy(text:find("[V: Vendor]", 1, true), text)
         assert.is_nil(text:find("Mailed for", 1, true))
         rawset(GameTooltip, "AddLine", nil)
         _G.Enum, _G.TooltipDataProcessor, _G.TooltipUtil = nil, nil, nil
@@ -491,7 +506,7 @@ describe("bank alt on a second account (never sent, no pick from a main)", funct
         ns.SettingsUI.Show()
         _G.MailworthySettingsHere:Click()
         local text = hover(WowStub.link(2770, "Copper Ore"), 2770)
-        assert.truthy(text:find("Mailworthy  |cffffffff[Auction]|r", 1, true), text)
+        assert.truthy(text:find("Mailworthy  |cffffffff[AH: Auction]|r", 1, true), text)
         assert.truthy(text:find("7s 51c more than a vendor.", 1, true), text)
         assert.is_nil(text:find("Mailed for", 1, true), "no record: no such line")
         assert.is_nil(MailworthyDB.mailed, "hovering writes nothing")

@@ -590,6 +590,54 @@ describe("critical path: mailing", function()
         assertSafeAndComplete(ns, preview, { [BANK_ALT] = true })
     end)
 
+    it("bank-here pins (Settings > Pinned items, per character): pinned items stay, the rest goes; switched back, they go", function()
+        -- Operator, 2026-11-13: Ctrl+Alt+click's pin either goes to the bank alt (BA) or stays to bank here (BH).
+        WowStub.setBag(2, 6, WowStub.item(10940, "Strange Dust", { count = 20, sell = 2, class = 7, subclass = 12 }))
+        prices[WowStub.link(10940, "Strange Dust")] = 3
+        ns.Routes.Add(BOB, ENCHANTING)
+        ns.Pins.Set(4865, WowStub.link(4865, "Ruined Pelt"), ns.Pins.BANK, "spec")
+        ns.Pins.Set(10940, WowStub.link(10940, "Strange Dust"), ns.Pins.BANK, "spec")
+        ns.SettingsUI.Show()
+        _G.MailworthySettingsPins:Click() -- by mouse: bank here on this character
+        assert.equal(ns.Pins.HERE, ns.Pins.Mode())
+        ns.SettingsUI.Frame():Hide()
+        mailbox()
+        _G.MailworthyMailButton:Click()
+        local preview = previewed(ns)
+        assert.is_nil(preview[4865], "the pinned junk stays, to bank here")
+        assert.is_nil(preview[10940], "the pinned dust stays: not to the bank alt, not to the binding's friend")
+        assert.equal(BANK_ALT, preview[2770], "the rest goes as usual")
+        _G.MailworthyMailSend:Click()
+        deliver(ns)
+        assertSafeAndComplete(ns, preview, { [BANK_ALT] = true })
+        assert.is_true(WowStub.state.bags[0][7] ~= nil, "the pelt is still in the bags")
+        -- Switched back (BA): the pins go to the bank alt again.
+        ns.Pins.SetMode(ns.Pins.BANK, "spec")
+        mailbox()
+        _G.MailworthyMailButton:Click()
+        preview = previewed(ns)
+        assert.equal(BANK_ALT, preview[4865], "pins go to the bank alt again (its preview; one send per case)")
+        assert.equal(BANK_ALT, preview[10940])
+    end)
+
+    it("a bank pin on what this character's profession uses: the pin wins (warned once), it goes to the bank alt", function()
+        -- Operator, 2026-11-13: "a bank pin is a hard decision by the user and needs to be honored".
+        WowStub.state.professions = { { index = 1, name = "Enchanting", rank = 60, maxRank = 150, skillLine = ENCHANTING } }
+        WowStub.setBag(2, 6, WowStub.item(10940, "Strange Dust", { count = 20, sell = 2, class = 7, subclass = 12 }))
+        prices[WowStub.link(10940, "Strange Dust")] = 300
+        mailbox()
+        _G.MailworthyMailButton:Click()
+        assert.is_nil(previewed(ns)[10940], "kept for this character's Enchanting until it is pinned")
+        ns.Pins.Set(10940, WowStub.link(10940, "Strange Dust"), ns.Pins.BANK, "spec")
+        assert.is_true(ns.PinWarning.Frame():IsShown(), "the warning")
+        _G.MailworthyPinWarningOK:Click()
+        local preview = previewed(ns)
+        assert.equal(BANK_ALT, preview[10940], "the pin wins")
+        _G.MailworthyMailSend:Click()
+        deliver(ns)
+        assertSafeAndComplete(ns, preview, { [BANK_ALT] = true })
+    end)
+
     it("no bank alt: a pinned item stays in the bags like the rest of the bank alt's share", function()
         MailworthyDB.bankAlts = {}
         ns.Pins.Set(4865, WowStub.link(4865, "Ruined Pelt"), ns.Pins.BANK, "spec")
@@ -935,6 +983,23 @@ describe("critical path: mailing", function()
         deliver(ns)
         assertSafeAndComplete(ns, preview, { [BANK_ALT] = true, [BOB] = true, [MAIN] = true })
         assertReturnSubjects({ [BOB] = true, [MAIN] = true })
+    end)
+
+    it("Return to sender and a bank-here pin: Return to sender still wins", function()
+        -- Operator, 2026-11-13: "Return wins" for a bank-here pin too.
+        taken()
+        ns.Pins.Set(2592, WowStub.link(2592, "Wool Cloth"), ns.Pins.BANK, "spec") -- Bob mailed it
+        ns.Pins.SetMode(ns.Pins.HERE, "spec")
+        mailbox()
+        _G.MailworthyMailButton:Click()
+        assert.is_nil(previewed(ns)[2592], "Return to sender off: the pin keeps it here")
+        _G.MailworthyMailReturn:Click()
+        local preview = previewed(ns)
+        assert.equal(BOB, preview[2592], "on: back to Bob, pinned or not")
+        assertReturnsShown()
+        _G.MailworthyMailSend:Click()
+        deliver(ns)
+        assertSafeAndComplete(ns, preview, { [BANK_ALT] = true, [BOB] = true, [MAIN] = true })
     end)
 
     it("Return to sender pressed twice: back to normal, nothing goes back", function()

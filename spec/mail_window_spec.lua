@@ -94,7 +94,9 @@ describe("mail window", function()
         -- Kept for this character's own crafting: bank it (operator, 2026-11-11).
         local craft = { action = "keep", reason = "your Tailoring needs it", neededBy = "Tailoring" }
         assert.equal("bank it: your Tailoring needs it", ns.MailWindow.StayReason(craft))
-        assert.equal("Bank it: your Tailoring needs it.", (ns.MailWindow.TooltipLines({ result = craft }, true)))
+        assert.equal("BH: bank it here: your Tailoring needs it.", (ns.MailWindow.TooltipLines({ result = craft }, true)))
+        -- The Staying row: BH items read in BH's colour with its letters, like the bag tag (Palette).
+        assert.equal(ns.Palette.Hex(ns.Palette.BH.fg) .. "BH bank it: your Tailoring needs it|r", ns.MailWindow.StayText(craft))
         assert.equal("It stays: profession tool.",
             (ns.MailWindow.TooltipLines({ result = { action = "keep", reason = "profession tool" } }, true)))
     end)

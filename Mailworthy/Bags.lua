@@ -93,6 +93,19 @@ function Bags.HoldReason()
     return nil
 end
 
+--- The crafting profession of this character that "Keep my professions' materials" keeps this item
+--- for, or nil (PinWarning: a pin to the bank alt beats it).
+function Bags.ProfessionKeep(link, itemID)
+    local s = ns.Config.Values()
+    s.professions = ns.Characters.Professions()
+    s.tiers = ns.Tiers.On()
+    if s.tiers then ns.TierCheck.Annotate(s.professions) end
+    if ns.Prices.Source() then s.priceOf = ns.Prices.MaterialPrice end
+    local item = { link = link, itemID = itemID }
+    item.classID, item.subclassID = ns.Prices.ClassID(link)
+    return (ns.Valuation.ProfessionKeep(item, s))
+end
+
 --- The window's settings (and /mw scan's): the saved ones, whether the bank alt's share is held,
 --- and, while Return to sender is on (Returns.lua), what goes back to whom.
 function Bags.CurrentSettings()
@@ -150,7 +163,7 @@ function Bags.Evaluate(settings)
     for _, r in ipairs(routes) do gearRoutes = gearRoutes or r.gear == ns.Routes.GEAR_DE end
     local function value(item)
         item.locked = ns.Locks.IsItemLocked(item.itemID)
-        item.pin = ns.Pins.Kind(item.itemID)
+        item.pin = ns.Pins.Effective(item.itemID)
         if classRoutes then item.classes, item.myClass = ns.Classes.Of(item.itemID), mine end
         item.questFor = ns.Quests.For(item.link)
         item.conjured = ns.Conjured.Is(item.itemID)

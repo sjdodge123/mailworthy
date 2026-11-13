@@ -1,5 +1,6 @@
 -- Blue glow on locked items in the bags: the quest-item border, tinted blue. A bank-pinned item
--- (Pins.lua) glows the same way in the pin's green (Pins.COLOR; a lock wins on an item that is both).
+-- (Pins.lua) glows the same way in its destination's colour (Palette.lua, the same as its tag and
+-- its chip: BA green, BH teal; a lock wins on an item that is both, and its tooltip says so).
 -- Textures are created on the game's bag item buttons (CreateTexture isn't
 -- hooked by smart navigation and
 -- textures aren't returned by GetChildren, so its button scan never sees them)
@@ -153,19 +154,33 @@ function Border.Tooltip()
         .. "Alt+click it (" .. ns.Gamepad.Glyph(ns.Gamepad.STICK_LEFT_PRESS, 14) .. " on a controller) to unlock."
 end
 
---- Why a pinned item glows green (R3 / RS by the player's controller, like the lock's line).
-function Border.PinTooltip()
-    return "Pinned in Mailworthy: Send mails it to your bank alt every time, unless it can never be mailed"
-        .. " (soulbound, locked, a quest's). Ctrl+Alt+click it (" .. ns.Gamepad.Glyph(ns.Gamepad.STICK_RIGHT_PRESS, 14)
-        .. " on a controller) to unpin."
+--- Why a pinned item glows (R3 / RS by the player's controller, like the lock's line): where this
+--- character banks it (`where`: Pins.BANK / Pins.HERE), and, when it stays for a reason that beats
+--- any pin (`stays`: soulbound, a quest's...), that instead.
+function Border.PinTooltip(where, stays)
+    local unpin = " Ctrl+Alt+click it (" .. ns.Gamepad.Glyph(ns.Gamepad.STICK_RIGHT_PRESS, 14) .. " on a controller) to unpin."
+    if stays then return "Pinned in Mailworthy, but it stays: " .. tostring(stays) .. ", which a pin can't change." .. unpin end
+    if where == ns.Pins.HERE then
+        return "Pinned in Mailworthy (BH): it stays on this character, to bank here ("
+            .. tostring(ns.Pins.WHY[ns.Pins.HereBecause()]) .. ")." .. unpin
+    end
+    return "Pinned in Mailworthy (BA): Send mails it to your bank alt every time." .. unpin
 end
 
 --- The tooltip line that says why an item glows and its colour, or nil when it doesn't glow.
 function Border.TooltipLine(itemID)
     if itemID == nil or not ns.Features.On("slotBorder") then return nil end
     if not (Border.Wanted() or Border.Flashing(itemID)) then return nil end
-    if ns.Locks.IsItemLocked(itemID) then return Border.Tooltip(), Border.COLOR end
-    if pinned(itemID) then return Border.PinTooltip(), ns.Pins.COLOR end
+    if ns.Locks.IsItemLocked(itemID) then
+        return Border.Tooltip() .. (pinned(itemID) and " It is pinned too: the lock wins while it lasts." or ""), Border.COLOR
+    end
+    if pinned(itemID) then
+        -- A hard keep (soulbound, a quest's, ...) beats the pin: the glow says why nothing happens.
+        local item = ns.BankAlt and ns.BankAlt.ItemFor and ns.BankAlt.ItemFor(itemID)
+        local r = item and item.result
+        local stays = r and not r.pinned and r.action == "keep" and ns.Routes.HARD_KEEPS[r.reason] and r.reason or nil
+        return Border.PinTooltip(ns.Pins.Effective(itemID), stays), ns.Pins.Palette(itemID).fg
+    end
     return nil
 end
 
@@ -229,7 +244,7 @@ function Border.RefreshButton(button, bag, slot, itemID, wanted, link)
         local locked = itemID ~= nil and ns.Locks.IsItemLocked(itemID)
         local pin = not locked and pinned(itemID)
         Border.Show(button, (locked or pin) and (wanted or Border.Flashing(itemID)),
-            pin and ns.Pins.COLOR or Border.COLOR)
+            pin and ns.Pins.Palette(itemID).fg or Border.COLOR)
     end
     for _, fn in ipairs(decorators) do
         local okDecorate, err = pcall(fn, button, bag, slot, itemID, link)

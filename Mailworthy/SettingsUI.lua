@@ -22,12 +22,12 @@ local UI = {}
 ns.SettingsUI = UI
 
 UI.MAX_CHOICES = 6
-local WIDTH, MAIN_HEIGHT, ROW, VERSION_ROW = 420, 522, 26, 20
+local WIDTH, MAIN_HEIGHT, ROW, VERSION_ROW = 420, 548, 26, 20
 
 local frame, nameBox, nameHint, current, emptyHint, legend, pricesLine, versionLine, changeButton
 local choiceRows = {}
 local amountLabel, pctLabel, disenchantButton, minimapButton, tagsButton, glowButton, matsButton, hereButton, friendsButton
-local gatherButton, guildButton, locksButton
+local gatherButton, guildButton, locksButton, pinButton
 local durationButtons = {}
 local mainWidgets, pickWidgets = {}, {}
 local typedLabel, useNameButton, backButton
@@ -287,39 +287,44 @@ local function createBagsAndMore()
         if ns.Border then ns.Border.RefreshAll() end
     end)
     glowButton:SetPoint("TOPLEFT", 214, -320)
-    heading(mainWidgets, "More", -356)
+    -- Where this character banks its pinned items (Pins.lua; operator, 2026-11-13): BA or BH.
+    pinButton = toggle(372, "Pins", function()
+        ns.Pins.SetMode(ns.Pins.Mode() == ns.Pins.HERE and ns.Pins.BANK or ns.Pins.HERE, "settings")
+    end)
+    pinButton:SetPoint("TOPLEFT", 24, -346)
+    heading(mainWidgets, "More", -382)
     friendsButton = add(mainWidgets, W.Button(frame, "", 182, function() ns.RoutesUI.Show(frame) end,
         "MailworthySettingsFriends"))
-    friendsButton:SetPoint("TOPLEFT", 24, -378)
+    friendsButton:SetPoint("TOPLEFT", 24, -404)
     add(mainWidgets, W.Button(frame, "Bank alt summary...", 182, function()
         if ns.BankAlt then ns.BankAlt.ShowWindow(frame) end
-    end, "MailworthySettingsSummary")):SetPoint("TOPLEFT", 214, -378)
+    end, "MailworthySettingsSummary")):SetPoint("TOPLEFT", 214, -404)
     -- 2026-11-07: "I want a new button for guild inside the mailworthy settings"
     guildButton = add(mainWidgets, W.Button(frame, "", 182, function() ns.RoutesUI.ShowGuild(frame) end,
         "MailworthySettingsGuild"))
-    guildButton:SetPoint("TOPLEFT", 24, -404)
+    guildButton:SetPoint("TOPLEFT", 24, -430)
     add(mainWidgets, W.Button(frame, "Mail ledger...", 182, function() ns.LedgerUI.Show(frame) end,
-        "MailworthySettingsLedger")):SetPoint("TOPLEFT", 214, -404)
+        "MailworthySettingsLedger")):SetPoint("TOPLEFT", 214, -430)
     minimapButton = toggle(182, "Minimap", function()
         ns.Config.Set("minimapHidden", ns.Config.MinimapShown())
         if ns.MinimapButton then ns.MinimapButton.Refresh() end
     end)
-    minimapButton:SetPoint("TOPLEFT", 24, -430)
+    minimapButton:SetPoint("TOPLEFT", 24, -456)
     -- QoL pass D (2026-11-09): the locked items window; the count is in the label.
     locksButton = add(mainWidgets, W.Button(frame, "", 182, function() ns.LocksUI.Show(frame) end,
         "MailworthySettingsLocks"))
-    locksButton:SetPoint("TOPLEFT", 214, -430)
+    locksButton:SetPoint("TOPLEFT", 214, -456)
     pricesLine = add(mainWidgets, W.Label(frame, "GameFontDisableSmall"))
-    pricesLine:SetPoint("TOPLEFT", 28, -472)
+    pricesLine:SetPoint("TOPLEFT", 28, -498)
     pricesLine:SetWidth(270)
     pricesLine:SetJustifyH("LEFT")
     -- A newer Mailworthy is out (Version.lua): under the Prices line; the window grows to fit it.
     versionLine = add(mainWidgets, W.Label(frame, "GameFontHighlightSmall"))
-    versionLine:SetPoint("TOPLEFT", 28, -490)
+    versionLine:SetPoint("TOPLEFT", 28, -516)
     versionLine:SetWidth(WIDTH - 56)
     versionLine:SetJustifyH("LEFT")
     add(mainWidgets, W.Button(frame, "Done", 100, function() frame:Hide() end, "MailworthySettingsDone"))
-        :SetPoint("TOPRIGHT", -24, -466)
+        :SetPoint("TOPRIGHT", -24, -492)
 end
 
 function UI.Create()
@@ -422,18 +427,21 @@ local function fillMain(bankAlt, here, choices)
         deAddon or "era tables"))
     W.SetToggled(disenchantButton, v.disenchant == true)
     local crafting = ns.Bags.CraftingText(ns.Characters.Professions()) -- "First Aid 80, Tailoring 130"
-    matsButton:SetText(string.format("Keep my professions' materials: %s (%s)", v.keepProfessionMats and "on" or "off",
-        crafting ~= "" and crafting or "no crafting profession here"))
+    -- Per character (Config.CHARACTER): a bank alt can sell what its own profession would keep.
+    matsButton:SetText(string.format("This character keeps its profession materials: %s (%s)",
+        v.keepProfessionMats and "on" or "off", crafting ~= "" and crafting or "no crafting profession here"))
     W.SetToggled(matsButton, v.keepProfessionMats == true)
     local gathering = {}
     for _, p in ipairs(ns.Valuation.GatheringProfessions(ns.Characters.Professions())) do gathering[#gathering + 1] = p.name end
     gatherButton:SetText(string.format("Sell what I gather: %s (%s)", v.sellGathered and "on" or "off",
         #gathering > 0 and table.concat(gathering, ", ") or "no gathering profession here"))
     W.SetToggled(gatherButton, v.sellGathered == true)
-    tagsButton:SetText("Bag tags: " .. (ns.Config.Flag("tagsEverywhere") and "every character" or "bank alt only"))
+    tagsButton:SetText("Bag tags: " .. (ns.Config.Flag("tagsEverywhere") and "every character" or "bank alt + after Send"))
     W.SetToggled(tagsButton, ns.Config.Flag("tagsEverywhere") == true)
     glowButton:SetText("Lock glow: " .. (ns.Config.Flag("glowEverywhere") and "always" or "in Mailworthy"))
     W.SetToggled(glowButton, ns.Config.Flag("glowEverywhere") == true)
+    pinButton:SetText(UI.PinText())
+    W.SetToggled(pinButton, ns.Pins.Mode() == ns.Pins.HERE)
     local bindings = #ns.Routes.Personal()
     friendsButton:SetText(bindings == 0 and "Friends..."
         or string.format("Friends (%d binding%s)...", bindings, bindings == 1 and "" or "s"))
@@ -444,6 +452,18 @@ local function fillMain(bankAlt, here, choices)
     pricesLine:SetText(UI.PricesText())
     versionLine:SetText(ns.Version.Text() or "")
     return marked
+end
+
+--- Pure: the Pinned items button: where this character banks its pins, in the tag's letters.
+function UI.PinText()
+    local why = ns.Pins.HereBecause()
+    local P = ns.Palette
+    if why == "no bank alt" or why == "bank alt" then
+        return "Pinned items: " .. P.Letters(P.BH) .. " bank here (" .. (why == "bank alt" and "this is your bank alt"
+            or "no bank alt") .. ")"
+    end
+    return "Pinned items: " .. (why == "setting" and (P.Letters(P.BH) .. " bank here, on this character")
+        or (P.Letters(P.BA) .. " mail to your bank alt"))
 end
 
 --- The main view's "Prices:" line: the auction source in use (Auctionator wins over
@@ -498,5 +518,9 @@ ns.Version.OnChanged(function()
 end)
 -- The "Locked items (N)..." button counts the locks.
 ns.Locks.OnChanged(function()
+    if frame and frame:IsShown() then UI.Refresh() end
+end)
+-- The Pinned items button follows the pin mode (also set from the pin warning).
+ns.Pins.OnChanged(function()
     if frame and frame:IsShown() then UI.Refresh() end
 end)
