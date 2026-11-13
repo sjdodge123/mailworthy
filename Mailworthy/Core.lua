@@ -29,6 +29,7 @@ end
 ns.Features = { DEFAULTS = {
     mailButton = true, padTriangle = true, padNav = true, padLock = true, altClickLock = true, slotBorder = true,
     pinClick = true, padPin = true,
+    vendorButton = true, padVendor = true,
     minimapButton = true, bankAltTags = true, tooltipLines = true, comms = true, staleNudge = true, crafterOffer = true,
     tiers = true, tierCheck = true, guildTemplate = true, ledger = true, questNeeds = true, autoOpen = true,
     returnToSender = true, bankAltMail = true, peerMark = true, versionNotice = true, tripNudge = true,
@@ -119,6 +120,9 @@ local HELP = {
         .. " and received)",
     "/mw summary - on your bank alt (or without one): what to list, disenchant or vendor",
     "/mw feature <mailButton|padTriangle|padNav|padLock|padPin|altClickLock|pinClick|slotBorder|minimapButton|bankAltTags"
+    "At a vendor: the \"Mailworthy: sell V\" button under the merchant window ({PAD4} with a controller, or /mw vendor)"
+        .. " lists the items tagged V and sells them, 12 stacks a press (the Buyback tab can undo a press).",
+    "/mw feature <mailButton|padTriangle|padNav|padLock|altClickLock|slotBorder|vendorButton|padVendor|minimapButton|bankAltTags"
         .. "|tooltipLines|comms|staleNudge|tiers|tierCheck|guildTemplate|ledger|questNeeds|autoOpen|returnToSender|bankAltMail"
         .. "|peerMark|versionNotice|tripNudge|crafterOffer"
         .. "|baganatorTags|bagnonTags|arkInventoryTags|betterBagsTags|auctionatorTags> on|off"
@@ -156,6 +160,8 @@ function ns.HandleSlash(msg)
         ns.LedgerUI.Show()
     elseif cmd == "summary" then
         ns.BankAlt.ShowWindow()
+    elseif cmd == "vendor" then
+        ns.Vendor.Toggle("/mw vendor")
     elseif cmd == "" or cmd == "settings" then
         ns.SettingsUI.Show()
     else
