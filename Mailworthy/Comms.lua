@@ -537,6 +537,9 @@ function Comms.Hear(sender, text, channel)
             marksChanged(old, peer)
         end
         peer.skills, peer.at = skills, serverTime()
+        -- A binding's crafter can change with a skill: the bag tags read again at their next draw
+        -- (before, the next bag update redrew them; Codex review, 2026-11-14).
+        if ns.BankAlt then ns.BankAlt.Invalidate() end
         ns.Log.Add("comms", "skills from %s: %s", name, Comms.SkillText(msg.skills))
         return peer
     end
@@ -548,6 +551,7 @@ function Comms.Hear(sender, text, channel)
         skills = type(old) == "table" and old.skills or nil, release = type(old) == "table" and old.release or nil }
     store()[name:lower()] = peer
     marksChanged(old, peer)
+    if ns.BankAlt then ns.BankAlt.Invalidate() end
     ns.Log.Add("comms", "hello from %s: professions %s, %d other character(s)", name,
         #peer.professions > 0 and table.concat(peer.professions, ",") or "none", #characters)
     return peer

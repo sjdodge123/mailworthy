@@ -81,7 +81,15 @@ ns.On("PLAYER_LOGIN", function() Config.FirstSeen() end)
 
 -- Saved switches outside the decision rule. glowEverywhere: the locked-item glow
 -- in the bags away from the mailbox too (off: only while a mailbox is open).
-Config.FLAGS = { minimapHidden = true, tagsEverywhere = true, glowEverywhere = true, hidePinWarning = true }
+-- tooltips: how much Mailworthy adds to item tooltips, Config.Tooltips (not a boolean).
+Config.FLAGS = { minimapHidden = true, tagsEverywhere = true, glowEverywhere = true, hidePinWarning = true,
+    tooltips = true }
+
+-- Item tooltips (a CurseForge request, 2026-11-14: "make the item tooltip text either reduced or
+-- hidden"): "full" (the verdict, its numbers, why it was mailed), "short" (one line: the tag, plus
+-- any warning), "off" (none). The Mailworthy window's own rows keep their line: it says what a
+-- click on the row does.
+Config.TOOLTIPS = { "full", "short", "off" }
 
 function Config.Set(key, value)
     if ns.Valuation.DEFAULTS[key] == nil and not Config.FLAGS[key] then return end
@@ -116,6 +124,23 @@ function Config.MinimapShown() return db().settings.minimapHidden ~= true end
 
 --- A saved switch from Config.FLAGS (false until set).
 function Config.Flag(key) return db().settings[key] == true end
+
+--- How much Mailworthy adds to item tooltips: "full" (the default), "short" or "off".
+function Config.Tooltips()
+    local v = db().settings.tooltips
+    return (v == "short" or v == "off") and v or "full"
+end
+
+--- Settings' Item tooltips button: full -> short -> off -> full.
+function Config.CycleTooltips()
+    local list, now = Config.TOOLTIPS, Config.Tooltips()
+    for i, v in ipairs(list) do
+        if v == now then
+            Config.Set("tooltips", list[i % #list + 1])
+            return Config.Tooltips()
+        end
+    end
+end
 
 -- Bank alt --------------------------------------------------------------------
 

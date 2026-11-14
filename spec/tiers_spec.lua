@@ -289,6 +289,15 @@ describe("material tiers", function()
     end)
 
     describe("between Mailworthys", function()
+        it("a friend's skills or hello mark the bag tags stale, read again at their next draw (Codex review)", function()
+            local invalidated, invalidate = 0, ns.BankAlt.Invalidate
+            ns.BankAlt.Invalidate = function() invalidated = invalidated + 1 end
+            ns.Comms.Hear(BOB, "S2|129:80|", "PARTY")
+            ns.Comms.Hear(BOB, "H2|129|", "PARTY")
+            ns.BankAlt.Invalidate = invalidate
+            assert.equal(2, invalidated)
+        end)
+
         it("the skills message: this character and the account's crafters, under 255 characters", function()
             local text = ns.Comms.EncodeSkills({ { skillLine = TAILORING, rank = 130 }, { skillLine = FIRST_AID, rank = 80 },
                 { skillLine = 186, rank = 50 } }, { { name = "Alt Mine", professions = { { skillLine = 333, rank = 120 } } },

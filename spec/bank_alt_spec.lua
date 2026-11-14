@@ -164,6 +164,83 @@ describe("bank alt view", function()
         assert.is_nil(text:find("Mailed for", 1, true), "never mailed: no such line")
     end)
 
+    -- A CurseForge request, 2026-11-14: "make the item tooltip text either reduced or hidden".
+    it("Settings' Item tooltips: short is the tag in one line, off is nothing, full is everything", function()
+        MailworthyDB.mailed = { [2589] = { route = "ah", gain = 821, at = WowStub.state.serverTime,
+            from = "Tilda Quickfoot", to = "Rettana Quilwrit" } }
+        local linen = WowStub.link(2589, "Linen Cloth")
+        assert.equal("full", ns.Config.Tooltips(), "the default")
+        ns.Config.Set("tooltips", "short")
+        assert.equal("Mailworthy  |cffffffff[V: Vendor]|r", hover(linen, 2589), "no spacer, no numbers, no Mailed for")
+        ns.Config.Set("tooltips", "off")
+        assert.equal("", hover(linen, 2589))
+        ns.Config.Set("tooltips", "full")
+        local text = hover(linen, 2589)
+        assert.truthy(text:find("Auction price today", 1, true), text)
+        assert.truthy(text:find("Mailed for", 1, true), text)
+    end)
+
+    it("short tooltips keep a warning (operator: anything breaking the pattern is explained)", function()
+        local item = { advice = "b", result = { action = "mail", route = "bank", pinned = true, pinConflict = "Tailoring" } }
+        local lines = ns.BankAlt.TooltipLines(item, nil, ns.BankAlt.Settings(), "short")
+        assert.equal(2, #lines)
+        assert.truthy(lines[1][1]:find("pinned", 1, true), lines[1][1])
+        assert.truthy(lines[2][1]:find("the pin wins", 1, true), lines[2][1])
+        assert.same({}, ns.BankAlt.TooltipLines(item, nil, ns.BankAlt.Settings(), "off"))
+        -- Short says nothing for an item with no tag, even with a Mailed for record.
+        assert.same({}, ns.BankAlt.TooltipLines(nil, { route = "ah", at = 0, from = "Bob" }, ns.BankAlt.Settings(), "short"))
+    end)
+
+    -- A CurseForge report, 2026-11-14: "stutter consistently everytime I am shooting a gun" with Baganator.
+    it("a shot (the ammo stack one smaller) values and redraws nothing; any other bag change does", function()
+        WowStub.setBag(0, 5, WowStub.item(2516, "Light Shot", { count = 200, sell = 0, class = 6 }))
+        ns.Fire("BAG_UPDATE_DELAYED") -- the bullets arrive: a real change
+        combined:UpdateItems()
+        local evaluate, evaluated = ns.Bags.Evaluate, 0
+        ns.Bags.Evaluate = function(...)
+            evaluated = evaluated + 1
+            return evaluate(...)
+        end
+        local refreshes, refreshAll = 0, ns.Border.RefreshAll
+        ns.Border.RefreshAll = function(...)
+            refreshes = refreshes + 1
+            return refreshAll(...)
+        end
+        WowStub.setBag(0, 5, WowStub.item(2516, "Light Shot", { count = 199, sell = 0, class = 6 }))
+        ns.Fire("BAG_UPDATE_DELAYED")
+        assert.equal(0, evaluated, "a shot: nothing valued")
+        assert.equal(0, refreshes, "and no button redrawn")
+        combined:UpdateItems() -- the bag draws again (open bags do): read again, lazily (Codex review)
+        assert.equal(1, evaluated)
+        assert.equal("AH", tagOf(combined.Items[1]), "the tags stay")
+        WowStub.setBag(0, 1, WowStub.item(2770, "Copper Ore", { count = 4, sell = 5 }))
+        ns.Fire("BAG_UPDATE_DELAYED")
+        ns.Border.RefreshAll = refreshAll
+        assert.equal(1, refreshes, "the ore stack shrank: every button redrawn")
+        combined:UpdateItems()
+        assert.equal(2, evaluated)
+        -- Something was waiting for its item data: the next bag update reads again, shot or not.
+        local waiting = ns.BankAlt.Waiting
+        ns.BankAlt.Waiting = function() return true end
+        WowStub.setBag(0, 5, WowStub.item(2516, "Light Shot", { count = 198, sell = 0, class = 6 }))
+        ns.Fire("BAG_UPDATE_DELAYED")
+        combined:UpdateItems()
+        ns.BankAlt.Waiting, ns.Bags.Evaluate = waiting, evaluate
+        assert.equal(3, evaluated)
+        assert.equal("bag tags: 4 bag update(s) this session, 3 redrew the tags", ns.BankAlt.ReportLines()[1])
+    end)
+
+    it("waits for an item's data on every list: a soulbound ring with no vendor price yet (Codex review)", function()
+        combined:UpdateItems()
+        assert.is_false(ns.BankAlt.Waiting())
+        local vendor = ns.Prices.Vendor
+        ns.Prices.Vendor = function(link) if link == WowStub.link(6948, "Hearthstone") then return nil end return vendor(link) end
+        ns.BankAlt.Redraw()
+        combined:UpdateItems()
+        ns.Prices.Vendor = vendor
+        assert.is_true(ns.BankAlt.Waiting(), "the Hearthstone (soulbound, unmailable) has no vendor price yet")
+    end)
+
     -- Operator, 2026-11-08: Sharp Claw and Jade said nothing; 2026-11-11: "if the recommendation is to
     -- keep in my bag because some profession needs it, it should recommend Banking", with a tag and an
     -- explanation like the AH's and the vendor's.

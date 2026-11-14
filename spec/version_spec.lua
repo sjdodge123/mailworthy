@@ -242,7 +242,7 @@ describe("version notice", function()
             WowStub.state.layout = true -- sizes are read back
             ns.SettingsUI.Show()
             local before = ns.SettingsUI.Frame():GetHeight()
-            assert.equal(574, before)
+            assert.equal(600, before) -- 574 before the Item tooltips row (2026-11-14)
             assert.equal("", ns.SettingsUI.VersionLine())
             say(BOB, "U2|v0.31.0")
             assert.equal(ns.Version.Text(), ns.SettingsUI.VersionLine())

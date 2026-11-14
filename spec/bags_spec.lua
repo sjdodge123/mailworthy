@@ -48,6 +48,22 @@ describe("bag scan", function()
         _G.DisenchantValueAPI = nil
     end)
 
+    it("fingerprint: an ammo stack's size is left out (each shot takes one); every other change shows", function()
+        local classes = { [2512] = 6, [2770] = 7 }
+        local function classOf(id) return classes[id] end
+        local function key(arrows, ore, locked)
+            return ns.Bags.FingerprintOf({
+                { bag = 4, slot = 1, itemID = 2512, link = "Rough Arrow", count = arrows },
+                { bag = 0, slot = 1, itemID = 2770, link = "Copper Ore", count = ore, inUse = locked },
+            }, classOf)
+        end
+        assert.equal(key(200, 5), key(199, 5), "a shot: nothing the tags read changed")
+        assert.are_not.equal(key(200, 5), key(200, 4), "the ore stack shrank")
+        assert.are_not.equal(key(200, 5), key(200, 5, true), "the ore is locked by the game")
+        assert.are_not.equal(key(200, 5), ns.Bags.FingerprintOf({
+            { bag = 0, slot = 1, itemID = 2770, link = "Copper Ore", count = 5 } }, classOf), "the arrows are gone")
+    end)
+
     it("scans the reagent bag (bag 5) like the others, and never a bank tab", function()
         WowStub.state.numSlots[5] = 16
         WowStub.state.numSlots[6] = 98
