@@ -27,6 +27,7 @@ local function defaultState()
         professions = { { index = 6, name = "Mining", rank = 12, maxRank = 75, skillLine = 186 } },
         numSlots = { [0] = 20, [1] = 4, [2] = 6, [3] = 0, [4] = 0 },
         bags = { [0] = {}, [1] = {}, [2] = {} },
+        equipped = {}, -- inventory slot -> WowStub.item (GetInventoryItemID; 18 = the ranged slot)
         attached = {}, cursor = nil, used = {}, sent = {}, sentItems = {}, sounds = {}, postage = 30, money = 0, cod = 0, moneyCalls = {},
         inbox = {}, invoices = {}, takes = {},
         quests = {}, -- the quest log: { { title, header = true?, objectives = { { text, type } } } }
@@ -466,8 +467,21 @@ _G.GetItemInfo = function(l)
 end
 _G.GetItemInfoInstant = function(l)
     local item = byLink(l)
+    if not item then
+        for _, worn in pairs(s().equipped) do
+            if worn.hyperlink == l or worn.itemID == l then item = worn end
+        end
+    end
     if item then return item.itemID, "t", "s", "", 0, item.class, item.subclass or 0 end
 end
+_G.GetInventoryItemID = function(unit, slot)
+    local worn = unit == "player" and s().equipped[slot]
+    return worn and worn.itemID or nil
+end
+
+--- Equip a ranged weapon (WowStub.item with class 2 and its subclass: 2 bow, 3 gun, 18 crossbow),
+--- or empty the slot (nil).
+function WowStub.equipRanged(it) s().equipped[18] = it end
 local function at(bag, slot) return s().bags[bag] and s().bags[bag][slot] end
 local function attachItem(item)
     if not item or item.isLocked or #s().attached >= 12 then return end

@@ -9,7 +9,7 @@
 -- A profession binding also takes its profession's recipes (item class 9, Valuation.RecipeProfession;
 -- operator, 2026-11-08: "recipes should go to their respective profession mappings"), cap included.
 --
--- Safety: locks, soulbound / quest / in-use items and profession tools still
+-- Safety: locks, soulbound / quest / in-use items, profession tools and the ranged weapon's ammo still
 -- stay; a binding never mails what the normal rule wouldn't touch. The price
 -- cap ("to my alt at 10s each or more", a stepper on the binding) keeps a material
 -- the market suddenly wants: at or above the cap the normal rule applies and
@@ -54,6 +54,7 @@ Routes.ROUTE = "friend"     -- the verdict route of a diverted item
 Routes.HARD_KEEPS = {
     locked = true, soulbound = true, ["quest item"] = true, ["a quest needs it"] = true, ["in use"] = true,
     ["profession tool"] = true, ["item info not loaded yet"] = true, ["conjured item"] = true,
+    ammo = true, -- the ranged weapon's (Ammo.lua)
 }
 
 -- Verdicts a class binding doesn't override either: AGENTS safety keeps anything but white items

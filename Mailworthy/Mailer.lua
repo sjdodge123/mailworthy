@@ -172,6 +172,8 @@ function Mailer.StillThere(stack)
     if info.isLocked then return false, "in use" end
     if info.isBound then return false, "soulbound" end
     if ns.Conjured.Is(info.itemID) then return false, "conjured" end
+    -- A bow, crossbow or gun equipped since the preview: its ammo stays (Ammo.lua).
+    if ns.Ammo.Is(info.hyperlink) then return false, "ammo" end
     if ns.Locks.IsItemLocked(info.itemID) then return false, "locked" end
     -- A quest accepted mid-run (Codex review, 2026-11-08): what it asks for stays.
     if ns.Quests.For(info.hyperlink) then return false, "an active quest needs it" end
@@ -344,6 +346,16 @@ local function sendMail(index)
     if n ~= #mail.attached then
         pcall(ClearSendMail)
         return Mailer.Stop(string.format("mail %d: %d attached, expected %d; nothing sent", index, n, #mail.attached))
+    end
+    -- A bow, crossbow or gun equipped while the stacks sat attached (Mailer.DELAY; Codex review,
+    -- 2026-11-14): its ammo stays. Give everything back and send nothing more.
+    local fires = ns.Ammo.Equipped()
+    for _, stack in ipairs(mail.attached) do
+        if ns.Ammo.Is(stack.link, fires) then
+            pcall(ClearSendMail)
+            return Mailer.Stop(string.format("mail %d: %s is ammo for your ranged weapon now; nothing sent",
+                index, tostring(stack.link)))
+        end
     end
     pcall(SetSendMailCOD, 0)
     pcall(SetSendMailMoney, 0)

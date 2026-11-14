@@ -6,7 +6,8 @@
 -- profession's), with a guild template (its mail tagged in the log and counted for the guild
 -- contributions, nobody else's, never mail to the player's own characters; guildmates' shared counts
 -- change nothing mailed), without a bank alt or with it skipped for the visit, with
--- Return to sender (on a main and on the bank alt itself), and on SavedVariables an older build
+-- Return to sender (on a main and on the bank alt itself), with a hunter's ammo (the type the equipped
+-- bow fires stays, pinned or mailed by someone else), and on SavedVariables an older build
 -- left behind (an early alpha's, and v0.30.0's guild template with a full mail log). CI runs this
 -- file on its own before the rest, and a tag can't publish unless it passes.
 --
@@ -35,6 +36,7 @@ local HARD_KEEPS = {
     [7976] = "locked by the player, no auction price (Plans: Locked Recipe)",
     [7977] = "soulbound, no auction price (Bound Recipe)",
     [5512] = "conjured (Minor Healthstone: white, no auction price; operator, 2026-11-10)",
+    [3030] = "ammo for the equipped bow (Razor Arrow; the ammo cases equip one; operator, 2026-11-14)",
 }
 
 --- A level-20ish character's bags on a fresh realm: trade goods, a BoE green, junk,
@@ -1395,6 +1397,72 @@ describe("critical path: mailing", function()
         deliver(ns)
         assertSafeAndComplete(ns, preview, { [BOB] = true, [MAIN] = true })
         assertReturnSubjects({ [BOB] = true, [MAIN] = true })
+    end)
+
+    --- A hunter with a bow: a priced stack of arrows (worth listing) and unpriced bullets in the bags.
+    local function ammoBags()
+        WowStub.equipRanged(WowStub.item(2504, "Worn Shortbow", { class = 2, subclass = 2 }))
+        local arrows = WowStub.item(3030, "Razor Arrow", { count = 200, sell = 0, class = 6, subclass = 2 })
+        WowStub.setBag(0, 16, arrows)
+        prices[arrows.hyperlink] = 25 -- 50s a stack: clears the minimum gain
+        WowStub.setBag(0, 17, WowStub.item(3033, "Solid Shot", { count = 200, sell = 0, class = 6, subclass = 3 }))
+    end
+
+    local function staysAs(itemID, reason)
+        for _, item in ipairs(ns.MailWindow.Result().keep) do
+            if item.itemID == itemID then return assert.equal(reason, item.result.reason) end
+        end
+        error("item " .. itemID .. " isn't on the Staying list")
+    end
+
+    it("ammo (mouse): the arrows the bow fires stay, bank-pinned and mailed by Bob too; the bullets go", function()
+        -- operator, 2026-11-14: ammo is a hard keep, "Matching type only"
+        ammoBags()
+        ns.Fire("MAIL_SHOW")
+        WowStub.state.inbox = { { sender = BOB, subject = "for you", daysLeft = 29.9,
+            items = { { itemID = 3030, name = "Razor Arrow", count = 200 } } } }
+        TakeInboxItem(1, 1)
+        ns.Fire("MAIL_SUCCESS", 3030)
+        WowStub.state.inbox = {}
+        WowStub.runTimers(2)
+        ns.Pins.Set(3030, WowStub.link(3030, "Razor Arrow"), ns.Pins.BANK, "spec")
+        mailbox()
+        _G.MailworthyMailButton:Click()
+        _G.MailworthyMailReturn:Click()
+        assert.is_true(ns.Returns.On())
+        local preview = previewed(ns)
+        assert.is_nil(preview[3030], "the bow's arrows stay: pinned, priced and mailed by Bob")
+        staysAs(3030, "ammo")
+        assert.equal(BANK_ALT, preview[3033], "a bow doesn't fire bullets: they go like any unpriced item")
+        _G.MailworthyMailSend:Click()
+        deliver(ns)
+        assertSafeAndComplete(ns, preview, { [BANK_ALT] = true, [BOB] = true })
+    end)
+
+    it("ammo (controller) without Auctionator: Cross on Send mails the bullets, never the bow's arrows", function()
+        _G.Auctionator = nil
+        ammoBags()
+        WowStub.state.gamepadUI = true
+        ns.Fire("MAIL_SHOW")
+        mailbox()
+        WowStub.state.activeFrame = MailFrame
+        local watcher = _G.MailworthyPadWatcher
+        local function tick() watcher.scripts.OnUpdate(watcher, 0.2) end
+        local function press(name)
+            WowStub.state.now = WowStub.state.now + 1
+            _G[name]:Click()
+            tick()
+        end
+        tick()
+        press("MailworthyPadTriangle")
+        local preview = previewed(ns)
+        assert.is_nil(preview[3030], "white arrows the bow fires stay without a price source")
+        staysAs(3030, "ammo")
+        assert.equal(BANK_ALT, preview[3033], "white bullets go, as any white item without a price source")
+        ns.Nav.Select(_G.MailworthyMailSend)
+        press("MailworthyPadCross")
+        deliver(ns)
+        assertSafeAndComplete(ns, preview, { [BANK_ALT] = true })
     end)
 
     --- The mails that went, checked against the preview (a run that was stopped or refused went

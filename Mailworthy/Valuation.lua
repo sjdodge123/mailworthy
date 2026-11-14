@@ -349,6 +349,12 @@ function Valuation.IsConjured(item)
     return item.conjured == true or ns.Conjured.Known(item.itemID)
 end
 
+--- Ammo the equipped ranged weapon fires (Ammo.lua, operator 2026-11-14: "Matching type only"):
+--- `item.ammo`, the bag scan's answer.
+function Valuation.IsAmmo(item)
+    return item.ammo == true
+end
+
 --- Soulbound, quest and conjured items can never be mailed: the window doesn't list them.
 function Valuation.Unmailable(result)
     return result.action == "keep" and (result.reason == "soulbound" or result.reason == "quest item"
@@ -501,10 +507,11 @@ function Valuation.Evaluate(item, price, settings)
     if item.locked then return keep("locked") end
     -- A vendor pin (Pins.lua): it stays for the vendor and shows V, soulbound or not (an outgrown quest
     -- reward: before the soulbound keep, so it gets the tag; a vendor buys what can't be mailed). It
-    -- only ever keeps an item; a quest's item, a conjured item, an item in use and a profession tool
-    -- keep their own reason, and without a vendor price there is nothing to vendor.
+    -- only ever keeps an item; a quest's item, a conjured item, an item in use, a profession tool and
+    -- the ranged weapon's ammo keep their own reason, and without a vendor price there is nothing to vendor.
     if item.pin == Valuation.PIN_VENDOR and not item.quest and not item.questFor and not item.inUse
-        and not Valuation.IsConjured(item) and not Valuation.IsTool(item) and (item.vendor or 0) > 0 then
+        and not Valuation.IsConjured(item) and not Valuation.IsTool(item) and not Valuation.IsAmmo(item)
+        and (item.vendor or 0) > 0 then
         return keep(Valuation.VENDOR_PIN_REASON, { vendor = item.vendor * (item.count or 1), pinned = true,
             vendorPin = true, bound = item.bound or nil })
     end
@@ -514,7 +521,7 @@ function Valuation.Evaluate(item, price, settings)
     -- On an enchanter, a cheap green or blue piece is tagged DE instead: disenchant it here.
     if item.bound then
         local sellable = not item.quest and not item.questFor and not item.inUse and not Valuation.IsConjured(item)
-            and not Valuation.IsTool(item) and (item.vendor or 0) > 0
+            and not Valuation.IsTool(item) and not Valuation.IsAmmo(item) and (item.vendor or 0) > 0
         return keep("soulbound", { vendor = sellable and item.vendor * (item.count or 1) or nil,
             deHere = sellable and Valuation.DisenchantsHere(item, nil, settings) or nil })
     end
@@ -525,6 +532,9 @@ function Valuation.Evaluate(item, price, settings)
     if item.questFor then return keep("a quest needs it", { quest = item.questFor }) end
     if item.inUse then return keep("in use") end
     if Valuation.IsTool(item) then return keep("profession tool") end
+    -- The ammo the equipped bow, crossbow or gun fires (operator, 2026-11-14): a hunter's arrows were
+    -- listed for the bank alt. The other type is valued like any item.
+    if Valuation.IsAmmo(item) then return keep(ns.Ammo.REASON) end
     -- A bank pin (Pins.lua): the player asked for this item to always go to the bank alt and be
     -- banked there, whatever the market or a profession of this character says. Past every hard
     -- keep above, so a pin never mails what the rule wouldn't touch. It overrides the no-price-source

@@ -253,6 +253,8 @@ function Bags.Evaluate(settings)
     -- (Siz DisenchantValue): read it then, for gear only (Codex review, 2026-11-11).
     local gearRoutes = false
     for _, r in ipairs(routes) do gearRoutes = gearRoutes or r.gear == ns.Routes.GEAR_DE end
+    -- The ammo the equipped ranged weapon fires stays (Ammo.lua): the slot is read once per scan.
+    local fires = ns.Ammo.Equipped()
     local function value(item)
         item.locked = ns.Locks.IsItemLocked(item.itemID)
         item.pin = ns.Pins.Effective(item.itemID)
@@ -260,6 +262,7 @@ function Bags.Evaluate(settings)
         item.questFor = ns.Quests.For(item.link)
         item.conjured = ns.Conjured.Is(item.itemID)
         item.classID, item.subclassID = ns.Prices.ClassID(item.link)
+        item.ammo = ns.Ammo.Matches(item.classID, item.subclassID, fires)
         item.vendor = item.noValue and 0 or ns.Prices.Vendor(item.link)
         item.price = priced and ns.Prices.Lookup(item.link) or nil
         item.result = ns.Valuation.Evaluate(item, item.price, settings)

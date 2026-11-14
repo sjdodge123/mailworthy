@@ -25,6 +25,7 @@ TierData.lua
 TierCheck.lua
 Quests.lua
 Conjured.lua
+Ammo.lua
 Valuation.lua
 Config.lua
 Classes.lua

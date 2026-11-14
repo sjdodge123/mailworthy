@@ -237,6 +237,8 @@ reason) when any of these hold:
 - it's conjured (a Healthstone, a mana gem, a mage's food and water; operator 2026-11-10, after a
   Healthstone showed up for the bank alt; `Conjured.lua`, by item ID or the tooltip's "Conjured
   Item" line; never listed in the window either);
+- it's the ammo the equipped ranged weapon fires (arrows for a bow or a crossbow, bullets for a gun;
+  operator 2026-11-14, "Matching type only"; `Ammo.lua`); the other type is valued as usual;
 - an active quest's objective names it, quest item or not ("Redridge Goulash needs it":
   Crisp Spider Meat; operator 2026-11-08; `Quests.lua`, by item name);
 - it's a profession tool (fishing poles, Mining Pick, Blacksmith Hammer, Skinning
