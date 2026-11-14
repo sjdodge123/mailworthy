@@ -263,6 +263,8 @@ function Bags.Evaluate(settings)
         item.conjured = ns.Conjured.Is(item.itemID)
         item.classID, item.subclassID = ns.Prices.ClassID(item.link)
         item.ammo = ns.Ammo.Matches(item.classID, item.subclassID, fires)
+        -- A recipe this character already knows (Recipes.lua): no binding naming this character takes it.
+        item.known = ns.Valuation.RecipeProfession(item) and ns.Recipes.Known(item.itemID) or nil
         item.vendor = item.noValue and 0 or ns.Prices.Vendor(item.link)
         item.price = priced and ns.Prices.Lookup(item.link) or nil
         item.result = ns.Valuation.Evaluate(item, item.price, settings)

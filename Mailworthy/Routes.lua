@@ -344,6 +344,10 @@ function Routes.Divert(item, verdict, price, settings, routes)
         -- against it): an item without one goes to the bank alt, whatever its route (a disenchant
         -- value alone isn't one; Codex review, 2026-11-08).
         if r.class and not Routes.ClassPriced(verdict, price, unit) then matches = false end
+        -- A recipe this character already knows (item.known, Recipes.lua; operator, 2026-11-14: "already
+        -- known crafting recipes should continue down regular routing rules"): a binding naming this
+        -- character doesn't keep it here; another binding or the regular rules take it.
+        if matches and item.known and Routes.IsMe((Routes.Recipient(r))) then matches = false end
         if past then outgrown = outgrown or r end
         if matches and (not route or Routes.Before(r, route)) then route = r end
     end

@@ -49,7 +49,7 @@ the order, but anything run at file load (constants built from other modules,
 | # | Layer | Files |
 |---|---|---|
 | 1 | Foundation | `Core`, `Log`, `Blocked`, `Characters`, `Gamepad`, `Locks`, `Palette`, `Pins`, `Border` |
-| 2 | Pricing and rules | `Prices`, `Disenchant`, `Tiers`, `TierData` (fills `ns.Tiers`), `TierCheck`, `Quests`, `Conjured`, `Ammo`, `Valuation`, `Config`, `Classes` |
+| 2 | Pricing and rules | `Prices`, `Disenchant`, `Tiers`, `TierData` (fills `ns.Tiers`), `TierCheck`, `Quests`, `Conjured`, `Recipes`, `Ammo`, `Valuation`, `Config`, `Classes` |
 | 3 | Bindings and peers | `Routes`, `Comms`, `Guild`, `Stale`, `Version` |
 | 4 | Scan, send, records | `Bags`, `Mailer`, `Ledger`, `Contributions`, `Returns`, `Trip` |
 | 5 | Windows and input | `Widgets`, `MailButton`, `Nav`, `PadKey`, `SettingsUI`, `RoutesUI`, `LedgerUI`, `LocksUI`, `PinWarning`, `MinimapButton`, `MailWindow`, `BankAlt`, `Vendor` |
@@ -78,6 +78,7 @@ function. Specs: the module's own spec first; `critical_path` = `spec/critical_p
 | `TierCheck.lua` | Reads the player's own profession window; materials past the table still used | `TierCheck.Scan`, `Annotate`, `Findings`, `Latest`, `ReportLines` | tier_check |
 | `Quests.lua` | Items an active quest's objective names | `Quests.For(link)`, `Update`, `Invalidate` | quests |
 | `Conjured.lua` | Conjured items (ID list, else the tooltip's "Conjured Item" line) | `Conjured.Is`, `Known` (pure), `How` | conjured |
+| `Recipes.lua` | Recipes this character already knows (the tooltip's "Already known" line, `ITEM_SPELL_KNOWN`); per visit | `Recipes.Known`, `IsKnownLine` (pure), `Forget`, `ReportLines` | recipes |
 | `Ammo.lua` | The ammo the equipped ranged weapon fires (bow / crossbow: arrows, gun: bullets): a hard keep, reason `"ammo"` | `Ammo.Is(item or link, fires)`, `Equipped`, `Fires`, `Matches` (pure), `RangedItem`, `ReportLines`, `REASON` | ammo, critical_path |
 | `Valuation.lua` | **The decision rule** (pure): mail or keep, and the route, for one item | `Valuation.Evaluate`, `Unpriced`, `Unmailable`, `NeededBy`, `ProfessionKeep`, `DisenchantsHere`, `Settings`, `DEFAULTS`, `STAPLES`, `SEND*`, `Money` | valuation |
 | `Config.lua` | Saved settings over `Valuation.DEFAULTS`; bank alt per realm/faction; flags | `Config.Values/Get/Set/Step/Flag`, `Tooltips` / `CycleTooltips` (item tooltips: full / short / off), `BankAlt`, `SetBankAlt`, `SetBankAltHere`, `IsBankAltHere`, `Choices` | config |
@@ -114,7 +115,7 @@ function. Specs: the module's own spec first; `critical_path` = `spec/critical_p
 
 ### 4.1 A mailbox visit (preview, then send)
 
-1. **Open.** `MAIL_SHOW` resets per-visit state in several modules (`Mailer`, `Conjured.Forget`,
+1. **Open.** `MAIL_SHOW` resets per-visit state in several modules (`Mailer`, `Conjured.Forget`, `Recipes.Forget`,
    `Report`, `Trip`, `Stale`, `Comms`). `MailWindow`'s tab watcher (`MailworthyTabWatcher`,
    `OnUpdate` every 0.2 s: `FollowTab`, `AutoOpen`, `CheckTab`, `RecheckEmpty`) opens the
    window when the Send Mail tab appears (switch `autoOpen`; on the bank alt also
@@ -124,7 +125,7 @@ function. Specs: the module's own spec first; `critical_path` = `spec/critical_p
    - `Bags.Slots` (bags 0..`LastBag`, reagent bag included) then `Bags.Group` (per link +
      bound + in use).
    - Per item, the local `value(item)` gathers facts (`Locks.IsItemLocked`,
-     `Pins.Effective`, `Quests.For`, `Conjured.Is`, `Classes.Of`, `Prices.Vendor`,
+     `Pins.Effective`, `Quests.For`, `Conjured.Is`, `Recipes.Known` (recipes only: `item.known`), `Classes.Of`, `Prices.Vendor`,
      `Prices.Lookup` when `Prices.Source()` is set), then:
      `Valuation.Evaluate` (section 4.2) → `Routes.Divert` (section 4.3) → `Routes.Choices`
      and the row pick (`Routes.Picked` → `Routes.Force`) → `settings.hold` (no bank alt,
@@ -196,7 +197,8 @@ The verdict (`item.result`) carries `action`, `route`, `reason`, `gain`, `postag
    gear).
 4. Each binding from `Routes.Active()` (personal, account, then `Guild.Rules`) that
    `Routes.Matches` (profession materials by tier, recipes via
-   `Valuation.RecipeProfession`, class items with `Routes.ClassPriced`); the winner by
+   `Valuation.RecipeProfession`, class items with `Routes.ClassPriced`; a recipe this character
+   already knows, `item.known`, never matches a binding whose recipient `Routes.IsMe`); the winner by
    `Routes.Before`: character, then account, then guild; lower known skill first.
 5. At or above the cap → the normal rule. `Routes.GearBeaten` (Enchanting Gear switch) → the
    normal rule.
@@ -275,7 +277,7 @@ Every `ns.On` handler, by event. `Blocked.lua` registers `ADDON_ACTION_FORBIDDEN
 |---|---|
 | `ADDON_LOADED` | Core (`ns.Init`), BagAddons, MailButton (`Blizzard_MailFrame`) |
 | `PLAYER_LOGIN` | Core (first), Characters, Locks, Pins, Border, Config, Quests, Comms, Guild, Stale, Mailer, Ledger, Contributions, PadKey, MailButton, SettingsUI, RoutesUI, LedgerUI, LocksUI, PinWarning, MinimapButton, MailWindow, BankAlt, Vendor, BagAddons, AuctionatorTags, Report |
-| `MAIL_SHOW` | Conjured, Comms, Stale, Mailer, Trip, MailButton, Report |
+| `MAIL_SHOW` | Conjured, Recipes, Comms, Stale, Mailer, Trip, MailButton, Report |
 | `MAIL_CLOSED` | Border, Routes, Bags, Mailer, Ledger, Contributions, Returns, Trip, MailWindow |
 | `MAIL_SEND_SUCCESS` | Mailer, Ledger |
 | `MAIL_FAILED` | Mailer, Ledger |
@@ -435,7 +437,7 @@ against them.
 | Priced but no or stale price → bank alt, never a class binding; failed price call stays; grey stays | `Valuation.Unpriced`; `Prices.Lookup` / `TSMUnit` (`failed`); `Routes.PriceKeep`, `Routes.ClassPriced` |
 | Bank pin mails to the bank alt (never past a hard keep, unloaded data or a failed call; never to a binding) | `Pins.Effective` → `Valuation.Evaluate` pin branch; `Routes.Divertible` (pinned) |
 | A profession binding mails its materials and recipes whatever the price, under its cap | `Routes.Matches`, `Routes.Force` |
-| A binding naming this character keeps the item here | `Routes.Force` (`forMe`), `Routes.Divertible`, `Mailer.Blocker` |
+| A binding naming this character keeps the item here (not a recipe it already knows: regular rules) | `Routes.Force` (`forMe`), `Routes.Divertible`, `Mailer.Blocker`; `Routes.Divert` + `Recipes.Known` |
 | The list can't change during a send | `Mailer.Busy` checks in `Pins`, `LocksUI`, `PinWarning`, `MailWindow` |
 
 ## 10. Tests
