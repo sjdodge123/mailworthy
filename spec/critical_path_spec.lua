@@ -1156,6 +1156,36 @@ describe("critical path: mailing", function()
         assertSafeAndComplete(ns, preview, { [BANK_ALT] = true, [JOLD] = true })
     end)
 
+    -- Operator, 2026-11-14: "i dont yet have leather working but i plan on picking it up but its defaulting
+    -- to my guild rule". A binding to yourself, made in the friends window, keeps the leather here; the
+    -- guild's Leatherworking rule is left out (personal wins) and nothing goes to its leatherworker.
+    it("a binding to yourself (friends window): the guild's rule for it is left out and its materials stay", function()
+        local SHAM = "Sham Bie"
+        WowStub.state.guild = { clubId = 7, name = "Bank Of Azeroth", members = {
+            { name = "Guild Master", rank = 0, online = true }, { name = SHAM, rank = 3, online = true } } }
+        for _, m in ipairs(ns.Guild.Encode(WowStub.state.serverTime - 60, "Guild Master", { { profession = 165, to = SHAM } })) do
+            ns.Fire("CHAT_MSG_ADDON", "Mailworthy", m, "GUILD", SHAM)
+        end
+        ns.Guild.SetUse(true)
+        mailbox()
+        _G.MailworthyMailButton:Click()
+        assert.equal(SHAM, previewed(ns)[2318], "the guild's rule takes the Light Leather")
+        ns.RoutesUI.Show()
+        assert.truthy(_G.MailworthyFriendsPick1:GetText():find("you", 1, true), "you are first in the list")
+        _G.MailworthyFriendsPick1:Click()
+        for i, o in ipairs(ns.RoutesUI.Options(ns.RoutesUI.Picked())) do
+            if o.id == 165 then _G["MailworthyFriendsProfession" .. i]:Click() end
+        end
+        assert.is_true(ns.Routes.IsMe(ns.Routes.List()[1].to), "bound to this character")
+        ns.RoutesUI.Frame():Hide()
+        ns.MailWindow.Refresh()
+        local preview = previewed(ns)
+        assert.is_nil(preview[2318], "the leather stays with you")
+        _G.MailworthyMailSend:Click()
+        deliver(ns)
+        assertSafeAndComplete(ns, preview, { [BANK_ALT] = true })
+    end)
+
     it("row picks never move a hard keep or a pin", function()
         pickSetup()
         ns.Locks.ToggleItem(2840, WowStub.link(2840, "Copper Bar"), "spec")

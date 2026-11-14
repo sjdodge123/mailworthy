@@ -329,6 +329,9 @@ end
 --- hello). For a guild rule: this character (its author), then guild members only.
 local function gather(reason)
     candidates = ns.Routes.Candidates()
+    -- You first (2026-11-14): bind a profession to yourself, one you have or plan to pick up.
+    local me = ns.Routes.Me()
+    if me and target ~= "guild" then table.insert(candidates, 1, me) end
     if target == "guild" then
         local members = { ns.Routes.Me() }
         for _, c in ipairs(candidates) do
@@ -645,8 +648,11 @@ function UI.Bind(i)
         setHint("|cffff8040Not bound: " .. tostring(err) .. ".|r")
         return
     end
-    local text = string.format("%s now go to %s. Remove it any time; at the mailbox, Skip once drops it for one visit.",
-        ns.Routes.What(route), route.to)
+    local text = ns.Routes.IsMe(route.to)
+        and string.format("%s now stay with you%s. Remove it any time.", ns.Routes.What(route),
+            route.scope == "character" and "" or ": your other characters mail them here")
+        or string.format("%s now go to %s. Remove it any time; at the mailbox, Skip once drops it for one visit.",
+            ns.Routes.What(route), route.to)
     setHint(text)
     ns.Print(text)
     picked, view = nil, "list"
