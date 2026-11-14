@@ -264,6 +264,14 @@ local function guildSkill(name, profession)
 end
 
 local function ownSkill(name, profession)
+    -- This character (a binding to yourself): its live professions; Characters.Mailable leaves it out
+    -- (Codex review, 2026-11-14: a self binding kept what its own skill had outgrown).
+    if Routes.IsMe(name) then
+        for _, p in ipairs(ns.Characters.Professions() or {}) do
+            if tonumber(p.skillLine) == profession then return tonumber(p.rank) end
+        end
+        return nil
+    end
     for _, entry in ipairs(ns.Characters.Mailable()) do
         if tostring(entry.name):lower() == name:lower() then
             for _, p in ipairs(entry.professions or {}) do

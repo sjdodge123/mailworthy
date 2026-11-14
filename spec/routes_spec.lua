@@ -1241,6 +1241,13 @@ describe("routing priority and row picks", function()
         assert.same({}, kept.choices, "and their row has no pick button")
     end)
 
+    -- Codex review, 2026-11-14: a binding to yourself reads your own skill, so tiers you outgrew still go.
+    it("a binding to yourself knows your skill in its profession", function()
+        WowStub.state.professions = { { index = 1, name = "Tailoring", rank = 200, maxRank = 225, skillLine = 197 } }
+        assert.equal(200, ns.Routes.Skill({ to = ns.PlayerName(), profession = 197 }))
+        assert.is_nil(ns.Routes.Skill({ to = ns.PlayerName(), profession = 165 }), "a profession you don't have yet")
+    end)
+
     it("the pick button's tooltip names every state, marks the current one and says what a press does", function()
         local item = { pickState = "f", choices = { { key = "f", scope = "account", to = BOB, profession = 164 },
             { key = "g", scope = "guild", to = JOLD, profession = 202 } } }
