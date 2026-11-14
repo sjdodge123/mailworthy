@@ -52,6 +52,26 @@ describe("bindings", function()
             assert.is_false(ns.Routes.Matches({ to = BOB, profession = 186 }, { classID = 7, subclassID = 7 }), "Mining binds nothing")
         end)
 
+        it("a binding naming this character (saved for all characters) keeps its items here", function()
+            -- rl-companion, 2026-11-14: Cooking bound to Rok Androl from an alt; at Androl's mailbox it
+            -- mailed Androl his own materials, and Mailer.Blocker refused the whole send.
+            local D = ns.Valuation.DEFAULTS
+            local me = ns.PlayerName()
+            local item = { itemID = 10940, classID = 7, subclassID = 12, quality = 1, count = 20, stacks = 1, vendor = 2 }
+            local self = { to = me, profession = ENCHANTING, key = "self", scope = "account" }
+            local v = ns.Routes.Divert(item, { action = "mail" }, nil, D, { self })
+            assert.equal("keep", v.action)
+            assert.equal("self", v.forMe)
+            assert.is_nil(v.to)
+            local loud = { to = me:upper() .. "-SomeRealm", profession = ENCHANTING, key = "loud" }
+            assert.equal("keep", ns.Routes.Divert(item, { action = "mail" }, nil, D, { loud }).action,
+                "case and a realm suffix don't hide this character")
+            assert.equal(BOB, ns.Routes.Divert(item, { action = "mail" }, nil, D,
+                { { to = BOB, profession = ENCHANTING, key = "bob" } }).to, "a binding to someone else still mails")
+            assert.is_nil(ns.Routes.Divert(item, { action = "keep", reason = "locked" }, nil, D, { self }),
+                "a hard keep stays a hard keep")
+        end)
+
         it("takes primary materials only: Linen Cloth goes to the tailor's rule, never the engineer's", function()
             -- 2026-11-07: Linen Cloth (Engineering uses it on the side) went to the guild's engineer;
             -- the operator: "only focus on the primary materials ... they can ask or acquire some minor pieces"
@@ -560,7 +580,7 @@ describe("bindings", function()
             assert.equal("Roknua Themicrulah", MailworthyDB.mailed[2589].to)
         end)
 
-        it("friends' mails go without a bank alt; a binding to this character blocks everything", function()
+        it("friends' mails go without a bank alt; a binding to this character keeps its items here", function()
             MailworthyDB.bankAlts = {}
             ns.Routes.Add(BOB, ENCHANTING)
             ns.Routes.Add(BOB, TAILORING)
@@ -574,12 +594,21 @@ describe("bindings", function()
             ns.Fire("MAIL_SEND_SUCCESS")
             WowStub.runTimers()
             assert.equal(2, #WowStub.state.sent)
-            -- a saved binding that points at this character (e.g. made on another character for this one)
+            -- A saved binding that points at this character (made on another character for this one).
+            -- It used to block every send (rl-companion, 2026-11-14: Send did nothing on the bound
+            -- character); now its items stay here and nothing is addressed to this character.
             MailworthyDB.routes["Classic Beta PvP|Alliance"][1].to = "Rettana Quilwrit"
             WowStub.setBag(0, 1, dust(20))
             result = ns.Bags.Evaluate()
-            assert.is_false(ns.Mailer.Start(result.mail, "Roknua Themicrulah"))
-            assert.truthy(ns.Mailer.Status():find("a binding points at this character", 1, true))
+            for _, it in ipairs(result.mail) do
+                assert.is_true(tostring(it.result.to) ~= "Rettana Quilwrit", "an item is mailed to this character")
+            end
+            local kept = false
+            for _, it in ipairs(result.keep) do kept = kept or it.itemID == 10940 end
+            assert.is_true(kept, "the bound dust stays here")
+            -- The mailer's own guard still refuses a plan addressed to this character.
+            assert.equal("a binding points at this character: remove it",
+                ns.Mailer.Blocker("Roknua Themicrulah", { { to = "Rettana Quilwrit", what = "Enchanting materials", stacks = {} } }))
         end)
 
         it("names the recipients", function()

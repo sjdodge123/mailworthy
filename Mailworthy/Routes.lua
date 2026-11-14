@@ -288,6 +288,13 @@ function Routes.Skill(route)
     return best
 end
 
+--- Is `name` this character (a binding's recipient, cleaned and case-blind as Mailer.Blocker reads it)?
+function Routes.IsMe(name)
+    local me = ns.PlayerName and ns.PlayerName()
+    if not name or not me then return false end
+    return tostring(Routes.Clean(name) or name):lower() == tostring(Routes.Clean(me) or me):lower()
+end
+
 local GROUP = { character = 1, account = 2, guild = 3 }
 
 --- Pure: of two bindings that both take an item, `a` goes first: this character's, then the
@@ -343,6 +350,13 @@ function Routes.Divert(item, verdict, price, settings, routes)
     local beaten = Routes.GearBeaten(route, item, verdict, price, settings)
     if beaten then return nil, nil, outgrown, beaten end
     local to, crafter = Routes.Recipient(route)
+    -- A binding is saved for all the account's characters, so on the bound character it names
+    -- itself (Cooking bound to Androl from another alt, Androl at the mailbox: rl-companion,
+    -- 2026-11-14). Its items are where they belong: they stay here, not to the bank alt (which
+    -- would mail them straight back), and never in a mail to this character (Mailer.Blocker).
+    if Routes.IsMe(to) then
+        return { action = "keep", reason = Routes.What(route) .. " are for this character", forMe = route.key }
+    end
     local n = item.count or 1
     return {
         action = "mail", route = Routes.ROUTE, to = to, crafter = crafter, key = route.key, what = Routes.What(route),
