@@ -347,6 +347,16 @@ local function sendMail(index)
         pcall(ClearSendMail)
         return Mailer.Stop(string.format("mail %d: %d attached, expected %d; nothing sent", index, n, #mail.attached))
     end
+    -- A bow, crossbow or gun equipped while the stacks sat attached (Mailer.DELAY; Codex review,
+    -- 2026-11-14): its ammo stays. Give everything back and send nothing more.
+    local fires = ns.Ammo.Equipped()
+    for _, stack in ipairs(mail.attached) do
+        if ns.Ammo.Is(stack.link, fires) then
+            pcall(ClearSendMail)
+            return Mailer.Stop(string.format("mail %d: %s is ammo for your ranged weapon now; nothing sent",
+                index, tostring(stack.link)))
+        end
+    end
     pcall(SetSendMailCOD, 0)
     pcall(SetSendMailMoney, 0)
     -- The game's own check before its Send button (MailFrame.lua): what this mail costs

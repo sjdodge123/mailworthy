@@ -131,6 +131,25 @@ describe("ammo", function()
         end)
     end)
 
+    it("a bow equipped while the arrows sit attached: nothing is sent, the attachments come back (Codex review)", function()
+        ns.Fire("MAIL_SHOW")
+        MailFrame:Show()
+        SendMailFrame:Show()
+        _G.MailworthyMailButton:Click()
+        assert.truthy(find(ns.MailWindow.Result().mail, RAZOR_ARROW), "no bow yet: the arrows are on the list")
+        _G.MailworthyMailSend:Click()
+        assert.is_true(#WowStub.state.attached > 0, "attached at the press")
+        equip("Hunting Bow", 2)
+        for _ = 1, 10 do
+            WowStub.runTimers()
+            if not ns.Mailer.Busy() then break end
+            ns.Fire("MAIL_SEND_SUCCESS")
+        end
+        assert.equal(0, #WowStub.state.sent, "a mail went with the bow's arrows in it")
+        assert.equal(0, #WowStub.state.attached, "the attachments went back to the bags")
+        assert.truthy(tostring(ns.Mailer.Status()):find("ammo for your ranged weapon", 1, true), tostring(ns.Mailer.Status()))
+    end)
+
     it("/mw report says what the ranged slot holds and which ammo stays", function()
         assert.same({ "ammo (kept for the ranged weapon): nothing in the ranged slot; keeping none" }, ns.Ammo.ReportLines())
         equip("Rough Boomstick", 3)

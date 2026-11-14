@@ -123,6 +123,8 @@ function Vendor.StillThere(stack)
     if ns.Locks.IsItemLocked(info.itemID) then return false, "locked" end
     -- A quest may have started asking for it since the list was made (Codex review): never sold.
     if ns.Quests.For(info.hyperlink or stack.link) then return false, "a quest needs it" end
+    -- A bow, crossbow or gun equipped since the list was made (Codex review, 2026-11-14): its ammo stays.
+    if ns.Ammo.Is(info.hyperlink or stack.link) then return false, "ammo for your ranged weapon" end
     return true
 end
 

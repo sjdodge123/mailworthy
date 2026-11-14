@@ -86,6 +86,21 @@ describe("selling V items at a vendor", function()
         assert.equal("a quest needs it", why)
     end)
 
+    it("a bow equipped mid-sale keeps its vendor-pinned arrows: re-checked right before each sale (Codex review)", function()
+        put(1, 2, WowStub.item(3030, "Razor Arrow", { count = 200, sell = 1, class = 6, subclass = 2 }))
+        ns.Pins.Set(3030, WowStub.link(3030, "Razor Arrow"), ns.Pins.VENDOR, "spec")
+        merchant()
+        _G.MailworthyVendorButton:Click()
+        local listed = false
+        for _, s in ipairs(ns.Vendor.Stacks()) do listed = listed or s.itemID == 3030 end
+        assert.is_true(listed, "no bow yet: the pinned arrows are V")
+        _G.MailworthyVendorSell:Click()
+        WowStub.equipRanged(WowStub.item(2504, "Worn Shortbow", { class = 2, subclass = 2 }))
+        WowStub.runTimers()
+        for _, id in ipairs(soldIDs()) do assert.are_not.equal(3030, id, "sold the bow's arrows") end
+        assert.truthy(WowStub.printed[#WowStub.printed]:find("Skipped 1 that changed", 1, true), WowStub.printed[#WowStub.printed])
+    end)
+
     it("what another player mailed stays off the list with Return to sender switched off too (Codex review)", function()
         ns.Fire("MAIL_SHOW")
         WowStub.state.inbox = { { sender = "Bob Surname", subject = "for you", daysLeft = 29.9,
