@@ -6,8 +6,8 @@
 -- A vendor pin (V): never mailed, tagged V on every character, whatever the auction house says, so
 -- the vendor window (Vendor.lua) sells it; soulbound or not (an outgrown quest reward), since a
 -- vendor buys what can't be mailed. Never past a lock, a quest's item, a conjured item, an item in
--- use or a profession tool; it needs a vendor price. Like a bank pin it beats a binding, and Return
--- to sender beats it (what another player mailed goes back to them).
+-- use, a profession tool or the ranged weapon's ammo; it needs a vendor price. Like a bank pin it
+-- beats a binding, and Return to sender beats it (what another player mailed goes back to them).
 --
 -- Where a pinned item is banked is each character's own setting (operator, 2026-11-13: "a new
 -- setting that controls what that ctrl alt click toggle does, send to alt or mark for local bank
@@ -22,7 +22,7 @@
 -- the glow in the same colour).
 --
 -- A pin is a wish, not a safety rule: every hard keep still wins (locked, soulbound, quest,
--- conjured, in use, a profession tool; Valuation.Evaluate), and a BA pin goes only to the bank alt,
+-- conjured, in use, a profession tool, the ranged weapon's ammo; Valuation.Evaluate), and a BA pin goes only to the bank alt,
 -- the recipient the window shows (a binding never takes a pinned item: Routes.Divert). Return to
 -- sender beats both (operator, 2026-11-13). A BA pin beats "keep my professions' materials": the
 -- player decided (operator, 2026-11-13: "a bank pin is a hard decision by the user and needs to be

@@ -22,9 +22,12 @@ Mailworthy is a WoW Forever addon (`## Interface: 16001`). Start with
   Never mail a locked item.
 - Never mail an item an active quest's objective names, quest item or not (operator,
   2026-11-08). Never mail a conjured item (a Healthstone, a mana gem, a mage's food and water;
-  `Conjured.lua`; operator, 2026-11-10: "should always be keep as they are ephemeral items"). Without a bank alt (optional), or with it skipped for the visit, its share
+  `Conjured.lua`; operator, 2026-11-10: "should always be keep as they are ephemeral items"). Never mail the
+  ammo the equipped ranged weapon fires (arrows for a bow or a crossbow, bullets for a gun; `Ammo.lua`;
+  operator, 2026-11-14: "Matching type only"); the other type, and all ammo while no bow, crossbow or gun
+  is equipped, follows the normal rule. Without a bank alt (optional), or with it skipped for the visit, its share
   stays in the bags; only bindings mail.
-- A binding or a return never overrides a hard keep (locked, soulbound, quest, conjured, in use, tool); at or
+- A binding or a return never overrides a hard keep (locked, soulbound, quest, conjured, in use, tool, ammo); at or
   above its price cap the normal rule applies and the item goes to the bank alt. An Enchanting
   binding or guild rule with its Gear switch on (`Routes.GearBeaten`; operator, 2026-11-11) leaves a
   green or blue piece to the normal rule too, when it disenchants for no more than it sells for. A
@@ -94,7 +97,8 @@ textures / font strings on Blizzard frames kept in our own tables, read-only
 ## Critical path (STRICT)
 
 `spec/critical_path_spec.lua` is the shipping gate: a mailbox visit with a realistic
-bag, by mouse and by controller, with and without Auctionator, with a binding, with a bank pin, with a guild
+bag, by mouse and by controller, with and without Auctionator, with a binding, with a bank pin, with a hunter's
+ammo, with a guild
 template (on and off), with Return to sender (on a main and on the bank alt), and on
 an older build's SavedVariables; every mail checked against the Safety rules above, and
 what was previewed must be exactly what was sent. CI runs it as its own job,

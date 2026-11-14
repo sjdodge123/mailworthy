@@ -21,7 +21,7 @@ read_globals = {
     "GetNumGroupMembers", "IsInRaid", "UnitIsConnected", "IsInGuild", "GetNumGuildMembers", "GetGuildRosterInfo",
     "GetGuildInfo", "C_GuildInfo", "C_Club", "C_ChatInfo",
     -- bags and items
-    "C_Container", "C_Item", "GetItemInfo", "GetItemInfoInstant", "NUM_BAG_SLOTS", "NUM_REAGENTBAG_SLOTS", "NUM_TOTAL_EQUIPPED_BAG_SLOTS", "CursorHasItem", "ClearCursor",
+    "C_Container", "C_Item", "GetItemInfo", "GetItemInfoInstant", "GetInventoryItemID", "NUM_BAG_SLOTS", "NUM_REAGENTBAG_SLOTS", "NUM_TOTAL_EQUIPPED_BAG_SLOTS", "CursorHasItem", "ClearCursor",
     -- mail
     "SendMailFrame", "InboxFrame", "SendMail", "ClearSendMail", "ClickSendMailItemButton", "GetSendMailItem",
     "GetSendMailPrice", "ATTACHMENTS_MAX_SEND", "C_Mail", "GetInboxNumItems", "GetInboxHeaderInfo",
