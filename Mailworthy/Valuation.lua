@@ -458,7 +458,7 @@ end
 --- well as the bags (operator, 2026-11-11: "if the recommendation is to keep in my bag because some
 --- profession needs it, it should recommend Banking"). Not one to convert: that's crafted now.
 function Valuation.BankForCraft(r)
-    return type(r) == "table" and r.action == "keep" and r.neededBy ~= nil and not r.convert
+    return type(r) == "table" and r.action == "keep" and r.neededBy ~= nil and not r.convert and not r.deHere
 end
 
 local evaluate
@@ -508,7 +508,16 @@ function Valuation.Evaluate(item, price, settings)
         return keep(Valuation.VENDOR_PIN_REASON, { vendor = item.vendor * (item.count or 1), pinned = true,
             vendorPin = true, bound = item.bound or nil })
     end
-    if item.bound then return keep("soulbound") end
+    -- Soulbound: never mailed. What a vendor buys carries its value, so the bag shows V (operator,
+    -- 2026-11-14: "Soulbound items weren't being tagged as vendor"); the vendor window still sells one
+    -- only when vendor-pinned (above). Never for a quest's item, one in use, a conjured one or a tool.
+    -- On an enchanter, a cheap green or blue piece is tagged DE instead: disenchant it here.
+    if item.bound then
+        local sellable = not item.quest and not item.questFor and not item.inUse and not Valuation.IsConjured(item)
+            and not Valuation.IsTool(item) and (item.vendor or 0) > 0
+        return keep("soulbound", { vendor = sellable and item.vendor * (item.count or 1) or nil,
+            deHere = sellable and Valuation.DisenchantsHere(item, nil, settings) or nil })
+    end
     if item.quest then return keep("quest item") end
     -- Conjured (a Healthstone, operator 2026-11-10): gone 15 minutes after logout, never mailed.
     if Valuation.IsConjured(item) then return keep(ns.Conjured.REASON) end
@@ -563,11 +572,46 @@ function Valuation.Evaluate(item, price, settings)
             window = window, neededBy = profession })
     end
     local r = evaluate(item, price, settings)
+    -- Level my professions (operator, 2026-11-14: "when i see something with low sale price like that and
+    -- its green i would immediately want to mail it to my DE to level their profession"): on a character
+    -- with Enchanting, a green or blue piece that only a vendor would buy, or that has no auction price, and
+    -- is worth less than the cap (the higher of its auction and vendor price) stays to be disenchanted here
+    -- (tag DE). What the auction house or a disenchant sale pays more for still goes (profit first).
+    if (r.reason == "not worth it" or (r.action == "mail" and r.route == Valuation.NO_PRICE)
+            or ((r.reason == "no price" or r.reason == "uncommon or better (no price data)") and not r.failed))
+        and Valuation.DisenchantsHere(item, price, settings) then
+        -- `was`: the verdict it replaces, so the price rules still read it (Routes.PriceKeep: a class
+        -- binding never takes an unpriced green, picked or not; Codex review, 2026-11-14).
+        return keep(Valuation.DE_HERE_REASON, { vendor = r.vendor, ahUnit = r.ahUnit, gain = r.gain,
+            deHere = true, neededBy = "Enchanting", was = { action = r.action, route = r.route, reason = r.reason } })
+    end
     if settings.keepProfessionMats and r.reason ~= "item info not loaded yet" then
         local _, outgrown = Valuation.NeededBy(item, settings.professions, settings.tiers, settings.priceOf)
         r.outgrown = outgrown -- "your First Aid (80) is past it", in the workings
     end
     return r
+end
+
+Valuation.ENCHANTING = 333
+Valuation.DE_HERE_REASON = "disenchant it here: your Enchanting levels on it"
+
+--- Pure: this character has Enchanting ("Keep my professions' materials" on) and `item` is a green or
+--- blue weapon or armor piece worth less than `settings.deHereCap` (copper per unit; default the
+--- bindings' 10s, Routes.DEFAULT_CAP), its worth the higher of its current auction and vendor price.
+function Valuation.DisenchantsHere(item, price, settings)
+    settings = settings or Valuation.DEFAULTS
+    if not settings.keepProfessionMats then return false end
+    if not ((item.quality == 2 or item.quality == 3) and Valuation.CanDisenchant(item)) then return false end
+    local enchanter = false
+    for _, p in ipairs(type(settings.professions) == "table" and settings.professions or {}) do
+        if tonumber(type(p) == "table" and p.skillLine or p) == Valuation.ENCHANTING then enchanter = true end
+    end
+    if not enchanter then return false end
+    local worth = tonumber(item.vendor) or 0
+    if type(price) == "table" and price.ah ~= nil and (price.age == nil or price.age <= settings.maxAgeDays) then
+        worth = math.max(worth, Valuation.SmoothedPrice(price) or 0)
+    end
+    return worth < (tonumber(settings.deHereCap) or (ns.Routes and ns.Routes.DEFAULT_CAP) or 1000)
 end
 
 -- Evaluate past the hard keeps and the profession keep: price against vendor.

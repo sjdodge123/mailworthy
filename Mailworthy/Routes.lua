@@ -61,6 +61,8 @@ Routes.HARD_KEEPS = {
 -- price goes to the bank alt, not a class binding (operator, 2026-11-08: the price cap can't be
 -- checked without a price).
 function Routes.PriceKeep(verdict)
+    -- A verdict that replaced another (an enchanter's disenchant-here, Valuation) is judged by the one it replaced.
+    if type(verdict) == "table" and type(verdict.was) == "table" then return Routes.PriceKeep(verdict.was) end
     if verdict and verdict.action == "mail" and verdict.route == ns.Valuation.NO_PRICE then return true end
     if not (verdict and verdict.action == "keep") then return false end
     local reason = tostring(verdict.reason)
@@ -319,29 +321,20 @@ end
 --- Several bindings taking the item (metal and stone: Blacksmithing and Engineering): the first
 --- by Routes.Before; its cap and its Gear switch decide, as if it were the only one.
 function Routes.Divert(item, verdict, price, settings, routes)
-    if verdict and verdict.action == "keep" and Routes.HARD_KEEPS[verdict.reason] then return nil end
-    -- A pinned item (Pins.lua) goes to the bank alt: the player asked for exactly that, binding or not.
-    if verdict and verdict.pinned then return nil end
-    -- A failed price call mails nothing, to a binding neither (AGENTS safety; Codex review, 2026-11-08).
-    if type(price) == "table" and price.failed then return nil end
-    local unit -- the current auction price (none past the age limit)
-    if type(price) == "table" and price.ah ~= nil
-        and (price.age == nil or price.age <= (settings and settings.maxAgeDays or math.huge)) then
-        unit = ns.Valuation.SmoothedPrice(price)
-    end
-    -- The price the cap is checked against: the current one; for a recipe an old one too, so a recipe
-    -- the auction house paid well for isn't given away on a stale price (Codex review, 2026-11-08).
-    local capUnit = unit
-    if capUnit == nil and ns.Valuation.RecipeProfession(item) and type(price) == "table" and price.ah ~= nil then
-        capUnit = ns.Valuation.SmoothedPrice(price)
-    end
+    if not Routes.Divertible(verdict, price) then return nil end
+    -- Me first (operator, 2026-11-14: "Make me a profit/level my professions first, then the same to
+    -- my friend rules, then the same to my guild rules"): what this character's own professions still
+    -- use (Valuation's profession keep, its "on my bank alt" mail, an enchanter's disenchant-here) stays
+    -- with it, whatever binding takes the material. The row's button (Routes.Pick) sends it anyway.
+    if verdict and verdict.neededBy then return nil end
+    local unit, capUnit = Routes.Units(item, price, settings)
     local outgrown, route
     for _, r in ipairs(routes or {}) do
         local matches, past = Routes.Matches(r, item, settings and settings.tiers, settings and settings.priceOf)
         -- A class binding needs a current auction price when there's a price source (the cap is checked
         -- against it): an item without one goes to the bank alt, whatever its route (a disenchant
         -- value alone isn't one; Codex review, 2026-11-08).
-        if r.class and (Routes.PriceKeep(verdict) or (type(price) == "table" and unit == nil)) then matches = false end
+        if r.class and not Routes.ClassPriced(verdict, price, unit) then matches = false end
         if past then outgrown = outgrown or r end
         if matches and (not route or Routes.Before(r, route)) then route = r end
     end
@@ -349,11 +342,58 @@ function Routes.Divert(item, verdict, price, settings, routes)
     if route.cap and capUnit and capUnit >= route.cap then return nil, route end
     local beaten = Routes.GearBeaten(route, item, verdict, price, settings)
     if beaten then return nil, nil, outgrown, beaten end
+    return Routes.Force(item, route, unit, settings)
+end
+
+--- Pure: a binding may take an item with this verdict at all: never a hard keep, a pinned item (Pins.lua:
+--- it goes to the bank alt, the player asked for exactly that) or after a failed price call (AGENTS safety;
+--- Codex review, 2026-11-08). The row's button (Routes.Choices) is held to the same.
+function Routes.Divertible(verdict, price)
+    if verdict and verdict.action == "keep" and Routes.HARD_KEEPS[verdict.reason] then return false end
+    if verdict and (verdict.pinned or verdict.failed) then return false end
+    -- A binding naming this character keeps the item here (Routes.Force): no pick moves it (AGENTS Safety).
+    if verdict and verdict.forMe then return false end
+    if type(price) == "table" and price.failed then return false end
+    return true
+end
+
+--- Pure: a class binding's price rule (AGENTS: an item without a current auction price goes to the bank
+--- alt, never to a class binding): true when it may take the item.
+function Routes.ClassPriced(verdict, price, unit)
+    return not (Routes.PriceKeep(verdict) or (type(price) == "table" and unit == nil))
+end
+
+--- Pure: the current auction unit price (none past the age limit), and the unit price a binding's cap is
+--- checked against: the current one; for a recipe an old one too, so a recipe the auction house paid well
+--- for isn't given away on a stale price (Codex review, 2026-11-08); for a green or blue piece of gear the
+--- vendor price when it is higher (operator, 2026-11-14: "something that vendors or AH for 70s gives me a
+--- substantial profit and i would want to sell that instead": a piece with no auction price but a 70s
+--- vendor price isn't given to the enchanter under a 50s cap).
+function Routes.Units(item, price, settings)
+    local unit
+    if type(price) == "table" and price.ah ~= nil
+        and (price.age == nil or price.age <= (settings and settings.maxAgeDays or math.huge)) then
+        unit = ns.Valuation.SmoothedPrice(price)
+    end
+    local capUnit = unit
+    if capUnit == nil and ns.Valuation.RecipeProfession(item) and type(price) == "table" and price.ah ~= nil then
+        capUnit = ns.Valuation.SmoothedPrice(price)
+    end
+    if Routes.IsGear(item) then
+        local vendor = tonumber(item.vendor)
+        if vendor and vendor > 0 and (capUnit == nil or vendor > capUnit) then capUnit = vendor end
+    end
+    return unit, capUnit
+end
+
+--- Pure: the verdict that mails `item` to `route`'s recipient, past its cap, Gear switch and the profession
+--- keep (Divert has checked those; a row pick, Routes.Choices, skips them on purpose). A binding naming
+--- this character keeps the item here instead (it is saved for all the account's characters, so on the
+--- bound one it names itself: Cooking bound to Androl from another alt, Androl at the mailbox,
+--- rl-companion 2026-11-14): not to the bank alt, which would mail it straight back, and never in a mail
+--- to this character (Mailer.Blocker). `unit`: the current auction unit price (Routes.Units).
+function Routes.Force(item, route, unit, settings)
     local to, crafter = Routes.Recipient(route)
-    -- A binding is saved for all the account's characters, so on the bound character it names
-    -- itself (Cooking bound to Androl from another alt, Androl at the mailbox: rl-companion,
-    -- 2026-11-14). Its items are where they belong: they stay here, not to the bank alt (which
-    -- would mail them straight back), and never in a mail to this character (Mailer.Blocker).
     if Routes.IsMe(to) then
         return { action = "keep", reason = Routes.What(route) .. " are for this character", forMe = route.key }
     end
@@ -369,6 +409,68 @@ function Routes.Divert(item, verdict, price, settings, routes)
         guild = route.scope == "guild" and { key = route.guildKey, profession = tonumber(route.profession),
             rev = tonumber(route.rev) } or nil,
     }
+end
+
+-- Row picks (this mailbox visit) ------------------------------------------------------
+-- The button on each row of the mailbox window (operator, 2026-11-14: "i want to click next to that
+-- copper bar and toggle it to 2) click again and toggles it to 3) ... so with 2 clicks it would actually
+-- route the copper bar to Jold for that round of sending"): the item goes where the player picked, for
+-- this visit (cleared at MAIL_CLOSED, like Skip once). The choices are the item's own verdict ("mine":
+-- keep / AH / DE / V / bank) and each binding whose profession or class takes it, friends' before the
+-- guild's (Routes.Before). A pick wins over the profession keep, the binding's price cap, its Gear switch
+-- and the tier table (operator: "my click wins"), never over a hard keep, a pin, a failed price call, a
+-- class binding's price rule, Return to sender or a binding naming this character.
+
+Routes.MINE = "mine"
+local picks = {} -- item link -> Routes.MINE or a binding's key
+
+--- Pure: the bindings a row's button can send `item` to, in order (Routes.Before): those whose
+--- profession or class takes it (the tier table aside), not naming this character. `verdict` is the
+--- item's own (Valuation.Evaluate's, before any binding); none for what no binding may take.
+function Routes.Choices(item, verdict, price, settings, routes)
+    if not Routes.Divertible(verdict, price) then return {} end
+    local unit = Routes.Units(item, price, settings)
+    local list = {}
+    for _, r in ipairs(routes or {}) do
+        if Routes.Matches(r, item, false) and not Routes.IsMe(Routes.Recipient(r))
+            and (not r.class or Routes.ClassPriced(verdict, price, unit)) then
+            list[#list + 1] = r
+        end
+    end
+    table.sort(list, function(a, b)
+        if Routes.Before(a, b) then return true end
+        if Routes.Before(b, a) then return false end
+        return tostring(a.key) < tostring(b.key)
+    end)
+    return list
+end
+
+--- Pure: the state after `current` (Routes.MINE or a key) in the cycle mine, then each choice: what one
+--- press of the row's button picks. Nil when there is nothing to pick between.
+function Routes.NextPick(current, choices)
+    if #(choices or {}) == 0 then return nil end
+    local states = { Routes.MINE }
+    for _, r in ipairs(choices) do states[#states + 1] = r.key end
+    for i, s in ipairs(states) do
+        if s == current then return states[i % #states + 1] end
+    end
+    return states[1]
+end
+
+function Routes.Pick(link, state)
+    if link then picks[link] = state end
+end
+function Routes.Picked(link) return link and picks[link] or nil end
+function Routes.ClearPicks() picks = {} end
+
+--- Pure: a row's state as its button names it: "Me" for the item's own verdict, "Friend" for the
+--- player's own binding (this character's or all of them), "Guild" for a guild template rule.
+function Routes.PickLabel(state, choices)
+    if state == nil or state == Routes.MINE then return "Me" end
+    for _, r in ipairs(choices or {}) do
+        if r.key == state then return r.scope == "guild" and "Guild" or "Friend" end
+    end
+    return "Me"
 end
 
 -- Saved bindings ----------------------------------------------------------------
@@ -548,7 +650,10 @@ function Routes.Unskip(key) skipped[key] = nil end
 function Routes.Skipped(key) return skipped[key] == true end
 function Routes.ClearSkips() skipped = {} end
 
-ns.On("MAIL_CLOSED", function() Routes.ClearSkips() end)
+ns.On("MAIL_CLOSED", function()
+    Routes.ClearSkips()
+    Routes.ClearPicks()
+end)
 
 -- Candidates: who can be bound ------------------------------------------------------
 

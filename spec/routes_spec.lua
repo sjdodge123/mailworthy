@@ -1082,3 +1082,171 @@ describe("bindings", function()
         end)
     end)
 end)
+
+-- Operator, 2026-11-14: "Make me a profit/level my professions first, then the same to my friend rules, then
+-- the same to my guild rules"; a button on each row toggles an item between those for the visit ("my click
+-- wins" over the cap); an enchanting cap counts the vendor price; an enchanter disenchants its cheap greens;
+-- soulbound items show V.
+describe("routing priority and row picks", function()
+    local ns, D
+    local BOB, JOLD = "Bob Surname", "Jold Ark"
+    local bar = { itemID = 2841, classID = 7, subclassID = 7, quality = 1, count = 10, stacks = 1, vendor = 50 }
+    local function green(vendor) return { itemID = 1, classID = 4, subclassID = 2, quality = 2, count = 1, stacks = 1, vendor = vendor } end
+
+    before_each(function()
+        ns = loadAddon()
+        ns.Fire("PLAYER_LOGIN")
+        D = {}
+        for k, v in pairs(ns.Valuation.DEFAULTS) do D[k] = v end
+        D.disenchant, D.tiers = true, false
+    end)
+
+    it("me first: what this character's profession keeps, no binding takes", function()
+        local kept = { action = "keep", reason = "your Blacksmithing needs it", neededBy = "Blacksmithing" }
+        local friend = { to = BOB, profession = 164, key = "f", scope = "account" }
+        local guild = { to = JOLD, profession = 202, key = "g", scope = "guild" }
+        assert.is_nil(ns.Routes.Divert(bar, kept, { ah = 300, age = 0 }, D, { friend, guild }))
+        assert.equal(BOB, ns.Routes.Divert(bar, { action = "mail", route = "ah" }, { ah = 300, age = 0 }, D, { friend, guild }).to,
+            "without the keep: the friend's binding before the guild's rule")
+        D.professions = { { skillLine = 164, rank = 50 } }
+        local v = ns.Valuation.Evaluate(bar, { ah = 300, age = 0 }, D)
+        assert.equal("Blacksmithing", v.neededBy)
+        assert.is_nil(ns.Routes.Divert(bar, v, { ah = 300, age = 0 }, D, { friend, guild }))
+    end)
+
+    it("a gear piece's cap counts its vendor price: a 70s-vendor green with no auction price is sold, not given", function()
+        local ench = { to = BOB, profession = 333, cap = 5000, key = "e", scope = "guild" }
+        local _, capped = ns.Routes.Divert(green(7000), { action = "mail", route = "noprice" }, { ah = nil, de = 500 }, D, { ench })
+        assert.equal(ench, capped)
+        assert.equal(BOB, ns.Routes.Divert(green(800), { action = "keep", reason = "not worth it" }, { ah = 900, age = 0 }, D,
+            { ench }).to, "a cheap green goes to the enchanter")
+        local _, unitCap = ns.Routes.Units(green(800), { ah = 400, age = 0 }, D)
+        assert.equal(800, unitCap, "vendor 8s beats auction 4s")
+        local _, matCap = ns.Routes.Units(bar, { ah = 30, age = 0 }, D)
+        assert.equal(30, matCap, "a material's cap is its auction price alone")
+    end)
+
+    it("the row's choices: bindings that take it, friends' before the guild's, none past a hard keep, pin or failed call", function()
+        local friend = { to = BOB, profession = 164, key = "f", scope = "account" }
+        local mine = { to = ns.PlayerName(), profession = 164, key = "me", scope = "account" }
+        local guild = { to = JOLD, profession = 202, key = "g", scope = "guild" }
+        local tailor = { to = "Ann Other", profession = 197, key = "t", scope = "character" }
+        local own = { action = "keep", reason = "your Blacksmithing needs it", neededBy = "Blacksmithing" }
+        local list = ns.Routes.Choices(bar, own, { ah = 300, age = 0 }, D, { guild, mine, tailor, friend })
+        assert.equal(2, #list, "not the tailor's, not this character's own")
+        assert.equal("f", list[1].key)
+        assert.equal("g", list[2].key)
+        assert.same({}, ns.Routes.Choices(bar, { action = "keep", reason = "locked" }, nil, D, { friend }))
+        assert.same({}, ns.Routes.Choices(bar, { action = "mail", route = "bank", pinned = true }, nil, D, { friend }))
+        assert.same({}, ns.Routes.Choices(bar, own, { failed = true }, D, { friend }))
+        local mage = { to = BOB, class = "MAGE", key = "m", scope = "account" }
+        local scroll = { itemID = 5, classID = 0, quality = 1, count = 1, classes = { MAGE = true }, myClass = "WARRIOR", vendor = 10 }
+        assert.same({}, ns.Routes.Choices(scroll, { action = "mail", route = "noprice" }, { ah = nil }, D, { mage }),
+            "a class binding still needs an auction price")
+        assert.equal(1, #ns.Routes.Choices(scroll, { action = "mail", route = "ah" }, { ah = 100, age = 0 }, D, { mage }))
+    end)
+
+    it("a pick cycles Me, then each choice, then back; Force sends past the cap", function()
+        local choices = { { key = "f", scope = "account" }, { key = "g", scope = "guild" } }
+        assert.equal("f", ns.Routes.NextPick(ns.Routes.MINE, choices))
+        assert.equal("g", ns.Routes.NextPick("f", choices))
+        assert.equal(ns.Routes.MINE, ns.Routes.NextPick("g", choices))
+        assert.equal(ns.Routes.MINE, ns.Routes.NextPick("gone", choices), "a binding removed since: back to the start")
+        assert.is_nil(ns.Routes.NextPick(ns.Routes.MINE, {}))
+        assert.equal("Me", ns.Routes.PickLabel(ns.Routes.MINE, choices))
+        assert.equal("Friend", ns.Routes.PickLabel("f", choices))
+        assert.equal("Guild", ns.Routes.PickLabel("g", choices))
+        local guild = { to = JOLD, profession = 202, cap = 500, key = "g", scope = "guild", guildKey = "k", rev = 1 }
+        local v = ns.Routes.Force(bar, guild, 900, D)
+        assert.equal(JOLD, v.to)
+        assert.equal("k", v.guild.key, "a guild rule's mail is still tagged for the guild")
+        ns.Routes.Pick("[Bronze Bar]", "g")
+        assert.equal("g", ns.Routes.Picked("[Bronze Bar]"))
+        ns.Fire("MAIL_CLOSED")
+        assert.is_nil(ns.Routes.Picked("[Bronze Bar]"))
+    end)
+
+    it("an enchanter disenchants its cheap green and blue gear here (DE); profit and dear pieces still sell", function()
+        D.professions = { { skillLine = 333, rank = 2 } }
+        local v = ns.Valuation.Evaluate(green(800), { ah = 900, age = 0, de = 300 }, D)
+        assert.equal("keep", v.action)
+        assert.is_true(v.deHere)
+        assert.equal("de", ns.BankAlt.Verdict({ result = v }))
+        assert.is_false(ns.Valuation.BankForCraft(v), "not 'bank it here': disenchant it")
+        assert.is_true(ns.Valuation.DisenchantsHere(green(800), nil, D), "no price source: the vendor price decides")
+        assert.is_false(ns.Valuation.DisenchantsHere(green(7000), nil, D), "70s at a vendor: sell it")
+        assert.is_false(ns.Valuation.DisenchantsHere(green(800), { ah = 5000, age = 0 }, D), "50s at auction: sell it")
+        D.deHereCap = 100000
+        assert.is_true(ns.Valuation.DisenchantsHere(green(7000), nil, D), "an own Enchanting binding's cap")
+        D.deHereCap = nil
+        local profit = ns.Valuation.Evaluate(green(300), { ah = 5000, age = 0 }, D)
+        assert.equal("ah", profit.route, "profit first: the auction house pays 50s for a 3s piece")
+        D.professions = { { skillLine = 164, rank = 50 } }
+        assert.equal("not worth it", ns.Valuation.Evaluate(green(800), { ah = 900, age = 0, de = 300 }, D).reason,
+            "not an enchanter: V")
+        D.keepProfessionMats = false
+        D.professions = { { skillLine = 333, rank = 2 } }
+        assert.is_false(ns.Valuation.DisenchantsHere(green(800), nil, D), "'Keep my professions' materials' off")
+    end)
+
+    it("soulbound items show V when a vendor buys them, DE on an enchanter; never a quest's item or a tool", function()
+        local bound = green(800)
+        bound.bound = true
+        local v = ns.Valuation.Evaluate(bound, nil, D)
+        assert.equal("soulbound", v.reason)
+        assert.equal(800, v.vendor)
+        assert.equal("v", ns.BankAlt.Verdict({ result = v }))
+        assert.is_true(ns.Valuation.Unmailable(v), "still never mailed")
+        D.professions = { { skillLine = 333, rank = 2 } }
+        assert.equal("de", ns.BankAlt.Verdict({ result = ns.Valuation.Evaluate(bound, nil, D) }))
+        D.professions = nil
+        local quest = { itemID = 2, classID = 12, quality = 1, count = 1, bound = true, quest = true, vendor = 50 }
+        assert.is_nil(ns.BankAlt.Verdict({ result = ns.Valuation.Evaluate(quest, nil, D) }))
+        local hearth = { itemID = 6948, classID = 15, quality = 1, count = 1, bound = true, vendor = 0 }
+        assert.is_nil(ns.BankAlt.Verdict({ result = ns.Valuation.Evaluate(hearth, nil, D) }))
+    end)
+
+    -- Codex review, 2026-11-14: both reproduced before the fix.
+    it("an enchanter's unpriced green kept to disenchant here is never picked for a class binding", function()
+        D.professions = { { skillLine = 333, rank = 2 } }
+        local robe = green(800)
+        robe.classes, robe.myClass = { MAGE = true }, "WARRIOR"
+        local v = ns.Valuation.Evaluate(robe, nil, D) -- no price source
+        assert.is_true(v.deHere)
+        assert.is_true(ns.Routes.PriceKeep(v), "judged by the no-price verdict it replaced")
+        local mage = { to = BOB, class = "MAGE", key = "m", scope = "account" }
+        assert.same({}, ns.Routes.Choices(robe, v, nil, D, { mage }))
+    end)
+
+    it("a binding naming this character keeps its items: no pick moves them, not even to Me", function()
+        local mineKeep = ns.Routes.Force(bar, { to = ns.PlayerName(), profession = 164, key = "me" }, nil, D)
+        assert.equal("keep", mineKeep.action)
+        assert.same({}, ns.Routes.Choices(bar, mineKeep, nil, D, { { to = BOB, profession = 202, key = "e", scope = "account" } }))
+        -- Through the scan: Blacksmithing saved for all characters names this one, a friend's Engineering
+        -- binding also takes metal; a "Me" pick left over must not send the bars to the bank alt.
+        ns.Config.SetBankAlt("Roknua Themicrulah")
+        MailworthyDB.routes = { ["Classic Beta PvP|Alliance"] = { { to = ns.PlayerName(), profession = 164 },
+            { to = BOB, profession = 202, cap = 100000 } } }
+        local link = WowStub.link(2840, "Copper Bar")
+        WowStub.setBag(0, 1, WowStub.item(2840, "Copper Bar", { count = 10, sell = 10, class = 7, subclass = 7 }))
+        ns.Routes.Pick(link, ns.Routes.MINE)
+        local result = ns.Bags.Evaluate()
+        for _, it in ipairs(result.mail) do assert.is_true(it.itemID ~= 2840, "the bars were mailed") end
+        local kept
+        for _, it in ipairs(result.keep) do if it.itemID == 2840 then kept = it end end
+        assert.truthy(kept and kept.result.forMe, "the bars stay for this character")
+        assert.same({}, kept.choices, "and their row has no pick button")
+    end)
+
+    it("the pick button's tooltip names every state, marks the current one and says what a press does", function()
+        local item = { pickState = "f", choices = { { key = "f", scope = "account", to = BOB, profession = 164 },
+            { key = "g", scope = "guild", to = JOLD, profession = 202 } } }
+        local lines = ns.MailWindow.PickLines(item, false, false)
+        assert.equal("Where this goes, for this visit", lines[1])
+        assert.truthy(lines[2]:find("^   Me"))
+        assert.truthy(lines[3]:find("^> Friend: to Bob"))
+        assert.truthy(lines[4]:find("^   Guild: to Jold"))
+        assert.equal("Click: Guild (to Jold). Cleared when the mailbox closes.", lines[5])
+        assert.truthy(ns.MailWindow.PickLines(item, true, false)[5]:find("^Press"))
+    end)
+end)

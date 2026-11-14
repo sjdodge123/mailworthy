@@ -191,6 +191,15 @@ function Bags.Evaluate(settings)
         totals = { items = 0, stacks = 0, mails = 0, gain = 0, postage = 0, routed = 0, unpriced = 0, recipients = {},
             byRecipient = {} } }
     local stacksTo = {}
+    -- An enchanter's disenchant-here cap (Valuation.DisenchantsHere): an Enchanting binding of the player's
+    -- own that names this character sets it, else the bindings' default.
+    if settings.deHereCap == nil then
+        for _, r in ipairs(routes) do
+            if tonumber(r.profession) == ns.Valuation.ENCHANTING and r.cap and ns.Routes.IsMe(r.to) then
+                settings.deHereCap = r.cap
+            end
+        end
+    end
     -- Class bindings (Routes, Classes.lua) need each item's class line: read only when there's one.
     local classRoutes = false
     for _, r in ipairs(routes) do classRoutes = classRoutes or r.class ~= nil end
@@ -214,10 +223,29 @@ function Bags.Evaluate(settings)
         if gearRoutes and item.price == nil and ns.Routes.IsGear(item) then
             item.de = ns.Prices.DisenchantValueFor(item.link)
         end
-        local diverted, capped, past, beaten = ns.Routes.Divert(item, item.result, item.price, settings, routes)
+        local own = item.result -- the item's own verdict, before any binding (a row's "Me")
+        local diverted, capped, past, beaten = ns.Routes.Divert(item, own, item.price, settings, routes)
         if diverted then item.result = diverted elseif capped then item.result.capped = capped end
         if not diverted and past then item.result.pastFor = past end
         if not diverted and beaten then item.result.gearBeaten = beaten end
+        -- A binding naming this character keeps it here: that is its own verdict now, and no pick moves
+        -- it (Routes.Divertible; Codex review, 2026-11-14: "Me" mailed it to the bank alt).
+        if diverted and diverted.forMe then own = diverted end
+        -- The row's button (Routes.Pick, this mailbox visit): where the player sent it instead.
+        item.choices = ns.Routes.Choices(item, own, item.price, settings, routes)
+        item.pickState = item.result.key or ns.Routes.MINE
+        local pick = #item.choices > 0 and ns.Routes.Picked(item.link) or nil
+        if pick == ns.Routes.MINE and item.result ~= own then
+            item.result, item.pickState = own, pick
+            own.picked = true
+        elseif pick and pick ~= ns.Routes.MINE and pick ~= item.result.key then
+            for _, r in ipairs(item.choices) do
+                if r.key == pick then
+                    item.result = ns.Routes.Force(item, r, (ns.Routes.Units(item, item.price, settings)), settings)
+                    item.result.picked, item.pickState = true, pick
+                end
+            end
+        end
         -- No bank alt, or skipped this visit: its share stays (bindings still go).
         if settings.hold and item.result.action == "mail" and not item.result.to then
             item.result.action, item.result.held = "keep", settings.hold
@@ -270,7 +298,9 @@ function Bags.Evaluate(settings)
             file(item)
         else
             for _, p in ipairs(parts) do
-                file(Bags.Part(item, p.slots, ns.Returns.Result(p.to, #p.slots, settings)))
+                local back = Bags.Part(item, p.slots, ns.Returns.Result(p.to, #p.slots, settings))
+                back.choices, back.pickState = {}, nil -- Return to sender wins: no row pick changes it
+                file(back)
             end
             if #rest > 0 then -- what wasn't mailed to this character (or won't split): the usual rule
                 local left = Bags.Part(item, rest)

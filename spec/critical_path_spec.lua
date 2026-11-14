@@ -1073,6 +1073,108 @@ describe("critical path: mailing", function()
             days = { { day = math.floor(now / 86400), items = 500 } } }, givers[2])
     end)
 
+    -- Operator, 2026-11-14: "Make me a profit/level my professions first, then the same to my friend rules,
+    -- then the same to my guild rules", and a button on each row that toggles the item between those for
+    -- the visit ("with 2 clicks it would actually route the copper bar to Jold for that round of sending";
+    -- "my click wins" over the cap). A Copper Bar this character's Blacksmithing uses: a friend's
+    -- Blacksmithing binding and the guild's Engineering rule both take metal.
+    local SMITH, JOLD = "Sadie Smith", "Jold Ark"
+    local function pickSetup()
+        WowStub.state.professions = { { index = 1, name = "Blacksmithing", rank = 50, maxRank = 150, skillLine = 164 } }
+        WowStub.setBag(2, 6, WowStub.item(2840, "Copper Bar", { count = 10, sell = 10, class = 7, subclass = 7 }))
+        prices[WowStub.link(2840, "Copper Bar")] = 900 -- 9s each: over the guild rule's 5s cap
+        WowStub.state.guild = { clubId = 7, name = "Bank Of Azeroth", members = {
+            { name = "Guild Master", rank = 0, online = true }, { name = JOLD, rank = 3, online = true } } }
+        for _, m in ipairs(ns.Guild.Encode(WowStub.state.serverTime - 60, "Guild Master",
+            { { profession = 202, to = JOLD, cap = 500 } })) do
+            ns.Fire("CHAT_MSG_ADDON", "Mailworthy", m, "GUILD", JOLD)
+        end
+        ns.Guild.SetUse(true)
+        ns.Routes.Add(SMITH, 164, { cap = 100000 })
+    end
+    local function stays(itemID)
+        for _, it in ipairs(ns.MailWindow.Result().keep) do
+            if it.itemID == itemID then return true end
+        end
+        return false
+    end
+
+    it("row picks (mouse): me first, then a click to the friend, a click to the guild, and exactly that is sent", function()
+        pickSetup()
+        mailbox()
+        _G.MailworthyMailButton:Click()
+        assert.is_nil(previewed(ns)[2840], "this character's Blacksmithing comes first: the bar stays")
+        assert.is_true(stays(2840))
+        local pick = ns.MailWindow.PickFor(2840)
+        assert.truthy(pick, "the staying row has its pick button")
+        assert.equal("Me", pick:GetText())
+        pick:Click()
+        assert.equal(SMITH, previewed(ns)[2840], "one click: the friend's binding")
+        assert.equal("Friend", ns.MailWindow.PickFor(2840):GetText())
+        ns.MailWindow.PickFor(2840):Click()
+        assert.equal(JOLD, previewed(ns)[2840], "two clicks: the guild rule, over its 5s cap")
+        assert.equal("Guild", ns.MailWindow.PickFor(2840):GetText())
+        ns.MailWindow.PickFor(2840):Click()
+        assert.is_nil(previewed(ns)[2840], "three: back to Me")
+        ns.MailWindow.PickFor(2840):Click()
+        ns.MailWindow.PickFor(2840):Click()
+        local preview = previewed(ns)
+        assert.equal(JOLD, preview[2840])
+        _G.MailworthyMailSend:Click()
+        deliver(ns)
+        assertSafeAndComplete(ns, preview, { [BANK_ALT] = true, [JOLD] = true })
+        ns.Fire("MAIL_CLOSED")
+        assert.is_nil(ns.Routes.Picked(WowStub.link(2840, "Copper Bar")), "a pick lasts one mailbox visit")
+    end)
+
+    it("row picks (controller): the D-pad reaches the row's button, Cross picks, then Send mails as previewed", function()
+        pickSetup()
+        WowStub.state.gamepadUI = true
+        ns.Fire("MAIL_SHOW")
+        mailbox()
+        local watcher = _G.MailworthyPadWatcher
+        local function tick() watcher.scripts.OnUpdate(watcher, 0.2) end
+        local function press(name)
+            WowStub.state.now = WowStub.state.now + 1
+            _G[name]:Click()
+            tick()
+        end
+        WowStub.state.activeFrame = MailFrame
+        tick()
+        press("MailworthyPadTriangle")
+        assert.is_true(stays(2840))
+        ns.Nav.Select(ns.MailWindow.PickFor(2840))
+        press("MailworthyPadCross")
+        assert.equal(SMITH, previewed(ns)[2840], "Cross on the row's button: the friend's binding")
+        ns.Nav.Select(ns.MailWindow.PickFor(2840))
+        press("MailworthyPadCross")
+        local preview = previewed(ns)
+        assert.equal(JOLD, preview[2840])
+        ns.Nav.Select(_G.MailworthyMailSend)
+        press("MailworthyPadCross")
+        deliver(ns)
+        assertSafeAndComplete(ns, preview, { [BANK_ALT] = true, [JOLD] = true })
+    end)
+
+    it("row picks never move a hard keep or a pin", function()
+        pickSetup()
+        ns.Locks.ToggleItem(2840, WowStub.link(2840, "Copper Bar"), "spec")
+        mailbox()
+        _G.MailworthyMailButton:Click()
+        assert.is_nil(ns.MailWindow.PickFor(2840), "a locked item has no pick button")
+        assert.is_nil(ns.MailWindow.PickFor(6125), "nor does soulbound gear")
+        ns.Locks.ToggleItem(2840, WowStub.link(2840, "Copper Bar"), "spec")
+        ns.Pins.Set(2840, WowStub.link(2840, "Copper Bar"), ns.Pins.BANK, "spec")
+        if ns.PinWarning.Frame():IsShown() then _G.MailworthyPinWarningOK:Click() end
+        ns.MailWindow.Refresh()
+        assert.is_nil(ns.MailWindow.PickFor(2840), "a pinned item has no pick button")
+        local preview = previewed(ns)
+        assert.equal(BANK_ALT, preview[2840], "the pin wins")
+        _G.MailworthyMailSend:Click()
+        deliver(ns)
+        assertSafeAndComplete(ns, preview, { [BANK_ALT] = true })
+    end)
+
     it("a guild template turned off in one press: only the bank alt gets mail", function()
         guildTemplate()
         ns.Guild.SetUse(true)
@@ -1150,6 +1252,21 @@ describe("critical path: mailing", function()
         assertReturnSubjects({ [BOB] = true, [MAIN] = true })
         ns.Fire("MAIL_CLOSED")
         assert.is_false(ns.Returns.On(), "off again at the next visit")
+    end)
+
+    it("Return to sender and a row pick: what goes back has no pick button, and goes back", function()
+        taken()
+        ns.Routes.Add("Ann Other", 197) -- a Tailoring binding that would take the Wool Cloth
+        mailbox()
+        _G.MailworthyMailButton:Click()
+        assert.truthy(ns.MailWindow.PickFor(2592), "off: the Wool Cloth's row can be picked")
+        _G.MailworthyMailReturn:Click()
+        local preview = previewed(ns)
+        assert.equal(BOB, preview[2592], "on: it goes back to Bob")
+        assert.is_nil(ns.MailWindow.PickFor(2592), "Return to sender wins: no pick button on it")
+        _G.MailworthyMailSend:Click()
+        deliver(ns)
+        assertSafeAndComplete(ns, preview, { [BANK_ALT] = true, [BOB] = true, [MAIN] = true })
     end)
 
     it("Return to sender and a bank pin: Return to sender wins, the pinned item goes back to who mailed it", function()
