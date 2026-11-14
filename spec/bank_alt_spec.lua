@@ -201,15 +201,24 @@ describe("bank alt view", function()
             evaluated = evaluated + 1
             return evaluate(...)
         end
+        local refreshes, refreshAll = 0, ns.Border.RefreshAll
+        ns.Border.RefreshAll = function(...)
+            refreshes = refreshes + 1
+            return refreshAll(...)
+        end
         WowStub.setBag(0, 5, WowStub.item(2516, "Light Shot", { count = 199, sell = 0, class = 6 }))
         ns.Fire("BAG_UPDATE_DELAYED")
-        combined:UpdateItems()
-        assert.equal(0, evaluated, "a shot")
+        assert.equal(0, evaluated, "a shot: nothing valued")
+        assert.equal(0, refreshes, "and no button redrawn")
+        combined:UpdateItems() -- the bag draws again (open bags do): read again, lazily (Codex review)
+        assert.equal(1, evaluated)
         assert.equal("AH", tagOf(combined.Items[1]), "the tags stay")
         WowStub.setBag(0, 1, WowStub.item(2770, "Copper Ore", { count = 4, sell = 5 }))
         ns.Fire("BAG_UPDATE_DELAYED")
+        ns.Border.RefreshAll = refreshAll
+        assert.equal(1, refreshes, "the ore stack shrank: every button redrawn")
         combined:UpdateItems()
-        assert.equal(1, evaluated, "the ore stack shrank")
+        assert.equal(2, evaluated)
         -- Something was waiting for its item data: the next bag update reads again, shot or not.
         local waiting = ns.BankAlt.Waiting
         ns.BankAlt.Waiting = function() return true end
@@ -217,8 +226,19 @@ describe("bank alt view", function()
         ns.Fire("BAG_UPDATE_DELAYED")
         combined:UpdateItems()
         ns.BankAlt.Waiting, ns.Bags.Evaluate = waiting, evaluate
-        assert.equal(2, evaluated)
+        assert.equal(3, evaluated)
         assert.equal("bag tags: 4 bag update(s) this session, 3 redrew the tags", ns.BankAlt.ReportLines()[1])
+    end)
+
+    it("waits for an item's data on every list: a soulbound ring with no vendor price yet (Codex review)", function()
+        combined:UpdateItems()
+        assert.is_false(ns.BankAlt.Waiting())
+        local vendor = ns.Prices.Vendor
+        ns.Prices.Vendor = function(link) if link == WowStub.link(6948, "Hearthstone") then return nil end return vendor(link) end
+        ns.BankAlt.Redraw()
+        combined:UpdateItems()
+        ns.Prices.Vendor = vendor
+        assert.is_true(ns.BankAlt.Waiting(), "the Hearthstone (soulbound, unmailable) has no vendor price yet")
     end)
 
     -- Operator, 2026-11-08: Sharp Claw and Jade said nothing; 2026-11-11: "if the recommendation is to

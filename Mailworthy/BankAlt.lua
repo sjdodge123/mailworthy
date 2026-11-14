@@ -602,29 +602,37 @@ ns.On("PLAYER_LOGIN", function()
     end
     redraw()
 end)
---- Did the last valuation leave something to read again: an item whose data wasn't loaded yet,
---- or whose price call failed? A bag update then values the bags again even if they look the same.
+--- Did the last valuation leave something to read again: an item whose data wasn't loaded yet
+--- (its vendor price unknown, soulbound ones too: Codex review), or whose price call failed? A bag
+--- update then redraws the tags even if the bags look the same.
 function BankAlt.Waiting()
     local result = cache.result
     if cache.dirty or type(result) ~= "table" then return false end
-    for _, list in ipairs({ result.mail or {}, result.keep or {} }) do
+    for _, list in ipairs({ result.mail or {}, result.keep or {}, result.unmailable or {} }) do
         for _, item in ipairs(list) do
             local r = item.result
-            if type(r) == "table" and (r.reason == "item info not loaded yet" or r.failed) then return true end
+            if item.vendor == nil or (type(r) == "table" and (r.reason == "item info not loaded yet" or r.failed)) then
+                return true
+            end
         end
     end
     return false
 end
 
--- Each shot of a bow or gun takes an arrow or a bullet: a bag update that changes nothing the tags
--- read (Bags.Fingerprint) redraws nothing (a CurseForge report, 2026-11-14: stutter while shooting,
--- with Baganator, whose buttons are redrawn even with the bags closed).
+-- Each shot of a bow or gun takes an arrow or a bullet: a bag update that changes nothing but an ammo
+-- stack's size (Bags.Fingerprint) only marks the tags stale, read again at the next hover or bag draw,
+-- instead of redrawing every button (a CurseForge report, 2026-11-14: stutter while shooting, with
+-- Baganator, whose buttons are redrawn even with the bags closed). Lazily, so the ammo's own count, a
+-- friend's new skill (Comms) or anything else a bag update used to pick up still arrives (Codex review).
 local lastBags
 local bagUpdates = { seen = 0, redrawn = 0 }
 ns.On("BAG_UPDATE_DELAYED", function()
     bagUpdates.seen = bagUpdates.seen + 1
     local key = ns.Bags.Fingerprint()
-    if key == lastBags and not BankAlt.Waiting() then return end
+    if key == lastBags and not BankAlt.Waiting() then
+        BankAlt.Invalidate()
+        return
+    end
     lastBags = key
     bagUpdates.redrawn = bagUpdates.redrawn + 1
     redraw()
