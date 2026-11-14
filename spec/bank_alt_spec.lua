@@ -357,6 +357,18 @@ describe("vendor tags on a main after sending", function()
         assert.is_true(MailworthyCharDB.tagsAfterSend, "saved for this character")
     end)
 
+    -- Operator, 2026-11-14: "Soulbound items weren't being tagged as vendor".
+    it("after Send: soulbound gear a vendor buys shows V; the Hearthstone still shows nothing", function()
+        WowStub.setBag(0, 5, WowStub.item(6125, "Brawler's Pants", { bound = true, quality = 2, sell = 300, class = 4 }))
+        combined.Items[5] = WowStub.itemButton(0, 5)
+        send()
+        assert.equal("V", tagOf(combined.Items[5]))
+        assert.is_nil(tagOf(combined.Items[4]))
+        local listed = false
+        for _, s in ipairs(ns.Vendor.Stacks()) do listed = listed or s.itemID == 6125 end
+        assert.is_false(listed, "the vendor window still sells soulbound only when vendor-pinned")
+    end)
+
     it("the tags after a send survive a /reload", function()
         send()
         local saved = { db = MailworthyDB, charDB = MailworthyCharDB }

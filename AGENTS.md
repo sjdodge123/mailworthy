@@ -27,7 +27,16 @@ Mailworthy is a WoW Forever addon (`## Interface: 16001`). Start with
 - A binding or a return never overrides a hard keep (locked, soulbound, quest, conjured, in use, tool); at or
   above its price cap the normal rule applies and the item goes to the bank alt. An Enchanting
   binding or guild rule with its Gear switch on (`Routes.GearBeaten`; operator, 2026-11-11) leaves a
-  green or blue piece to the normal rule too, when it disenchants for no more than it sells for.
+  green or blue piece to the normal rule too, when it disenchants for no more than it sells for. A
+  green or blue piece's cap is checked against the higher of its auction and vendor price.
+- Me first, then friends, then the guild (operator, 2026-11-14: "Make me a profit/level my professions
+  first, then the same to my friend rules, then the same to my guild rules"): what this character's own
+  professions still use stays with it before any binding takes it; then the player's own bindings, then
+  guild rules. The row's pick button (`Routes.Pick`, one mailbox visit, cleared at MAIL_CLOSED) sends an
+  item to any binding whose profession or class takes it, past the profession keep, the cap, the Gear
+  switch and the tier table ("my click wins"), and the row shows where it goes; never past a hard keep,
+  a pin, a failed price call, a class binding's price rule, Return to sender or a binding naming this
+  character.
 - Re-check each slot right before attaching it; skip anything that changed.
 - Without Auctionator (no price source), the only items mailed are unlocked, tradeable white
   (common) items and the staple trade goods (`Valuation.STAPLES`, whatever their quality)

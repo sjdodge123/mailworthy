@@ -120,6 +120,10 @@ function BankAlt.Verdict(item)
     -- A pin valued for the bank alt where pins bank here (BankAlt.BanksHere) is a bank-here pin.
     if r.pinned and r.action == "mail" and r.route == "bank" and BankAlt.BanksHere() then return "here" end
     if ns.Valuation.BankForCraft(r) then return "craft" end
+    -- An enchanter's cheap green or blue piece, soulbound or not: disenchant it here (Valuation.DisenchantsHere).
+    if r.deHere and r.action == "keep" then return "de" end
+    -- Soulbound, with a vendor price: V (the vendor window sells it only when vendor-pinned).
+    if r.action == "keep" and r.reason == "soulbound" and (r.vendor or 0) > 0 then return "v" end
     if r.action == "mail" then
         -- Where the mailbox sends it, as the window does (operator, 2026-11-13: tags that ignored
         -- bindings and Return to sender disagreed with the window).
@@ -157,7 +161,8 @@ function BankAlt.Refresh()
     local keys = {}
     cache.result = ns.Bags.Evaluate(BankAlt.Settings())
     local mode = BankAlt.Mode()
-    for _, list in ipairs({ cache.result.mail, cache.result.keep }) do
+    -- Soulbound items (the scan's unmailable list) are tagged too: V or an enchanter's DE.
+    for _, list in ipairs({ cache.result.mail, cache.result.keep, cache.result.unmailable or {} }) do
         for _, item in ipairs(list) do
             item.advice = BankAlt.Verdict(item) -- the tooltip's
             item.verdict = item.advice -- the bag tag's

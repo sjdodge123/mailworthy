@@ -382,11 +382,19 @@ local function refreshTooltip()
 end
 
 local rowOf = {} -- item row button -> row
+local pickOf = {} -- a row's pick button -> row (pickButton)
+local showPickTip -- below, with the pick buttons
 
 -- The controller's highlight (Nav) on an item row shows the tooltip the mouse gets there, with
 -- "Press" for "Click"; anywhere else it goes away. Our own frames and GameTooltip only.
 local function onNavSelect(button)
     local row = button and rowOf[button]
+    local picked = button and pickOf[button]
+    if picked and picked.item then
+        showPickTip(picked, true)
+        return
+    end
+    if type(GameTooltip) == "table" and pickOf[GameTooltip:GetOwner()] then GameTooltip:Hide() end
     if row and row.item and ns.Features.On("tooltipLines") then
         UI.stats.padTips = UI.stats.padTips + 1
         showTooltip(row, true)
@@ -406,6 +414,87 @@ local function rowButton(name, parent, height)
     return b, bg
 end
 
+-- The row's pick button (Routes.Pick; operator, 2026-11-14): where the item goes this mailbox visit,
+-- cycling Me (its own verdict) -> each friend binding that takes it -> each guild rule that takes it.
+-- Mouse: click it. Controller: the D-pad reaches it (Right from the row), Cross presses it.
+
+--- Pure: the pick button's tooltip lines for a row's item: a title, one line per state (the current
+--- one marked) and what a press does. `pad`: the controller ("Press" for "Click").
+function UI.PickLines(item, pad, busy)
+    local choices = item.choices or {}
+    local current = item.pickState or ns.Routes.MINE
+    local lines = { "Where this goes, for this visit" }
+    local function line(state, text)
+        lines[#lines + 1] = (state == current and "> " or "   ") .. text
+    end
+    line(ns.Routes.MINE, "Me: " .. ns.Routes.PickLabel(ns.Routes.MINE) .. " (its own rule: keep, sell or bank)")
+    for _, r in ipairs(choices) do
+        line(r.key, string.format("%s: to %s (%s)", ns.Routes.PickLabel(r.key, choices), firstName(ns.Routes.Recipient(r)),
+            ns.Routes.Describe(r)))
+    end
+    local nextState = ns.Routes.NextPick(current, choices)
+    local nextText = ns.Routes.PickLabel(nextState, choices)
+    for _, r in ipairs(choices) do
+        if r.key == nextState then nextText = nextText .. " (to " .. firstName(ns.Routes.Recipient(r)) .. ")" end
+    end
+    lines[#lines + 1] = busy and UI.BUSY_LINE or string.format("%s: %s. Cleared when the mailbox closes.",
+        pad and "Press" or "Click", nextText)
+    return lines
+end
+
+showPickTip = function(row, pad)
+    if not row.item or type(GameTooltip) ~= "table" then return end
+    hideTooltip()
+    GameTooltip:SetOwner(row.pick, "ANCHOR_RIGHT")
+    for i, text in ipairs(UI.PickLines(row.item, pad, ns.Mailer.Busy())) do
+        if i == 1 then GameTooltip:SetText(text) else GameTooltip:AddLine(text, 1, 1, 1, true) end
+    end
+    GameTooltip:Show()
+end
+
+local function cyclePick(row)
+    local item = row.item
+    if not item or ns.Mailer.Busy() or #(item.choices or {}) == 0 then return end
+    local nextState = ns.Routes.NextPick(item.pickState or ns.Routes.MINE, item.choices)
+    ns.lastCommand = "Mailworthy pick"
+    ns.Mailer.Dismiss() -- the list changes: the last run's receipt no longer describes it
+    ns.Routes.Pick(item.link, nextState)
+    ns.Log.Add("routes", "picked %s for %s", ns.Routes.PickLabel(nextState, item.choices), tostring(item.link))
+    UI.Refresh()
+end
+
+--- The shown pick button of the row holding `itemID` (either list), or nil.
+function UI.PickFor(itemID)
+    for button, row in pairs(pickOf) do
+        if button:IsShown() and row.button:IsShown() and row.item and row.item.itemID == itemID then return button end
+    end
+    return nil
+end
+
+local function pickButton(row, parent, name, height)
+    row.pick = W.Button(parent, "Me", 56, function() cyclePick(row) end, name)
+    row.pick:SetHeight(height)
+    row.pick:SetScript("OnEnter", function() showPickTip(row) end)
+    row.pick:SetScript("OnLeave", function()
+        if type(GameTooltip) == "table" and GameTooltip:GetOwner() == row.pick then GameTooltip:Hide() end
+    end)
+    row.pick:Hide()
+    pickOf[row.pick] = row
+end
+
+--- A row's pick button for its item: shown when a binding could take it, named for its state, lit
+--- when the player picked it.
+local function fillPick(row, item)
+    if not row.pick then return end
+    if #(item.choices or {}) == 0 then
+        row.pick:Hide()
+        return
+    end
+    row.pick:SetText(ns.Routes.PickLabel(item.pickState, item.choices))
+    W.SetToggled(row.pick, item.result and item.result.picked == true)
+    row.pick:Show()
+end
+
 local function createMailRows()
     for i = 1, UI.MAIL_ROWS do
         local row = {}
@@ -417,11 +506,11 @@ local function createMailRows()
         row.icon:SetPoint("LEFT", 8, 0)
         row.name = W.Label(b, "GameFontHighlight")
         row.name:SetPoint("LEFT", 40, 0)
-        row.name:SetWidth(230)
+        row.name:SetWidth(200)
         row.name:SetJustifyH("LEFT")
         row.chipBg = b:CreateTexture(nil, "BORDER")
         row.chipBg:SetSize(84, 16)
-        row.chipBg:SetPoint("LEFT", 290, 0)
+        row.chipBg:SetPoint("LEFT", 250, 0)
         row.chip = W.Label(b, "GameFontHighlightSmall")
         row.chip:SetPoint("CENTER", row.chipBg, "CENTER")
         row.gain = W.Label(b, "GameFontHighlight")
@@ -429,6 +518,8 @@ local function createMailRows()
         b:SetScript("OnClick", function() toggleLock(row) end)
         b:SetScript("OnEnter", function() showTooltip(row) end)
         b:SetScript("OnLeave", function() leaveRow(row) end)
+        pickButton(row, b, "MailworthyMailPick" .. i, 18)
+        row.pick:SetPoint("LEFT", 340, 0)
         b:Hide()
         rowOf[b] = row
         mailRows[i] = row
@@ -447,12 +538,14 @@ local function createStayRows()
         row.name:SetJustifyH("LEFT")
         row.reason = W.Label(b, "GameFontHighlightSmall")
         row.reason:SetPoint("LEFT", 236, 0)
-        row.reason:SetWidth(250)
+        row.reason:SetWidth(186)
         row.reason:SetJustifyH("LEFT")
         row.reason:SetTextColor(0.55, 0.75, 1)
         b:SetScript("OnClick", function() toggleLock(row) end)
         b:SetScript("OnEnter", function() showTooltip(row) end)
         b:SetScript("OnLeave", function() leaveRow(row) end)
+        pickButton(row, b, "MailworthyStayPick" .. i, 16)
+        row.pick:SetPoint("RIGHT", -4, 0)
         b:Hide()
         row.staying = true
         rowOf[b] = row
@@ -754,6 +847,7 @@ local function fillMailRow(row, item)
     row.chip:SetText(to and ((item.result.route == "return" and "back to " or "to ") .. to) or chip[1])
     row.chipBg:SetColorTexture(chip[2], chip[3], chip[4], 0.9)
     row.gain:SetText(item.result.gain and ("+" .. money(item.result.gain)) or "")
+    fillPick(row, item)
 end
 
 local function fillStayRow(row, item)
@@ -761,6 +855,7 @@ local function fillStayRow(row, item)
     local reason = UI.StayText(item.result)
     if item.result.reason == "locked" then reason = UI.LOCKED_COLOR .. reason .. "|r" end
     row.reason:SetText(reason)
+    fillPick(row, item)
 end
 
 local function pageLabel(button, list, rows)

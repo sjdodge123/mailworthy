@@ -96,6 +96,19 @@ describe("D-pad reach in every view", function()
         ns.Routes.Add("Ann Other", 197)
         ns.MailWindow.Refresh()
         assertNavigable("mailbox window with bindings", 8)
+        -- Row picks (2026-11-14): a button on Mailing rows (Strange Dust to Bob) and on Staying rows
+        -- (cloth this character's Tailoring keeps, which Ann's binding could take).
+        local professions = WowStub.state.professions
+        WowStub.state.professions = { { index = 1, name = "Tailoring", rank = 1, maxRank = 75, skillLine = 197 } }
+        WowStub.setBag(0, 8, WowStub.item(10940, "Strange Dust", { count = 10, sell = 2, class = 7, subclass = 12 }))
+        WowStub.setBag(0, 9, WowStub.item(4338, "Mageweave Cloth", { count = 10, sell = 25, class = 7, subclass = 5 }))
+        ns.MailWindow.Refresh()
+        assert.truthy(ns.MailWindow.PickFor(10940), "a Mailing row's pick button")
+        assert.truthy(ns.MailWindow.PickFor(4338), "a Staying row's pick button")
+        assertNavigable("mailbox window, pick buttons on both lists", 10)
+        WowStub.state.professions = professions
+        WowStub.setBag(0, 8, nil)
+        WowStub.setBag(0, 9, nil)
         for slot = 1, 16 do -- more than a page of rows: the page buttons show
             WowStub.setBag(1, slot, WowStub.item(3000 + slot, "Thing " .. slot, { count = 1, sell = 5 }))
         end
