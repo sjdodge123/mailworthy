@@ -580,8 +580,10 @@ function Valuation.Evaluate(item, price, settings)
     if (r.reason == "not worth it" or (r.action == "mail" and r.route == Valuation.NO_PRICE)
             or ((r.reason == "no price" or r.reason == "uncommon or better (no price data)") and not r.failed))
         and Valuation.DisenchantsHere(item, price, settings) then
+        -- `was`: the verdict it replaces, so the price rules still read it (Routes.PriceKeep: a class
+        -- binding never takes an unpriced green, picked or not; Codex review, 2026-11-14).
         return keep(Valuation.DE_HERE_REASON, { vendor = r.vendor, ahUnit = r.ahUnit, gain = r.gain,
-            deHere = true, neededBy = "Enchanting" })
+            deHere = true, neededBy = "Enchanting", was = { action = r.action, route = r.route, reason = r.reason } })
     end
     if settings.keepProfessionMats and r.reason ~= "item info not loaded yet" then
         local _, outgrown = Valuation.NeededBy(item, settings.professions, settings.tiers, settings.priceOf)

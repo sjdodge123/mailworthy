@@ -61,6 +61,8 @@ Routes.HARD_KEEPS = {
 -- price goes to the bank alt, not a class binding (operator, 2026-11-08: the price cap can't be
 -- checked without a price).
 function Routes.PriceKeep(verdict)
+    -- A verdict that replaced another (an enchanter's disenchant-here, Valuation) is judged by the one it replaced.
+    if type(verdict) == "table" and type(verdict.was) == "table" then return Routes.PriceKeep(verdict.was) end
     if verdict and verdict.action == "mail" and verdict.route == ns.Valuation.NO_PRICE then return true end
     if not (verdict and verdict.action == "keep") then return false end
     local reason = tostring(verdict.reason)
@@ -349,6 +351,8 @@ end
 function Routes.Divertible(verdict, price)
     if verdict and verdict.action == "keep" and Routes.HARD_KEEPS[verdict.reason] then return false end
     if verdict and (verdict.pinned or verdict.failed) then return false end
+    -- A binding naming this character keeps the item here (Routes.Force): no pick moves it (AGENTS Safety).
+    if verdict and verdict.forMe then return false end
     if type(price) == "table" and price.failed then return false end
     return true
 end

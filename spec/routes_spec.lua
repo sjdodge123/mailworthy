@@ -1206,6 +1206,38 @@ describe("routing priority and row picks", function()
         assert.is_nil(ns.BankAlt.Verdict({ result = ns.Valuation.Evaluate(hearth, nil, D) }))
     end)
 
+    -- Codex review, 2026-11-14: both reproduced before the fix.
+    it("an enchanter's unpriced green kept to disenchant here is never picked for a class binding", function()
+        D.professions = { { skillLine = 333, rank = 2 } }
+        local robe = green(800)
+        robe.classes, robe.myClass = { MAGE = true }, "WARRIOR"
+        local v = ns.Valuation.Evaluate(robe, nil, D) -- no price source
+        assert.is_true(v.deHere)
+        assert.is_true(ns.Routes.PriceKeep(v), "judged by the no-price verdict it replaced")
+        local mage = { to = BOB, class = "MAGE", key = "m", scope = "account" }
+        assert.same({}, ns.Routes.Choices(robe, v, nil, D, { mage }))
+    end)
+
+    it("a binding naming this character keeps its items: no pick moves them, not even to Me", function()
+        local mineKeep = ns.Routes.Force(bar, { to = ns.PlayerName(), profession = 164, key = "me" }, nil, D)
+        assert.equal("keep", mineKeep.action)
+        assert.same({}, ns.Routes.Choices(bar, mineKeep, nil, D, { { to = BOB, profession = 202, key = "e", scope = "account" } }))
+        -- Through the scan: Blacksmithing saved for all characters names this one, a friend's Engineering
+        -- binding also takes metal; a "Me" pick left over must not send the bars to the bank alt.
+        ns.Config.SetBankAlt("Roknua Themicrulah")
+        MailworthyDB.routes = { ["Classic Beta PvP|Alliance"] = { { to = ns.PlayerName(), profession = 164 },
+            { to = BOB, profession = 202, cap = 100000 } } }
+        local link = WowStub.link(2840, "Copper Bar")
+        WowStub.setBag(0, 1, WowStub.item(2840, "Copper Bar", { count = 10, sell = 10, class = 7, subclass = 7 }))
+        ns.Routes.Pick(link, ns.Routes.MINE)
+        local result = ns.Bags.Evaluate()
+        for _, it in ipairs(result.mail) do assert.is_true(it.itemID ~= 2840, "the bars were mailed") end
+        local kept
+        for _, it in ipairs(result.keep) do if it.itemID == 2840 then kept = it end end
+        assert.truthy(kept and kept.result.forMe, "the bars stay for this character")
+        assert.same({}, kept.choices, "and their row has no pick button")
+    end)
+
     it("the pick button's tooltip names every state, marks the current one and says what a press does", function()
         local item = { pickState = "f", choices = { { key = "f", scope = "account", to = BOB, profession = 164 },
             { key = "g", scope = "guild", to = JOLD, profession = 202 } } }

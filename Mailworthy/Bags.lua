@@ -228,6 +228,9 @@ function Bags.Evaluate(settings)
         if diverted then item.result = diverted elseif capped then item.result.capped = capped end
         if not diverted and past then item.result.pastFor = past end
         if not diverted and beaten then item.result.gearBeaten = beaten end
+        -- A binding naming this character keeps it here: that is its own verdict now, and no pick moves
+        -- it (Routes.Divertible; Codex review, 2026-11-14: "Me" mailed it to the bank alt).
+        if diverted and diverted.forMe then own = diverted end
         -- The row's button (Routes.Pick, this mailbox visit): where the player sent it instead.
         item.choices = ns.Routes.Choices(item, own, item.price, settings, routes)
         item.pickState = item.result.key or ns.Routes.MINE
