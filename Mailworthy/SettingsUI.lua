@@ -2,7 +2,7 @@
 --   main view: the bank alt on one row with Change..., then "What gets mailed"
 --     (minimum gain, listing length, disenchant, profession materials, sell what I
 --     gather, send by tag: AH / DE / B / V), "In your
---     bags" (tags, lock glow) and "More" (friends, guild, bank alt summary, mail ledger,
+--     bags" (tags, lock glow, pinned items, item tooltips) and "More" (friends, guild, bank alt summary, mail ledger,
 --     minimap button, locked items);
 --   pick view (Change... / Choose...; a bank alt is optional since 2026-11-08): the known
 --     characters, "This character is my bank alt" (a main on another WoW account),
@@ -22,13 +22,13 @@ local UI = {}
 ns.SettingsUI = UI
 
 UI.MAX_CHOICES = 6
-local WIDTH, MAIN_HEIGHT, ROW, VERSION_ROW = 420, 574, 26, 20
+local WIDTH, MAIN_HEIGHT, ROW, VERSION_ROW = 420, 600, 26, 20
 
 local frame, nameBox, nameHint, current, emptyHint, legend, pricesLine, versionLine, changeButton
 local choiceRows = {}
 local sendButtons = {} -- verdict tag ("ah", "de", "b", "v") -> its Send switch
 local amountLabel, pctLabel, disenchantButton, minimapButton, tagsButton, glowButton, matsButton, hereButton, friendsButton
-local gatherButton, guildButton, locksButton, pinButton
+local gatherButton, guildButton, locksButton, pinButton, tooltipButton
 local durationButtons = {}
 local mainWidgets, pickWidgets = {}, {}
 local typedLabel, useNameButton, backButton
@@ -314,39 +314,44 @@ local function createBagsAndMore()
         ns.Pins.SetMode(ns.Pins.Mode() == ns.Pins.HERE and ns.Pins.BANK or ns.Pins.HERE, "settings")
     end)
     pinButton:SetPoint("TOPLEFT", 24, -372)
-    heading(mainWidgets, "More", -408)
+    -- How much Mailworthy adds to item tooltips (Config.Tooltips; a CurseForge request, 2026-11-14).
+    tooltipButton = toggle(372, "Tooltips", function()
+        ns.Config.CycleTooltips()
+    end)
+    tooltipButton:SetPoint("TOPLEFT", 24, -398)
+    heading(mainWidgets, "More", -434)
     friendsButton = add(mainWidgets, W.Button(frame, "", 182, function() ns.RoutesUI.Show(frame) end,
         "MailworthySettingsFriends"))
-    friendsButton:SetPoint("TOPLEFT", 24, -430)
+    friendsButton:SetPoint("TOPLEFT", 24, -456)
     add(mainWidgets, W.Button(frame, "Bank alt summary...", 182, function()
         if ns.BankAlt then ns.BankAlt.ShowWindow(frame) end
-    end, "MailworthySettingsSummary")):SetPoint("TOPLEFT", 214, -430)
+    end, "MailworthySettingsSummary")):SetPoint("TOPLEFT", 214, -456)
     -- 2026-11-07: "I want a new button for guild inside the mailworthy settings"
     guildButton = add(mainWidgets, W.Button(frame, "", 182, function() ns.RoutesUI.ShowGuild(frame) end,
         "MailworthySettingsGuild"))
-    guildButton:SetPoint("TOPLEFT", 24, -456)
+    guildButton:SetPoint("TOPLEFT", 24, -482)
     add(mainWidgets, W.Button(frame, "Mail ledger...", 182, function() ns.LedgerUI.Show(frame) end,
-        "MailworthySettingsLedger")):SetPoint("TOPLEFT", 214, -456)
+        "MailworthySettingsLedger")):SetPoint("TOPLEFT", 214, -482)
     minimapButton = toggle(182, "Minimap", function()
         ns.Config.Set("minimapHidden", ns.Config.MinimapShown())
         if ns.MinimapButton then ns.MinimapButton.Refresh() end
     end)
-    minimapButton:SetPoint("TOPLEFT", 24, -482)
+    minimapButton:SetPoint("TOPLEFT", 24, -508)
     -- QoL pass D (2026-11-09): the locked items window; the count is in the label.
     locksButton = add(mainWidgets, W.Button(frame, "", 182, function() ns.LocksUI.Show(frame) end,
         "MailworthySettingsLocks"))
-    locksButton:SetPoint("TOPLEFT", 214, -482)
+    locksButton:SetPoint("TOPLEFT", 214, -508)
     pricesLine = add(mainWidgets, W.Label(frame, "GameFontDisableSmall"))
-    pricesLine:SetPoint("TOPLEFT", 28, -524)
+    pricesLine:SetPoint("TOPLEFT", 28, -550)
     pricesLine:SetWidth(270)
     pricesLine:SetJustifyH("LEFT")
     -- A newer Mailworthy is out (Version.lua): under the Prices line; the window grows to fit it.
     versionLine = add(mainWidgets, W.Label(frame, "GameFontHighlightSmall"))
-    versionLine:SetPoint("TOPLEFT", 28, -542)
+    versionLine:SetPoint("TOPLEFT", 28, -568)
     versionLine:SetWidth(WIDTH - 56)
     versionLine:SetJustifyH("LEFT")
     add(mainWidgets, W.Button(frame, "Done", 100, function() frame:Hide() end, "MailworthySettingsDone"))
-        :SetPoint("TOPRIGHT", -24, -518)
+        :SetPoint("TOPRIGHT", -24, -544)
 end
 
 function UI.Create()
@@ -469,6 +474,8 @@ local function fillMain(bankAlt, here, choices)
     glowButton:SetText("Lock glow: " .. (ns.Config.Flag("glowEverywhere") and "always" or "in Mailworthy"))
     W.SetToggled(glowButton, ns.Config.Flag("glowEverywhere") == true)
     pinButton:SetText(UI.PinText())
+    tooltipButton:SetText(UI.TooltipsText(ns.Config.Tooltips()))
+    W.SetToggled(tooltipButton, ns.Config.Tooltips() ~= "full")
     W.SetToggled(pinButton, ns.Pins.Mode() == ns.Pins.HERE)
     local bindings = #ns.Routes.Personal()
     friendsButton:SetText(bindings == 0 and "Friends..."
@@ -480,6 +487,12 @@ local function fillMain(bankAlt, here, choices)
     pricesLine:SetText(UI.PricesText())
     versionLine:SetText(ns.Version.Text() or "")
     return marked
+end
+
+--- Pure: the Item tooltips button, for Config.Tooltips' `size`.
+function UI.TooltipsText(size)
+    return "Item tooltips: " .. (size == "short" and "short (one line)" or size == "off" and "off"
+        or "full (the verdict and its numbers)")
 end
 
 --- Pure: the Pinned items button: where this character banks its pins, in the tag's letters.

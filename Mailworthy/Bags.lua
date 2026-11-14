@@ -52,6 +52,50 @@ function Bags.Slots()
     return slots
 end
 
+Bags.PROJECTILE = 6 -- item class of arrows and bullets (Enum.ItemClass.Projectile)
+local classByID = {} -- itemID -> item class, read once (GetItemInfoInstant needs no cache)
+
+--- Pure: one string for what is in the bags (`slots`: Bags.Slots' shape, or GetContainerItemInfo's
+--- fields), so a bag update that changes nothing the tags read can be told apart. The stack size of
+--- ammo is left out: every shot of a bow, gun or crossbow takes one, and each fired BAG_UPDATE_DELAYED,
+--- which re-valued the bags and redrew every bag addon button (a CurseForge report, 2026-11-14:
+--- "stutter consistently everytime I am shooting a gun", Mailworthy and Baganator only).
+--- `classOf(itemID, link)`: the item's class.
+function Bags.FingerprintOf(slots, classOf)
+    local parts = {}
+    for _, s in ipairs(slots) do
+        local count = classOf(s.itemID, s.link) == Bags.PROJECTILE and "ammo" or tostring(s.count)
+        parts[#parts + 1] = table.concat({ s.bag, s.slot, tostring(s.link), count, tostring(s.inUse) }, ":")
+    end
+    return table.concat(parts, "|")
+end
+
+local function classOf(itemID, link)
+    if itemID == nil then return nil end
+    local known = classByID[itemID]
+    if known ~= nil then return known or nil end
+    local class = ns.Prices.ClassID(link or itemID)
+    classByID[itemID] = class or false
+    return class
+end
+
+--- What is in the bags right now, as Bags.FingerprintOf has it. Lighter than Bags.Slots: no
+--- quest lookup per slot.
+function Bags.Fingerprint()
+    local slots = {}
+    local container = C_Container or {}
+    for bag = 0, Bags.LastBag() do
+        for slot = 1, tonumber((call(container.GetContainerNumSlots, bag))) or 0 do
+            local info = call(container.GetContainerItemInfo, bag, slot)
+            if type(info) == "table" and info.hyperlink then
+                slots[#slots + 1] = { bag = bag, slot = slot, itemID = info.itemID, link = info.hyperlink,
+                    count = tonumber(info.stackCount) or 1, inUse = info.isLocked == true }
+            end
+        end
+    end
+    return Bags.FingerprintOf(slots, classOf)
+end
+
 --- Stacks of the same link (and same bound / in-use state) become one item.
 function Bags.Group(slots)
     local items, byKey = {}, {}

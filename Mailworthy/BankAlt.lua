@@ -372,20 +372,23 @@ end
 --- Pure: the tooltip lines for one item: { { text, r, g, b }, ... }. Every tagged line is in its
 --- tag's colour (Palette), like the tag, the glow and the window's chip.
 --- `item` is the valued bag item (or nil when it isn't in the bags), `record` the
---- MailworthyDB.mailed entry (or nil).
-function BankAlt.TooltipLines(item, record, settings)
+--- MailworthyDB.mailed entry (or nil). `mode` (Config.Tooltips): "short" keeps the first line (the
+--- tag) and the warnings only, and says nothing without a tag; "off" says nothing; else everything.
+function BankAlt.TooltipLines(item, record, settings, mode)
     local lines = {}
+    if mode == "off" then return lines end
+    local short = mode == "short"
     local verdict = item and (item.advice or item.verdict)
     local tag = verdict and BankAlt.Tag(verdict)
     local r = item and item.result or {}
     local otherLabel, otherText
     if not tag then otherLabel, otherText = BankAlt.OtherLine(item, ns.Bags.HoldReason() or false) end
     local label = tag and (tag.text .. ": " .. tag.label .. (r.pinned and ", pinned" or "")) or otherLabel
-    if not label and not record then return lines end
+    if not label and (short or not record) then return lines end
     lines[1] = { "Mailworthy" .. (label and ("  |cffffffff[" .. label .. "]|r") or ""), 1, 0.82, 0 }
-    if otherText then lines[#lines + 1] = { otherText, 1, 1, 1 } end
+    if otherText and not short then lines[#lines + 1] = { otherText, 1, 1, 1 } end
     if tag then
-        lines[#lines + 1] = { tagText(verdict, item, settings), tag.fg[1], tag.fg[2], tag.fg[3] }
+        if not short then lines[#lines + 1] = { tagText(verdict, item, settings), tag.fg[1], tag.fg[2], tag.fg[3] } end
         -- A BA pin beats this character's own profession (operator, 2026-11-13): said every time.
         if r.pinConflict then
             lines[#lines + 1] = { string.format("Your %s uses it, but the pin wins. To keep it here: Settings > Pinned"
@@ -398,7 +401,7 @@ function BankAlt.TooltipLines(item, record, settings)
                 BankAlt.WARN[2], BankAlt.WARN[3] }
         end
     end
-    if record then
+    if record and not short then
         local was = (record.route == "bank" and "Bank") or (record.route == "common" and "Common item")
             or (record.route == ns.Valuation.VENDOR and "Vendor")
             or (record.route == ns.Valuation.NO_PRICE and "No auction price yet")
@@ -429,6 +432,8 @@ end
 local function onTooltip(tooltip, data)
     if not ns.Features.On("tooltipLines") then return end
     if tooltip ~= rawget(_G, "GameTooltip") then return end
+    local size = ns.Config.Tooltips()
+    if size == "off" then return end
     local link = select(2, call(rawget(_G, "TooltipUtil") and TooltipUtil.GetDisplayedItem, tooltip))
     local itemID = type(data) == "table" and tonumber(data.id) or nil
     local shown, shownResult = windowItem(link, itemID)
@@ -444,9 +449,9 @@ local function onTooltip(tooltip, data)
     local record = mode and mode ~= "sent" and itemID and type(MailworthyDB.mailed) == "table"
         and MailworthyDB.mailed[itemID] or nil
     if type(record) ~= "table" then record = nil end
-    local lines = BankAlt.TooltipLines(item, record, c.result and c.result.settings or BankAlt.Settings())
+    local lines = BankAlt.TooltipLines(item, record, c.result and c.result.settings or BankAlt.Settings(), size)
     if #lines == 0 then return end
-    tooltip:AddLine(" ")
+    if size ~= "short" then tooltip:AddLine(" ") end -- short: no spacer, one line where it can
     for _, l in ipairs(lines) do tooltip:AddLine(l[1], l[2], l[3], l[4], true) end
 end
 
@@ -597,4 +602,37 @@ ns.On("PLAYER_LOGIN", function()
     end
     redraw()
 end)
-ns.On("BAG_UPDATE_DELAYED", function() redraw() end)
+--- Did the last valuation leave something to read again: an item whose data wasn't loaded yet,
+--- or whose price call failed? A bag update then values the bags again even if they look the same.
+function BankAlt.Waiting()
+    local result = cache.result
+    if cache.dirty or type(result) ~= "table" then return false end
+    for _, list in ipairs({ result.mail or {}, result.keep or {} }) do
+        for _, item in ipairs(list) do
+            local r = item.result
+            if type(r) == "table" and (r.reason == "item info not loaded yet" or r.failed) then return true end
+        end
+    end
+    return false
+end
+
+-- Each shot of a bow or gun takes an arrow or a bullet: a bag update that changes nothing the tags
+-- read (Bags.Fingerprint) redraws nothing (a CurseForge report, 2026-11-14: stutter while shooting,
+-- with Baganator, whose buttons are redrawn even with the bags closed).
+local lastBags
+local bagUpdates = { seen = 0, redrawn = 0 }
+ns.On("BAG_UPDATE_DELAYED", function()
+    bagUpdates.seen = bagUpdates.seen + 1
+    local key = ns.Bags.Fingerprint()
+    if key == lastBags and not BankAlt.Waiting() then return end
+    lastBags = key
+    bagUpdates.redrawn = bagUpdates.redrawn + 1
+    redraw()
+end)
+
+--- /mw report: how many bag updates came, and how many of them redrew the tags (shooting a bow or
+--- gun should add to the first only).
+function BankAlt.ReportLines()
+    return { string.format("bag tags: %d bag update(s) this session, %d redrew the tags", bagUpdates.seen,
+        bagUpdates.redrawn) }
+end

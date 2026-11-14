@@ -170,11 +170,22 @@ function Border.PinTooltip(where, stays)
     return "Pinned in Mailworthy (BA): Send mails it to your bank alt every time." .. unpin
 end
 
---- The tooltip line that says why an item glows and its colour, or nil when it doesn't glow.
+--- Pure: the short pin line (Settings: Item tooltips: short), by where the pin banks it.
+function Border.ShortPinTooltip(where, stays)
+    if stays then return "Pinned in Mailworthy, but it stays: " .. tostring(stays) .. "." end
+    local letters = where == ns.Pins.VENDOR and "V" or where == ns.Pins.HERE and "BH" or "BA"
+    return "Pinned in Mailworthy (" .. letters .. ")."
+end
+
+--- The tooltip line that says why an item glows and its colour, or nil when it doesn't glow (or
+--- the player turned item tooltips off: Config.Tooltips). "short": one sentence, no how-to.
 function Border.TooltipLine(itemID)
     if itemID == nil or not ns.Features.On("slotBorder") then return nil end
     if not (Border.Wanted() or Border.Flashing(itemID)) then return nil end
+    local size = ns.Config.Tooltips()
+    if size == "off" then return nil end
     if ns.Locks.IsItemLocked(itemID) then
+        if size == "short" then return "Locked in Mailworthy.", Border.COLOR end
         return Border.Tooltip() .. (pinned(itemID) and " It is pinned too: the lock wins while it lasts." or ""), Border.COLOR
     end
     if pinned(itemID) then
@@ -182,7 +193,9 @@ function Border.TooltipLine(itemID)
         local item = ns.BankAlt and ns.BankAlt.ItemFor and ns.BankAlt.ItemFor(itemID)
         local r = item and item.result
         local stays = r and not r.pinned and r.action == "keep" and ns.Routes.HARD_KEEPS[r.reason] and r.reason or nil
-        return Border.PinTooltip(ns.Pins.Effective(itemID), stays), ns.Pins.Palette(itemID).fg
+        local text = size == "short" and Border.ShortPinTooltip(ns.Pins.Effective(itemID), stays)
+            or Border.PinTooltip(ns.Pins.Effective(itemID), stays)
+        return text, ns.Pins.Palette(itemID).fg
     end
     return nil
 end
