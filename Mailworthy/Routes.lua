@@ -548,11 +548,16 @@ function Routes.Add(name, what, opts)
     opts = opts or {}
     name = Routes.Clean(name)
     if not name then return nil, "no name" end
-    if name:lower() == tostring(ns.PlayerName()):lower() then return nil, "that's this character" end
+    -- A binding to yourself (operator, 2026-11-14: "i dont yet have leather working but i plan on picking
+    -- it up but its defaulting to my guild rule"): this character keeps the materials (Routes.Force), the
+    -- guild's rule for that profession is left out ("personal wins", Guild.Rules), and with "All my
+    -- characters" the others mail them here. Not for a class: this character's class items are its own.
+    local toSelf = Routes.IsMe(name)
     local profession, class = tonumber(what), nil
     if not profession then
         class = type(what) == "string" and ns.Classes.Token(what) or nil
         if not class then return nil, "not a crafting profession or a class" end
+        if toSelf then return nil, "a class binding to this character means nothing" end
     elseif not Routes.ProfessionName(profession) then
         return nil, "not a crafting profession"
     end
@@ -894,9 +899,10 @@ function Routes.Offer(scan, bankAlt)
     return best
 end
 
---- This character as a candidate, for a guild template rule naming its author (2026-11-07: "I
---- should be able to set routing to me in the guild template as well"): a binding to yourself
---- means nothing, but the guild's other members (and this account's other characters) mail you.
+--- This character as a candidate: for a guild template rule naming its author (2026-11-07: "I
+--- should be able to set routing to me in the guild template as well"), and for a binding of the
+--- player's own (2026-11-14: a profession they plan to pick up). Here the binding keeps the
+--- materials (Routes.Force); the guild's other members (and this account's other characters) mail you.
 function Routes.Me()
     local name = Routes.Clean(ns.PlayerName())
     if not name then return nil end
