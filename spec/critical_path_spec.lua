@@ -515,6 +515,27 @@ describe("critical path: mailing", function()
         assertSafeAndComplete(ns, preview, { [BANK_ALT] = true, [BOB] = true })
     end)
 
+    -- rl-companion, 2026-11-14: Cooking bound to Rok Androl from another alt ("all my characters"), then
+    -- Androl at the mailbox: the binding named Androl himself, and every press said "Can't send: a
+    -- binding points at this character". On the bound character its materials stay; the rest still goes.
+    it("a binding saved for all characters, at the bound character's own mailbox: its items stay, Send works", function()
+        WowStub.setBag(2, 6, WowStub.item(10940, "Strange Dust", { count = 20, sell = 2, class = 7, subclass = 12 }))
+        prices[WowStub.link(10940, "Strange Dust")] = 3
+        local _, realm, faction = ns.Characters.Current()
+        MailworthyDB.routes = { [realm .. "|" .. faction] = { { to = ns.PlayerName(), profession = ENCHANTING } } }
+        mailbox()
+        _G.MailworthyMailButton:Click()
+        local preview = previewed(ns)
+        assert.is_nil(preview[10940], "this character's own binding mailed its materials")
+        local stays = false
+        for _, it in ipairs(ns.MailWindow.Result().keep) do stays = stays or it.itemID == 10940 end
+        assert.is_true(stays, "the bound materials are listed as staying")
+        assert.truthy(next(preview), "the bank alt's share is still on the list")
+        _G.MailworthyMailSend:Click()
+        deliver(ns)
+        assertSafeAndComplete(ns, preview, { [BANK_ALT] = true })
+    end)
+
     it("a bank pin (mouse): the pinned item goes to the bank alt, not to a binding's friend; a pinned hard keep stays", function()
         -- Pins.lua: "always bank this". Junk the rule keeps, a material a binding would take, and three
         -- hard keeps the player pinned by mistake.
