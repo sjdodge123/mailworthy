@@ -5,12 +5,6 @@ it. Pages a PR adds or changes live here, whole, and are copied into the wiki af
 merges (images are linked from `main`, so they show once it has merged). Copy every page here (not this README)
 over the wiki's, commit, push, then empty this folder in a follow-up.
 
-Last published: Mailworthy-Talks-to-Mailworthy for guild contributions (PR #74, v0.31.0; wiki
-commit `1dcf7df`, 2026-11-09), on top of the update nudge pages (wiki `8421bb3`, PR #72) and the v0.30.0
-pages (wiki `26871b6`, PR #70). Waiting here: Pins (new), and the tag colours (BA / BH / F / R), pin mode, saved tags after Send and
-per-character profession materials across Your-Bank-Alt, Settings, Item-Locks, Profession-Materials,
-Getting-Started, Bag-Addons, Commands-and-Troubleshooting, Playing-with-a-Controller, Home and
-_Sidebar (PR #95, merged before its pages could ride along); with PR #96 (this one): Selling-at-a-Vendor
-(new), vendor pins, Send by tag and materials on the bank alt across Pins, Settings, Profession-Materials,
-The-Mailbox-Window, What-Stays-in-Your-Bags, Commands-and-Troubleshooting, Playing-with-a-Controller,
-Home and _Sidebar.
+Last published: v0.37.0's pages (PRs #95 and #96: Pins, Selling at a Vendor, tag colours, Send by
+tag, materials per character; wiki commit `52347b1`, 2026-11-13), on top of Mailworthy-Talks-to-Mailworthy
+for guild contributions (PR #74, wiki `1dcf7df`). Nothing is waiting here now.
