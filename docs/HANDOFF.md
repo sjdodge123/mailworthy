@@ -26,6 +26,7 @@ must never break the game.
 |---|---|
 | Repo | GitHub `sjdodge123/mailworthy` (public), default branch `main` |
 | Design + phases + decision rule | [docs/PLAN.md](PLAN.md) |
+| **Architecture map** (modules, data flows, events, hooks, SavedVariables, switches, Safety rule enforcement) | [docs/ARCHITECTURE.md](ARCHITECTURE.md) |
 | Decision-rule research (bank category, server age, competition; beta build check 2026-10-20), **built** as rule v2 | [docs/ALGORITHM-RESEARCH.md](ALGORITHM-RESEARCH.md) |
 | Blizzard source findings + **taint rules** | [docs/FOREVER-UI-NOTES.md](FOREVER-UI-NOTES.md) |
 | In-game discovery history (U1-U20 results, rerun scripts) | [docs/DISCOVERY-SESSION-2.md](DISCOVERY-SESSION-2.md) |
@@ -52,6 +53,8 @@ must never break the game.
 `media/curseforge-description.html`, etc. Always use paths inside this repo.
 
 ## 3. Code (Mailworthy/, load order = .toc)
+
+The short map is [docs/ARCHITECTURE.md](ARCHITECTURE.md); this table keeps each module's history.
 
 | File | Role |
 |---|---|

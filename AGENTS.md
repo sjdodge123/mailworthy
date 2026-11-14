@@ -3,6 +3,8 @@
 Mailworthy is a WoW Forever addon (`## Interface: 16001`). Start with
 `docs/HANDOFF.md` (state, decisions, pitfalls, what's left), then `docs/PLAN.md`
 (design) and `docs/FOREVER-UI-NOTES.md` (Blizzard source findings, taint rules).
+To find code, use `docs/ARCHITECTURE.md` (module map, data flows, events, hooks,
+SavedVariables, feature switches, where each Safety rule is enforced) before reading files.
 
 ## Safety (STRICT)
 
@@ -134,3 +136,10 @@ publishes a tag only after all of CI passes.
   **Not for a docs-only PR** (operator, 2026-11-09: "theres no reason to codex review a docs
   only pr"): a PR that changes no Lua, spec, `.toc` / packaging or CI workflow (markdown,
   prototype sheets and images under `media/`) skips it; its description says "docs only".
+- **Keep `docs/ARCHITECTURE.md` current (STRICT).** Before opening a PR, or pushing commits to
+  an open one, that adds, removes or renames a module, a public function (`ns.<Module>.<Name>`
+  that another module or a spec calls), an event handler (`ns.On`), a hook (`hooksecurefunc`,
+  `HookScript`, `TooltipDataProcessor`, a bag-addon or Auctionator API), a SavedVariables field
+  (`MailworthyDB`, `MailworthyCharDB`), a feature switch or a `/mw` command, or moves where a
+  Safety rule is enforced, update `docs/ARCHITECTURE.md` in the same PR. The PR description
+  says it was updated, or why no update was needed.
