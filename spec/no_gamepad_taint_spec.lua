@@ -6,7 +6,8 @@ local loadAddon = require("spec.support.load_addon")
 
 describe("no mail tab switching from Mailworthy's code", function()
     it("never calls MailFrameTab_OnClick or clicks a mail tab (the Inbox button is a secure click)", function()
-        for _, file in ipairs({ "MailWindow", "MailButton", "Mailer", "Nav", "PadKey", "Core", "SettingsUI", "RoutesUI" }) do
+        for _, file in ipairs({ "MailWindow", "MailTooltip", "MailRows", "MailRecipients", "MailBanners", "MailBindings",
+            "MailTotals", "MailSend", "MailTabs", "MailButton", "Mailer", "Nav", "PadKey", "Core", "SettingsUI", "RoutesUI" }) do
             local source = assert(io.open("Mailworthy/" .. file .. ".lua")):read("*a")
             local code = source:gsub("%-%-[^\n]*", "") -- comments may name it
             assert.is_nil(code:find("MailFrameTab_OnClick", 1, true), file)

@@ -1168,4 +1168,114 @@ describe("mail window", function()
         _G.MailworthyPadCircle:Click()
         assert.is_false(ns.MailWindow.Frame():IsShown())
     end)
+
+    -- UX review U6 / U7 (2026-11-15): "..." on what opens a window; Remove asks first, Skip once doesn't.
+    it("buttons that open a window end in ...; a binding's Remove asks Sure? first, Skip once is one press", function()
+        ns.Routes.Add("Bob Surname", 333)
+        ns.Routes.Add("Ann Other", 197)
+        _G.MailworthyMailButton:Click()
+        assert.equal("Settings...", text("MailworthyMailSettings"))
+        assert.equal("Mail ledger...", text("MailworthyMailLedger"))
+        assert.equal("Bank alt summary...", text("MailworthyMailSummary"))
+        _G.MailworthyMailSkip1:Click()
+        assert.equal("Undo skip", text("MailworthyMailSkip1"), "Skip once: one press")
+        _G.MailworthyMailSkip1:Click()
+        local remove = _G.MailworthyMailUnbind1
+        remove:Click()
+        assert.equal(2, ns.Routes.Count())
+        assert.equal("Sure?", text("MailworthyMailUnbind1"))
+        WowStub.runTimers(3) -- 3 s on: back to Remove, and the next press asks again
+        assert.equal("Remove", text("MailworthyMailUnbind1"))
+        remove:Click()
+        WowStub.state.now = WowStub.state.now + 4
+        remove:Click()
+        assert.equal(2, ns.Routes.Count(), "a second press after the 3 s asks again")
+        assert.equal("Sure?", text("MailworthyMailUnbind1"))
+        -- The row now shows another binding: the armed Sure? is cancelled, nothing removed.
+        ns.Routes.Remove(ns.Routes.List()[1].key)
+        ns.MailWindow.Refresh()
+        assert.equal("Remove", text("MailworthyMailUnbind1"))
+        remove:Click()
+        remove:Click()
+        assert.equal(0, ns.Routes.Count())
+    end)
+
+    -- UX review U4 (2026-11-15): a row with a pick button was two D-pad stops (the row, then its pick).
+    -- Now one: Square on the highlighted row moves its pick on; the button stays for the mouse.
+    describe("row picks with the controller: one stop per row, Square picks", function()
+        local BOB = "Bob Surname"
+        local DUST, ORE
+        local function tick() _G.MailworthyPadWatcher.scripts.OnUpdate(_G.MailworthyPadWatcher, 0.2) end
+        local function square()
+            WowStub.state.now = WowStub.state.now + 1
+            _G.MailworthyPadSquare:Click()
+            tick()
+        end
+        local function entry(id)
+            for _, list in ipairs({ ns.MailWindow.Result().mail, ns.MailWindow.Result().keep }) do
+                for _, it in ipairs(list) do if it.itemID == id then return it end end
+            end
+        end
+
+        before_each(function()
+            DUST, ORE = WowStub.link(10940, "Strange Dust"), WowStub.link(2770, "Copper Ore")
+            WowStub.setBag(0, 4, WowStub.item(10940, "Strange Dust", { count = 10, sell = 2, class = 7, subclass = 12 }))
+            ns.Routes.Add(BOB, 333)
+            WowStub.state.gamepadUI = true
+            WowStub.state.activeFrame = MailFrame
+            ns.MailWindow.Show("send")
+            tick()
+        end)
+
+        it("Square on the highlighted row moves its pick on, and the highlight stays with the item", function()
+            assert.equal("CLICK MailworthyPadSquare:LeftButton", WowStub.state.bindings.PAD3)
+            local pick = ns.MailWindow.PickFor(10940)
+            assert.equal("Friend", pick:GetText())
+            assert.equal(BOB, entry(10940).result.to)
+            for _, c in ipairs(ns.Nav.Candidates()) do
+                assert.are_not.equal(pick, c.button, "the pick button is not a D-pad stop of its own")
+            end
+            ns.Nav.Select(ns.MailWindow.RowFor(10940))
+            square()
+            assert.equal(ns.Routes.MINE, ns.Routes.Picked(DUST))
+            assert.equal("Me", ns.MailWindow.PickFor(10940):GetText())
+            assert.are_not.equal(BOB, entry(10940).result.to)
+            assert.equal(ns.MailWindow.RowFor(10940), ns.Nav.Current(), "the highlight followed the item")
+            square()
+            assert.equal(BOB, entry(10940).result.to, "and back to the friend")
+            pick:Click() -- the mouse still has the button
+            assert.equal(ns.Routes.MINE, ns.Routes.Picked(DUST))
+        end)
+
+        it("nothing on a row without a pick, nor while a send runs", function()
+            ns.Nav.Select(ns.MailWindow.RowFor(2770))
+            square()
+            assert.is_nil(ns.Routes.Picked(ORE))
+            assert.is_false(ns.Locks.IsItemLocked(2770), "Square is not Cross")
+            _G.MailworthyMailSend:Click()
+            assert.is_true(ns.Mailer.Busy())
+            local row = ns.MailWindow.RowFor(10940)
+            if row then
+                ns.Nav.Select(row)
+                square()
+            end
+            assert.is_false(ns.MailWindow.PadPick())
+            assert.is_nil(ns.Routes.Picked(DUST), "no pick mid-send")
+            WowStub.runTimers()
+        end)
+
+        it("the row tooltip and the legend name Square only while a row has a pick", function()
+            local dust = entry(10940)
+            local _, _, line = ns.MailWindow.TooltipLines(dust, false, true, "Roknua", false)
+            assert.truthy(line and line:find("Me: where it goes this visit", 1, true), tostring(line))
+            assert.is_nil(select(3, ns.MailWindow.TooltipLines(dust, false, false, "Roknua", false)), "mouse: the button")
+            assert.is_nil(select(3, ns.MailWindow.TooltipLines(dust, false, true, "Roknua", true)), "not mid-send")
+            assert.is_nil(select(3, ns.MailWindow.TooltipLines(entry(2770), false, true, "Roknua", false)), "no pick")
+            assert.truthy(ns.MailWindow.Footer():find(" pick", 1, true), ns.MailWindow.Footer())
+            ns.Routes.Remove(ns.Routes.List()[1].key)
+            ns.MailWindow.Refresh()
+            assert.is_nil(ns.MailWindow.PickFor(10940))
+            assert.is_nil(ns.MailWindow.Footer():find(" pick", 1, true), ns.MailWindow.Footer())
+        end)
+    end)
 end)

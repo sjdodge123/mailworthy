@@ -1129,7 +1129,9 @@ describe("critical path: mailing", function()
         assert.is_nil(ns.Routes.Picked(WowStub.link(2840, "Copper Bar")), "a pick lasts one mailbox visit")
     end)
 
-    it("row picks (controller): the D-pad reaches the row's button, Cross picks, then Send mails as previewed", function()
+    -- UX review U4 (2026-11-15): one D-pad stop per row. The controller picks with Square on the
+    -- highlighted row (before: the D-pad reached the row's pick button and Cross pressed it).
+    it("row picks (controller): Square on the highlighted row picks, then Send mails as previewed", function()
         pickSetup()
         WowStub.state.gamepadUI = true
         ns.Fire("MAIL_SHOW")
@@ -1145,11 +1147,16 @@ describe("critical path: mailing", function()
         tick()
         press("MailworthyPadTriangle")
         assert.is_true(stays(2840))
-        ns.Nav.Select(ns.MailWindow.PickFor(2840))
-        press("MailworthyPadCross")
-        assert.equal(SMITH, previewed(ns)[2840], "Cross on the row's button: the friend's binding")
-        ns.Nav.Select(ns.MailWindow.PickFor(2840))
-        press("MailworthyPadCross")
+        assert.equal("CLICK MailworthyPadSquare:LeftButton", WowStub.state.bindings.PAD3)
+        local pick = ns.MailWindow.PickFor(2840)
+        for _, c in ipairs(ns.Nav.Candidates()) do
+            assert.are_not.equal(pick, c.button, "the row's pick button is not a D-pad stop of its own")
+        end
+        ns.Nav.Select(ns.MailWindow.RowFor(2840))
+        press("MailworthyPadSquare")
+        assert.equal(SMITH, previewed(ns)[2840], "Square on the row: the friend's binding")
+        assert.equal(ns.MailWindow.RowFor(2840), ns.Nav.Current(), "the highlight follows the item to its row")
+        press("MailworthyPadSquare")
         local preview = previewed(ns)
         assert.equal(JOLD, preview[2840])
         ns.Nav.Select(_G.MailworthyMailSend)
