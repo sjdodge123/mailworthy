@@ -114,8 +114,7 @@ end
 function Version.Hear(name, text)
     if not Version.Parse(text) or type(name) ~= "string" then return nil end
     local before = Version.Outdated() -- before the peer keeps it, or a known peer would redraw nothing (Codex review)
-    local peer = ns.Comms.Peer(name)
-    if type(peer) == "table" then peer.release = text end
+    ns.Comms.UpdatePeer(name, { release = text }) -- a known peer keeps it (none is made for it)
     if not heard or Version.Newer(text, heard.version) then heard = { version = text, from = name } end
     local own = Version.Own()
     ns.Log.Add("comms", "version from %s: %s", name, text)
@@ -151,3 +150,16 @@ end
 function Version.ResetSession()
     told, heard = false, nil
 end
+
+-- "U2|v0.31.0" (Comms.Register): right after each hello, release builds only. The separator is
+-- required ("U2v0.31.0" is junk) and fields after the version are left out, so a later build can add some.
+ns.Comms.Register("U", {
+    kind = "release",
+    module = "Version",
+    decode = function(_, text)
+        local release = text:match("^U%d+|([^|]*)")
+        return ns.Version.Parse(release) and { release = release } or nil
+    end,
+    hear = function(name, msg) return ns.Version.Hear(name, msg.release) or nil end,
+    afterHello = function() return ns.Version.Message() end,
+})

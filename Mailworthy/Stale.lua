@@ -208,6 +208,18 @@ ns.On("PLAYER_LOGIN", function()
     end
 end)
 
+-- "F2|<server day>" (Comms.Register): right after each hello, when Auctionator saw a watched good in 21 days.
+ns.Comms.Register("F", {
+    kind = "fresh",
+    module = "Stale",
+    decode = function(rest)
+        local day = rest:match("^(%d+)$")
+        return day and #day <= 7 and { day = tonumber(day) } or nil
+    end,
+    hear = function(name, msg) return ns.Stale.Hear(name, msg.day) or nil end,
+    afterHello = function() return ns.Stale.Message() end,
+})
+
 ns.On("MAIL_SHOW", function()
     local ok, nudge = pcall(Stale.Current)
     if not ok then return ns.Log.Add("stale", "error: %s", tostring(nudge)) end
