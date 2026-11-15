@@ -265,6 +265,80 @@ describe("bag scan", function()
         assert.truthy(ns.Bags.Report(result):find("profession materials mailed", 1, true))
     end)
 
+    it("one settings builder: the window's holds the bank alt's share, the tags' don't, and pay no postage", function()
+        local window = ns.Bags.Settings()
+        assert.is_nil(window.hold, "a bank alt is set")
+        assert.is_nil(window.forTags)
+        assert.equal(30, window.postage)
+        ns.Bags.SkipBankAlt(true)
+        assert.equal("bank alt skipped", ns.Bags.Settings().hold)
+        assert.equal("bank alt skipped", ns.Bags.CurrentSettings().hold)
+        local tags = ns.Bags.Settings({ forTags = true, noPostage = true })
+        assert.is_true(tags.forTags)
+        assert.is_nil(tags.hold, "a tag says what the item is for")
+        assert.equal(0, tags.postage)
+        assert.same(tags, ns.BankAlt.Settings(), "the bank alt's tags (no send yet) are the same")
+        ns.Bags.SkipBankAlt(false)
+        assert.is_nil(ns.Bags.Settings().returns, "Return to sender off")
+    end)
+
+    it("one settings line: the scan's has the mailing numbers, the report's its own switches", function()
+        local s = ns.Bags.Evaluate().settings
+        assert.equal("settings: 24h listing (deposit x12), AH cut 5%, postage 30c per stack, min gain 5s and 25%, "
+            .. "disenchant off, max price age 7 days, launch day 20, profession materials kept (no crafting profession here)",
+            ns.Bags.SettingsLine(s, { mailing = true }))
+        assert.equal("settings: 24h listing, min gain 5s and 25%, disenchant off, max price age 7 days, a, b, "
+            .. "profession materials kept (no crafting profession here)", ns.Bags.SettingsLine(s, { extra = { "a", "b" } }))
+    end)
+
+    it("prepares a scan's settings in one step, filling only what is missing", function()
+        local s = ns.Bags.PrepareSettings({ serverDay = 3, professions = {} })
+        assert.equal(3, s.serverDay, "a caller's own value stays")
+        assert.same({}, s.professions)
+        assert.is_true(s.tiers)
+        assert.equal(ns.Prices.MaterialPrice, s.priceOf, "a price source: the materials' prices")
+        assert.equal(20, ns.Bags.PrepareSettings({}).serverDay)
+        _G.Auctionator = nil
+        assert.is_nil(ns.Bags.PrepareSettings({}).priceOf)
+    end)
+
+    it("never writes into an item's own verdict: a binding's note, a pick back to Me and a held share go on a copy", function()
+        local BOB = "Bob Surname"
+        WowStub.setBag(2, 2, WowStub.item(2841, "Bronze Bar", { count = 10, sell = 50, class = 7, subclass = 7 }))
+        WowStub.setBag(2, 3, WowStub.item(2842, "Silver Bar", { count = 5, sell = 50, class = 7, subclass = 7 }))
+        prices[WowStub.link(2841, "Bronze Bar")] = 300
+        prices[WowStub.link(2842, "Silver Bar")] = 5000
+        assert.truthy(ns.Routes.Add(BOB, 164, { cap = 1000 })) -- Blacksmithing, capped at 10s
+        local evaluate, snaps = ns.Valuation.Evaluate, {}
+        ns.Valuation.Evaluate = function(...)
+            local r = evaluate(...)
+            local snap = {}
+            for k, v in pairs(r) do snap[k] = v end
+            snaps[#snaps + 1] = { r = r, snap = snap }
+            return r
+        end
+        local function untouched()
+            for _, e in ipairs(snaps) do assert.same(e.snap, e.r) end
+            snaps = {}
+        end
+        local result = ns.Bags.Evaluate()
+        assert.equal(BOB, byName(result.mail, "Bronze Bar").result.to, "under the cap: the binding takes it")
+        assert.equal(BOB, byName(result.mail, "Silver Bar").result.capped.to, "at the cap: the bank alt's, with a note")
+        untouched()
+        ns.Routes.Pick(WowStub.link(2841, "Bronze Bar"), ns.Routes.MINE)
+        result = ns.Bags.Evaluate()
+        local bar = byName(result.mail, "Bronze Bar")
+        assert.is_nil(bar.result.to, "picked back to Me")
+        assert.is_true(bar.result.picked)
+        untouched()
+        ns.Bags.SkipBankAlt(true)
+        result = ns.Bags.Evaluate()
+        assert.equal("bank alt skipped", byName(result.keep, "Copper Ore").result.held)
+        untouched()
+        ns.Bags.SkipBankAlt(false)
+        ns.Valuation.Evaluate = evaluate
+    end)
+
     it("keeps profession tools whatever they'd sell for (v0.2.0 listed a Fishing Pole)", function()
         WowStub.setBag(2, 2, WowStub.item(2901, "Mining Pick", { sell = 2 }))
         WowStub.setBag(2, 3, WowStub.item(6365, "Strong Fishing Pole", { sell = 50, class = 2 }))

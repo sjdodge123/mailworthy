@@ -44,6 +44,24 @@ describe("bindings", function()
             assert.is_nil(ns.Routes.Clean(nil))
         end)
 
+        it("one binding filter (Routes.Takers) for Divert and the row's choices", function()
+            local dustItem = { itemID = 10940, classID = 7, subclassID = 12, quality = 1, count = 20, stacks = 1, vendor = 2 }
+            local friend = { to = BOB, profession = ENCHANTING, key = "f" }
+            local mine = { to = ns.PlayerName(), profession = ENCHANTING, key = "m" }
+            local tailor = { to = BOB, profession = TAILORING, key = "t" }
+            local mage = { to = BOB, class = "MAGE", key = "c" }
+            local verdict = { action = "mail", route = "ah" }
+            local list = ns.Routes.Takers(dustItem, verdict, nil, nil, { tailor, friend, mine }, false, nil, false)
+            assert.same({ "f", "m" }, { list[1].key, list[2].key })
+            list = ns.Routes.Takers(dustItem, verdict, nil, nil, { tailor, friend, mine }, false, nil, true)
+            assert.same({ "f" }, { list[1].key, list[2] and list[2].key }, "not this character's")
+            local wand = { itemID = 5240, classID = 2, subclassID = 19, quality = 2, count = 1, stacks = 1, vendor = 100,
+                classes = { MAGE = true }, myClass = "PALADIN" }
+            assert.same({}, ns.Routes.Takers(wand, verdict, { ah = 500, age = 0 }, nil, { mage }, false, nil, false),
+                "a class binding needs a current auction price")
+            assert.equal("c", ns.Routes.Takers(wand, verdict, { ah = 500, age = 0 }, 500, { mage }, false, nil, false)[1].key)
+        end)
+
         it("matches the trade goods the bound profession uses", function()
             local route = { to = BOB, profession = ENCHANTING }
             assert.is_true(ns.Routes.Matches(route, { classID = 7, subclassID = 12 }))
@@ -645,6 +663,28 @@ describe("bindings", function()
                 end
             end
             assert.truthy(friend > 0, "the binding took something")
+        end)
+    end)
+
+    describe("the guild roster per scan", function()
+        it("Routes.Active walks the roster once for all its bindings, and reads the same skills", function()
+            WowStub.state.guild = { clubId = 3, members = {
+                { name = "Bob Surname", realm = "Classic Beta PvP", level = 30, online = true,
+                    professions = { ENCHANTING, TAILORING }, ranks = { 120, 80 } },
+                { name = "Ann Crafter", level = 30, online = true, professions = { ALCHEMY }, ranks = { 60 } },
+            } }
+            assert.truthy(ns.Routes.Add(BOB, ENCHANTING))
+            assert.truthy(ns.Routes.Add(BOB, TAILORING))
+            assert.truthy(ns.Routes.Add("Ann Crafter", ALCHEMY))
+            local walks, members = 0, C_Club.GetClubMembers
+            C_Club.GetClubMembers = function(...) walks = walks + 1 return members(...) end
+            local skills = {}
+            for _, r in ipairs(ns.Routes.Active()) do skills[r.to .. ":" .. r.profession] = r.skill end
+            C_Club.GetClubMembers = members
+            assert.equal(1, walks, "one roster walk for three bindings")
+            assert.same({ [BOB .. ":" .. ENCHANTING] = 120, [BOB .. ":" .. TAILORING] = 80, ["Ann Crafter:" .. ALCHEMY] = 60 },
+                skills)
+            assert.equal(80, ns.Routes.Skill({ to = BOB, profession = TAILORING }), "a single call reads it too")
         end)
     end)
 

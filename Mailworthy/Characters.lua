@@ -13,6 +13,23 @@ function ns.PlayerName()
     return call(GetUnitName, "player", true) or call(UnitName, "player")
 end
 
+--- Pure: a name with its spaces collapsed and trimmed, or nil (not a string, empty). Forever names
+--- are "First Surname". (Config.Clean.)
+function Characters.CleanSpaces(name)
+    if type(name) ~= "string" then return nil end
+    name = name:gsub("%s+", " "):match("^%s*(.-)%s*$")
+    return name ~= "" and name or nil
+end
+
+--- Pure: a player name as mail wants it: spaces collapsed, any "-Realm" suffix dropped (guild
+--- rosters and addon messages carry one; a Forever name never has a hyphen). (Routes.Clean.)
+function Characters.Clean(name)
+    name = Characters.CleanSpaces(name)
+    if not name then return nil end
+    name = name:match("^([^%-]+)") or name
+    return Characters.CleanSpaces(name)
+end
+
 function Characters.Key(name, realm, faction)
     return string.format("%s|%s|%s", tostring(name), tostring(realm), tostring(faction))
 end

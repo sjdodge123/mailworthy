@@ -68,10 +68,10 @@ function Util.Store(db, field, key)
     return t[key]
 end
 
---- A player name's lower-case key: Routes.Clean's name (no realm, spaces trimmed), lower-cased; nil
---- when there is none. Routes loads later, so it is read at call time.
+--- A player name's lower-case key: Characters.Clean's name (no realm, spaces trimmed), lower-cased; nil
+--- when there is none. Characters loads later, so it is read at call time.
 function Util.NameKey(name)
-    local clean = ns.Routes.Clean(name)
+    local clean = ns.Characters.Clean(name)
     return clean and clean:lower() or nil
 end
 

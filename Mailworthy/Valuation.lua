@@ -57,7 +57,7 @@ Valuation.DEFAULTS = {
     sendVendor = false,    -- items a vendor pays more for (V): they stay unless the player wants them sent too
 }
 
--- The setting behind each verdict tag (BankAlt.Verdict), in the order the settings window shows them.
+-- The setting behind each verdict tag (Valuation.Verdict), in the order the settings window shows them.
 Valuation.SEND = { ah = "sendAuction", de = "sendDisenchant", b = "sendBank", v = "sendVendor" }
 Valuation.SEND_ORDER = { "ah", "de", "b", "v" }
 Valuation.SEND_LABEL = { ah = "Auction", de = "Disenchant", b = "Bank", v = "Vendor" }
@@ -527,6 +527,41 @@ function Valuation.BankForCraft(r)
     return type(r) == "table" and r.action == "keep" and r.neededBy ~= nil and not r.convert and not r.deHere
 end
 
+--- Pure: the tag for a valued item (`item.result`, Valuation.Evaluate's verdict after Bags.Evaluate's
+--- bindings, picks and returns): "ah" / "de" when the auction house or disenchanting beats the vendor by
+--- the minimum gain, "b" when it should be banked for a later phase instead of listed, "craft" when this
+--- character's own profession needs it (bank it until then), "here" for a bank-here pin, "friend" /
+--- "return" for what the mailbox sends to a binding or back to its sender, "v" when the vendor wins,
+--- nil when there's nothing to say (locked, soulbound, tool, no price...). `banksHere`: this character
+--- banks what goes "to the bank" itself (Config.BanksHere: it is the bank alt, or has none).
+--- Was BankAlt.Verdict (A3: Bags.ApplySendSwitches read it a layer up).
+function Valuation.Verdict(item, banksHere)
+    local r = item.result
+    if not r then return nil end
+    if r.pinned and Valuation.Is(r, K.pinHere) then return "here" end
+    if r.vendorPin then return "v" end -- a vendor pin (Pins.lua): V whatever the market says
+    -- A pin valued for the bank alt where pins bank here (banksHere) is a bank-here pin.
+    if r.pinned and r.action == "mail" and r.route == "bank" and banksHere then return "here" end
+    if Valuation.BankForCraft(r) then return "craft" end
+    -- An enchanter's cheap green or blue piece, soulbound or not: disenchant it here (Valuation.DisenchantsHere).
+    if r.deHere and r.action == "keep" then return "de" end
+    -- Soulbound, with a vendor price: V (the vendor window sells it only when vendor-pinned).
+    if Valuation.Is(r, K.soulbound) and (r.vendor or 0) > 0 then return "v" end
+    if r.action == "mail" then
+        -- Where the mailbox sends it, as the window does (operator, 2026-11-13: tags that ignored
+        -- bindings and Return to sender disagreed with the window).
+        if r.route == "return" then return "return" end
+        if r.to then return "friend" end
+        if r.route == "bank" then return "b" end
+        return (r.route == "ah" or r.route == "de") and r.route or nil
+    end
+    if Valuation.Is(r, K.notWorth) and (r.vendor or 0) > 0 then return "v" end
+    -- Grey junk: no auction price, but a vendor buys it.
+    local unpriced = Valuation.Is(r, K.noPrice) or Valuation.Is(r, K.priceFailed) or Valuation.Is(r, K.junk)
+    if item.quality == 0 and unpriced and (item.vendor or 0) > 0 then return "v" end
+    return nil
+end
+
 local evaluate
 
 -- item.pin: where this character banks the item's pin (Pins.Effective; Pins.lua loads before this
@@ -610,7 +645,6 @@ function Valuation.Evaluate(item, price, settings)
         return keep(K.pinHere, { pinned = true, vendor = (item.vendor or 0) * (item.count or 1) })
     end
     if item.pin == Valuation.PIN_BANK then
-        if item.vendor == nil then return keep(K.notLoaded) end
         if type(price) == "table" and price.failed then
             return keep(K.priceFailed, { vendor = item.vendor * (item.count or 1), failed = true })
         end
@@ -661,10 +695,14 @@ function Valuation.Evaluate(item, price, settings)
 end
 
 Valuation.ENCHANTING = 333
+-- A new binding's price cap, copper per unit (Routes.DEFAULT_CAP reads it), and an enchanter's
+-- disenchant-here cap without a binding of their own: 10s (operator, 2026-11-11: "i think 10s is a good
+-- default option to start"; it was 5g, 2026-10-26). Here, not in Routes: Valuation reads it (A3).
+Valuation.DEFAULT_CAP = 1000
 
 --- Pure: this character has Enchanting ("Keep my professions' materials" on) and `item` is a green or
 --- blue weapon or armor piece worth less than `settings.deHereCap` (copper per unit; default the
---- bindings' 10s, Routes.DEFAULT_CAP), its worth the higher of its current auction and vendor price.
+--- bindings' 10s, Valuation.DEFAULT_CAP), its worth the higher of its current auction and vendor price.
 function Valuation.DisenchantsHere(item, price, settings)
     settings = settings or Valuation.DEFAULTS
     if not settings.keepProfessionMats then return false end
@@ -678,7 +716,7 @@ function Valuation.DisenchantsHere(item, price, settings)
     if type(price) == "table" and price.ah ~= nil and (price.age == nil or price.age <= settings.maxAgeDays) then
         worth = math.max(worth, Valuation.SmoothedPrice(price) or 0)
     end
-    return worth < (tonumber(settings.deHereCap) or (ns.Routes and ns.Routes.DEFAULT_CAP) or 1000)
+    return worth < (tonumber(settings.deHereCap) or Valuation.DEFAULT_CAP)
 end
 
 -- Evaluate past the hard keeps and the profession keep: price against vendor.

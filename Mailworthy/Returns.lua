@@ -35,8 +35,8 @@ function Returns.On() return on and Returns.Available() end
 function Returns.Set(value)
     on = value == true
     ns.Log.Add("returns", "return to sender %s", on and "on" or "off")
-    -- The bag tags count Return to sender (R): redraw them (Codex review, 2026-11-13).
-    if ns.BankAlt and ns.BankAlt.Redraw then pcall(ns.BankAlt.Redraw) end
+    -- The bag tags count Return to sender (R): redrawn (Codex review, 2026-11-13).
+    ns.Bags.InputsChanged("returns")
 end
 
 function Returns.Toggle()
@@ -114,10 +114,11 @@ function Returns.Current()
     return Returns.Owed(ns.Ledger.Store().log, ns.PlayerName())
 end
 
---- Pure: which of `slots` ({ bag, slot, count }) go back to whom, from `owed` (this item ID's
---- list from Returns.Owed; counts are used up, so several bag groups of one item share it).
---- Whole stacks, the biggest first, never past what is owed. Returns { { to, slots, count } },
---- and the slots left over.
+--- Which of `slots` ({ bag, slot, count }) go back to whom, from `owed` (this item ID's list from
+--- Returns.Owed). Not pure: it uses up `owed`'s counts in place, on purpose, so several bag groups
+--- of one item (bound or not, in use or not: Bags.Group) share what is owed; pass a copy to keep
+--- yours (Bags.Evaluate copies settings.returns' list once per scan). Whole stacks, the biggest
+--- first, never past what is owed. Returns { { to, slots, count } }, and the slots left over.
 function Returns.Split(slots, owed)
     local left = {}
     for _, s in ipairs(slots or {}) do left[#left + 1] = s end

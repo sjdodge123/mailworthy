@@ -1,5 +1,5 @@
 -- Sell the V items at a vendor. The bank alt view tags what a vendor pays more for with V
--- (BankAlt.Verdict: "not worth it" items and grey junk), and a main gets the same tags after a
+-- (Valuation.Verdict: "not worth it" items and grey junk), and a main gets the same tags after a
 -- Send, "so the trip to the vendor is easy". This is the last step of that trip: at a merchant,
 -- one button lists the V items in the bags with what the vendor pays, and Sell sells them.
 --
@@ -80,7 +80,7 @@ function Vendor.Stacks()
     heldForReturn = 0
     for _, list in ipairs({ result.keep, result.mail }) do
         for _, item in ipairs(list) do
-            local isV = ns.BankAlt.Verdict(item) == "v"
+            local isV = ns.Valuation.Verdict(item, ns.Config.BanksHere()) == "v"
             if isV and owed[item.itemID] and #owed[item.itemID] > 0 then
                 heldForReturn = heldForReturn + #item.slots
                 isV = false
@@ -110,22 +110,24 @@ function Vendor.Take(stacks, n)
     return taken, total, #stacks - #taken
 end
 
---- Is this stack still what was listed? (the bag slot re-read right before the sale)
+-- The vendor window's words for Bags.StillThere's checks (the log shows them).
+local RECHECK = {
+    looseLink = true,
+    noValue = true,
+    -- Another player mailed it here since the list was made: never sold (Vendor.Stacks leaves those off).
+    owed = function(itemID)
+        local list = owedBack()[itemID]
+        return type(list) == "table" and #list > 0
+    end,
+    words = { gone = "the slot is empty", different = "a different item is there now", count = "the stack changed",
+        inUse = "in use", noValue = "no vendor buys it", conjured = "conjured", ammo = "ammo for your ranged weapon",
+        locked = "locked", quest = "a quest needs it", owed = "another player mailed it to you" },
+}
+
+--- Is this stack still what was listed? (the bag slot re-read right before the sale; Bags.StillThere:
+--- the shared re-check.)
 function Vendor.StillThere(stack)
-    local info = ns.Locks.ItemAt(stack.bag, stack.slot)
-    if not info or not info.itemID then return false, "the slot is empty" end
-    if info.itemID ~= stack.itemID then return false, "a different item is there now" end
-    -- The whole link: a random-suffix variant has the item ID but not the item listed (Codex review).
-    if stack.link and info.hyperlink and info.hyperlink ~= stack.link then return false, "a different item is there now" end
-    if (tonumber(info.stackCount) or 1) ~= stack.count then return false, "the stack changed" end
-    if info.isLocked then return false, "in use" end
-    if info.hasNoValue then return false, "no vendor buys it" end
-    if ns.Locks.IsItemLocked(info.itemID) then return false, "locked" end
-    -- A quest may have started asking for it since the list was made (Codex review): never sold.
-    if ns.Quests.For(info.hyperlink or stack.link) then return false, "a quest needs it" end
-    -- A bow, crossbow or gun equipped since the list was made (Codex review, 2026-11-14): its ammo stays.
-    if ns.Ammo.Is(info.hyperlink or stack.link) then return false, "ammo for your ranged weapon" end
-    return true
+    return ns.Bags.StillThere(stack, RECHECK)
 end
 
 --- Pure: the line after a run.

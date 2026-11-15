@@ -72,8 +72,7 @@ function Report.Frame() return reportFrame end
 
 function Report.Build()
     local name, realm, faction = ns.Characters.Current()
-    local v = ns.Config.Values()
-    v.serverDay = ns.Config.ServerDay()
+    local v = ns.Bags.PrepareSettings(ns.Bags.Settings())
     local lines = {
         string.format("Mailworthy %s report at %s", ns.VERSION, date("%Y-%m-%d %H:%M")),
         "build: " .. strings(call(GetBuildInfo)),
@@ -82,14 +81,11 @@ function Report.Build()
         "bank alt: " .. tostring(ns.Config.BankAlt() or "none set"),
         string.format("server: launch day %s (realm first seen %s)", tostring(ns.Config.ServerDay()),
             date("%Y-%m-%d", ns.Config.FirstSeen())),
-        string.format("settings: %dh listing, min gain %s and %d%%, disenchant %s, max price age %d days, tags %s, "
-            .. "lock glow %s, item tooltips %s, bags 0-%d, profession materials %s",
-            ns.Valuation.DURATION_HOURS[v.duration], ns.Bags.MinGainText(v), math.floor(v.minGainPct * 100 + 0.5),
-            v.disenchant and "on" or "off", v.maxAgeDays,
-            ns.Config.Flag("tagsEverywhere") and "every character" or ("bank alt only, here: " .. tostring(ns.BankAlt.Mode())),
-            ns.Config.Flag("glowEverywhere") and "always" or "with the Mailworthy window open", ns.Config.Tooltips(),
-            ns.Bags.LastBag(),
-            ns.Bags.ProfessionMatsText(ns.Bags.Evaluate(v).settings)),
+        ns.Bags.SettingsLine(v, { extra = {
+            "tags " .. (ns.Config.Flag("tagsEverywhere") and "every character" or ("bank alt only, here: " .. tostring(ns.BankAlt.Mode()))),
+            "lock glow " .. (ns.Config.Flag("glowEverywhere") and "always" or "with the Mailworthy window open"),
+            "item tooltips " .. ns.Config.Tooltips(),
+            "bags 0-" .. ns.Bags.LastBag() } }),
         "send: " .. ns.Bags.SendText(v),
         "prices: " .. (ns.Prices.SourceText() or "none")
             .. (ns.Prices.DisenchantAddon() and (", " .. ns.Prices.DisenchantAddon() .. " installed") or ""),

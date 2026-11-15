@@ -98,6 +98,17 @@ describe("return to sender", function()
             assert.equal(0, owed[1].count, "used up, for the item's next bag group")
         end)
 
+        it("a scan uses up a copy: the settings' owed list is the same after it (Bags.Evaluate)", function()
+            WowStub.setBag(0, 1, WowStub.item(2589, "Linen Cloth", { count = 20, sell = 10, class = 7, subclass = 5 }))
+            local owed = { [2589] = { { to = BOB, count = 25, at = 1 } } }
+            local settings = ns.Bags.CurrentSettings()
+            settings.returns = owed
+            local result = ns.Bags.Evaluate(settings)
+            assert.equal(1, #result.mail)
+            assert.equal(BOB, result.mail[1].result.to, "the stack goes back")
+            assert.same({ [2589] = { { to = BOB, count = 25, at = 1 } } }, owed)
+        end)
+
         it("a stack bigger than what is owed stays (the mailer never splits a stack)", function()
             local parts, left = ns.Returns.Split({ slot(0, 1, 20) }, { { to = BOB, count = 5 } })
             assert.same({}, parts)

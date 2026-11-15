@@ -111,7 +111,7 @@ function Quests.Update()
     local ok, quests = pcall(Quests.Read)
     needs = Quests.Index(ok and quests or {})
     if before == nil or Quests.Same(before, needs) then return false end
-    if ns.BankAlt then ns.BankAlt.Redraw() end
+    ns.Bags.InputsChanged("quests")
     if ns.MailWindow and not ns.Mailer.Busy() then ns.MailWindow.RefreshIfShown() end
     return true
 end
