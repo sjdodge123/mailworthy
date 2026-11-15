@@ -83,10 +83,10 @@ function. Specs: the module's own spec first; `critical_path` = `spec/critical_p
 | `Conjured.lua` | Conjured items (ID list, else the tooltip's "Conjured Item" line) | `Conjured.Is`, `Known` (pure), `How` | conjured |
 | `Recipes.lua` | Recipes this character already knows (the tooltip's "Already known" line, `ITEM_SPELL_KNOWN`); per visit | `Recipes.Known`, `IsKnownLine` (pure), `Forget`, `ReportLines` | recipes |
 | `Ammo.lua` | The ammo the equipped ranged weapon fires (bow / crossbow: arrows, gun: bullets): a hard keep, reason `"ammo"` | `Ammo.Is(item or link, fires)`, `Equipped`, `Fires`, `Matches` (pure), `RangedItem`, `ReportLines`, `REASON` | ammo, critical_path |
-| `Valuation.lua` | **The decision rule** (pure): mail or keep, and the route, for one item | `Valuation.Evaluate`, `Unpriced`, `Unmailable`, `NeededBy`, `ProfessionKeep`, `DisenchantsHere`, `Settings`, `DEFAULTS`, `STAPLES`, `SEND*`, `Money` | valuation |
+| `Valuation.lua` | **The decision rule** (pure): mail or keep, and the route, for one item; **verdict kinds** (`KINDS`: each keep's `kind`, display text and flags `hard` / `unmailable` / `priceKeep` / `quiet`; code reads the kind, never the reason text: `verdict_kinds_spec`) | `Valuation.Evaluate`, `KINDS`, `K`, `Keep`, `Is`, `Flag`, `HardKeep`, `Unpriced`, `Unmailable`, `NeededBy`, `ProfessionKeep`, `DisenchantsHere`, `Settings`, `DEFAULTS`, `STAPLES`, `SEND*`, `Money` | valuation |
 | `Config.lua` | Saved settings over `Valuation.DEFAULTS`; bank alt per realm/faction; flags | `Config.Values/Get/Set/Step/Flag`, `Tooltips` / `CycleTooltips` (item tooltips: full / short / off), `BankAlt`, `SetBankAlt`, `SetBankAltHere`, `IsBankAltHere`, `Choices` | config |
 | `Classes.lua` | Class-only items from the tooltip "Classes:" line | `Classes.Of`, `Mine`, `ForOther` (pure), `Token`, `Name` | classes |
-| `Routes.lua` | **Bindings**: a profession's materials (or a class's items) to a player; skip once; row picks | `Routes.Divert`, `Divertible`, `Matches`, `Before`, `Force`, `Choices`, `Pick/Picked/ClearPicks`, `Active`, `List`, `Add/Remove`, `Crafter`, `Recipient`, `ClassPriced`, `PriceKeep`, `GearBeaten`, `HARD_KEEPS` | routes |
+| `Routes.lua` | **Bindings**: a profession's materials (or a class's items) to a player; skip once; row picks | `Routes.Divert`, `Divertible`, `Matches`, `Before`, `Force`, `Choices`, `Pick/Picked/ClearPicks`, `Active`, `List`, `Add/Remove`, `Crafter`, `Recipient`, `ClassPriced`, `PriceKeep`, `GearBeaten` | routes |
 | `Comms.lua` | Addon messages between Mailworthys (prefix `Mailworthy`); peers; the name mark | `Comms.Announce`, `Ask`, `Hear` (a skills or hello message marks the bag tags stale: `BankAlt.Invalidate`), `SendGuild`, `Whisper`, `Peers/Peer`, `Skill`, `Mark`, `OnMarksChanged` | peer_mark, routes |
 | `Guild.lua` | **Guild template**: GM/officer rules, shared on GUILD, opted into per player | `Guild.Rules`, `Offer`, `Hear`, `Broadcast`, `Ask`, `CanPublish`, `InUse/SetUse/ToggleUse`, `Draft*`, `Publish` | guild |
 | `Stale.lua` | Stale-price nudge; peers' scan days (display only) | `Stale.OwnAge`, `Nudge` (pure), `Hear`, `Message`, `Current` | stale |
@@ -193,7 +193,7 @@ The verdict (`item.result`) carries `action`, `route`, `reason`, `gain`, `postag
 
 ### 4.3 Bindings: `Routes.Divert(item, verdict, price, settings, routes)`
 
-1. `Routes.Divertible`: never a hard keep (`Routes.HARD_KEEPS`), a pin, a failed price
+1. `Routes.Divertible`: never a hard keep (`Valuation.HardKeep`: a kind flagged `hard`), a pin, a failed price
    call or a verdict kept for this character.
 2. `verdict.neededBy` (this character's own profession keep) wins: me first.
 3. `Routes.Units` (unit price; the cap price takes the higher of auction and vendor for
@@ -429,9 +429,9 @@ against them.
 | Never mail a locked item | `Valuation.Evaluate` (first check); `Mailer.StillThere` |
 | Never mail an item an active quest names | `Quests.For` → `Valuation.Evaluate`; `Mailer.StillThere`; `Vendor.StillThere` |
 | Never mail a conjured item | `Conjured.Is` → `Valuation.Evaluate`, `Valuation.Unmailable`; `Mailer.StillThere` |
-| Never mail the ammo the equipped ranged weapon fires | `Ammo.Is` → `Valuation.IsAmmo` → `Valuation.Evaluate` (a hard keep in `Routes.HARD_KEEPS`); `Mailer.StillThere` and the attached-stack check in `Mailer` (a weapon equipped mid-send); `Vendor.StillThere` |
+| Never mail the ammo the equipped ranged weapon fires | `Ammo.Is` → `Valuation.IsAmmo` → `Valuation.Evaluate` (kind `ammo`, flagged `hard`); `Mailer.StillThere` and the attached-stack check in `Mailer` (a weapon equipped mid-send); `Vendor.StillThere` |
 | No bank alt, or skipped for the visit: its share stays | `Bags.HoldReason` / `settings.hold` in `Bags.Evaluate`; `Bags.SkipBankAlt`; `Mailer.Blocker` |
-| A binding or return never overrides a hard keep | `Routes.Divertible` (`Routes.HARD_KEEPS`); `Bags.Evaluate` before `Returns.Split` |
+| A binding or return never overrides a hard keep | `Routes.Divertible` (`Valuation.HardKeep`); `Bags.Evaluate` before `Returns.Split` |
 | Cap: at or above it the normal rule applies; green/blue against max(auction, vendor) | `Routes.Divert`, `Routes.Units`; `Valuation.DisenchantsHere` |
 | Enchanting Gear switch | `Routes.GearBeaten` (in `Routes.Divert`); wire format `Guild.WireCap` / `ReadCap` |
 | Me first, then friends, then guild | `Valuation.ProfessionKeep` / `NeededBy` → `Routes.Divert` returns nil on `neededBy`; `Routes.Before`; `Guild.Rules` / `Guild.Why` drop what this character has or bound itself |
@@ -446,7 +446,8 @@ against them.
 
 ## 10. Tests
 
-- **Shipping gate**: `spec/critical_path_spec.lua` (CI job `critical-path`). AGENTS.md
+- **Shipping gate**: `spec/critical_path_spec.lua` (CI job `critical-path`); `verdict_kinds_spec` runs it
+  again with every reason reworded and fails on any source line that compares a reason's text. AGENTS.md
   "Critical path" says what it covers and what a new way to mail must add.
 - **Controller gate** (CI job `controller`): `dpad_reach_spec` (D-pad walk of every view;
   a new window or view adds its walk), `padkey_spec`, `nav_spec`, `ux_views_spec`,

@@ -1408,9 +1408,10 @@ describe("critical path: mailing", function()
         WowStub.setBag(0, 17, WowStub.item(3033, "Solid Shot", { count = 200, sell = 0, class = 6, subclass = 3 }))
     end
 
-    local function staysAs(itemID, reason)
+    -- `kind`: the verdict's kind (Valuation.KINDS), not its wording (verdict_kinds_spec rewords them all).
+    local function staysAs(itemID, kind)
         for _, item in ipairs(ns.MailWindow.Result().keep) do
-            if item.itemID == itemID then return assert.equal(reason, item.result.reason) end
+            if item.itemID == itemID then return assert.equal(kind, item.result.kind) end
         end
         error("item " .. itemID .. " isn't on the Staying list")
     end

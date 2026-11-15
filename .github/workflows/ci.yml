@@ -34,6 +34,10 @@ jobs:
           for rock in luacheck busted; do sudo luarocks --lua-version=5.1 install "$rock"; done
       - name: critical path (mailing)
         run: busted --lua=luajit spec/critical_path_spec.lua
+      # Decisions read a verdict's kind, never its wording: the same cases again with every reason
+      # reworded, and no source line comparing a reason's text.
+      - name: critical path (every reason reworded)
+        run: busted --lua=luajit spec/verdict_kinds_spec.lua
 
   # Controller support (AGENTS.md "Input" and "Never write into Blizzard's controller UI"), its
   # own job so main's branch protection can require it by name: "controller". The D-pad reaches

@@ -76,7 +76,7 @@ end
 
 --- Pure: a bank-here pin's keep (not a BA pin held this visit).
 function UI.PinnedHere(r)
-    return r.pinned == true and r.action == "keep" and r.reason == ns.Valuation.PIN_HERE_REASON
+    return r.pinned == true and ns.Valuation.Is(r, ns.Valuation.K.pinHere)
 end
 
 --- Pure: the Staying row's reason in the colour of the tag the bags show for it: BH (bank it here:
@@ -130,15 +130,17 @@ function UI.WhyKept(r)
         return string.format("%s%s: %s", chip[1], r.gain and (" +" .. money(r.gain)) or "", r.held)
     end
     if r.quest then return r.quest .. " needs it" end
-    if r.reason == "not worth it" then
+    local V, K = ns.Valuation, ns.Valuation.K
+    if V.Is(r, K.notWorth) then
         if (r.gain or 0) <= 0 then return "sells better at a vendor" end
         return string.format("only %s more than a vendor (needs %s)", money(r.gain), money(r.threshold))
     end
-    if r.reason == "no price" then return r.failed and "the price lookup failed" or "no auction price yet" end
-    if r.reason == "locked" then return "locked (press to unlock)" end
-    if r.reason == ns.Ammo.REASON then return "ammo for your ranged weapon" end
-    if r.reason == "junk (no price data)" then return "junk: sell it at a vendor" end
-    if r.reason == "uncommon or better (no price data)" then return "uncommon: needs auction prices" end
+    if V.Is(r, K.priceFailed) then return "the price lookup failed" end
+    if V.Is(r, K.noPrice) then return r.failed and "the price lookup failed" or "no auction price yet" end
+    if V.Is(r, K.locked) then return "locked (press to unlock)" end
+    if V.Is(r, K.ammo) then return "ammo for your ranged weapon" end
+    if V.Is(r, K.junk) then return "junk: sell it at a vendor" end
+    if V.Is(r, K.uncommon) then return "uncommon: needs auction prices" end
     if r.untilSkill then return r.reason .. " (until skill " .. r.untilSkill .. ")" end
     if r.window then
         return string.format("%s (%s still %s)", r.reason, tostring(r.window.recipe),
@@ -270,7 +272,7 @@ function UI.TooltipLines(item, staying, pad, bankAlt, busy)
     local r = item.result or {}
     local verb = pad and "Press" or "Click"
     if staying then
-        if r.reason == "locked" then
+        if ns.Valuation.Is(r, ns.Valuation.K.locked) then
             return "Locked in Mailworthy: it stays in your bags and is never mailed.",
                 busy and UI.BUSY_LINE or (verb .. " to unlock.")
         end
@@ -854,7 +856,7 @@ end
 local function fillStayRow(row, item)
     row.name:SetText(UI.ItemText(item.link, item.count))
     local reason = UI.StayText(item.result)
-    if item.result.reason == "locked" then reason = UI.LOCKED_COLOR .. reason .. "|r" end
+    if ns.Valuation.Is(item.result, ns.Valuation.K.locked) then reason = UI.LOCKED_COLOR .. reason .. "|r" end
     row.reason:SetText(reason)
     fillPick(row, item)
 end

@@ -100,12 +100,12 @@ describe("mail window", function()
 
     it("formats item names and reasons for people", function()
         assert.equal("|cffffffffCopper Ore|r |cffaaaaaax20|r", ns.MailWindow.ItemText(WowStub.link(2770, "Copper Ore"), 20))
-        assert.equal("sells better at a vendor", ns.MailWindow.StayReason({ reason = "not worth it", gain = -10 }))
+        assert.equal("sells better at a vendor", ns.MailWindow.StayReason({ kind = "notWorth", reason = "not worth it", gain = -10 }))
         assert.equal("only 4s 10c more than a vendor (needs 5s)",
-            ns.MailWindow.StayReason({ reason = "not worth it", gain = 410, threshold = 500 }))
-        assert.equal("no auction price yet", ns.MailWindow.StayReason({ reason = "no price" }))
-        assert.equal("the price lookup failed", ns.MailWindow.StayReason({ reason = "no price", failed = true }))
-        assert.equal("profession tool", ns.MailWindow.StayReason({ reason = "profession tool" }))
+            ns.MailWindow.StayReason({ kind = "notWorth", reason = "not worth it", gain = 410, threshold = 500 }))
+        assert.equal("no auction price yet", ns.MailWindow.StayReason({ kind = "noPrice", reason = "no price" }))
+        assert.equal("the price lookup failed", ns.MailWindow.StayReason({ kind = "noPrice", reason = "no price", failed = true }))
+        assert.equal("profession tool", ns.MailWindow.StayReason({ kind = "tool", reason = "profession tool" }))
         -- Kept for this character's own crafting: bank it (operator, 2026-11-11).
         local craft = { action = "keep", reason = "your Tailoring needs it", neededBy = "Tailoring" }
         assert.equal("bank it: your Tailoring needs it", ns.MailWindow.StayReason(craft))
@@ -113,7 +113,7 @@ describe("mail window", function()
         -- The Staying row: BH items read in BH's colour with its letters, like the bag tag (Palette).
         assert.equal(ns.Palette.Hex(ns.Palette.BH.fg) .. "BH bank it: your Tailoring needs it|r", ns.MailWindow.StayText(craft))
         assert.equal("It stays: profession tool.",
-            (ns.MailWindow.TooltipLines({ result = { action = "keep", reason = "profession tool" } }, true)))
+            (ns.MailWindow.TooltipLines({ result = { action = "keep", kind = "tool", reason = "profession tool" } }, true)))
     end)
 
     it("the total counts what goes with no price yet, and says what goes without a price source (Codex review)", function()
@@ -177,10 +177,10 @@ describe("mail window", function()
             assert.equal("Mailing to Bob.", where, "a binding's recipient, as the row's chip says")
             where = L({ result = { route = "return", to = "Ann" } }, false, false, "Roknua")
             assert.equal("Going back to Ann.", where)
-            where, press = L({ result = { reason = "locked" } }, true, true)
+            where, press = L({ result = { kind = "locked", reason = "locked" } }, true, true)
             assert.equal("Locked in Mailworthy: it stays in your bags and is never mailed.", where)
             assert.equal("Press to unlock.", press)
-            where, press = L({ result = { reason = "not worth it", gain = 0 } }, true, false)
+            where, press = L({ result = { kind = "notWorth", reason = "not worth it", gain = 0 } }, true, false)
             assert.equal("It stays: sells better at a vendor.", where)
             assert.equal("Click to lock it, so it always stays.", press)
         end)
@@ -974,13 +974,13 @@ describe("mail window", function()
             assert.equal("Nothing to mail without a bank alt or a binding.", W.EmptyText(false))
             assert.equal("Nothing worth mailing in your bags right now.", W.EmptyText(true))
             local keep = { { result = { held = "no bank alt", gain = 4981 } }, { result = { held = "no bank alt", gain = 2980 } },
-                { result = { reason = "locked" } } }
+                { result = { kind = "locked", reason = "locked" } } }
             local head, note = W.NoAltText(keep, true)
             assert.equal("+79s 61c would go to a bank alt", head)
             assert.equal("Pick one and this list is ready to send; until then your bags carry the AH / DE / V tags.", note)
             head = W.NoAltText({ { result = { held = "no bank alt" } } }, false)
             assert.equal("1 item would go to a bank alt", head)
-            assert.is_nil(W.NoAltText({ { result = { reason = "locked" } } }, false))
+            assert.is_nil(W.NoAltText({ { result = { kind = "locked", reason = "locked" } } }, false))
         end)
 
         it("a setting changed in Settings redraws the mail list beside it", function()

@@ -110,7 +110,7 @@ end
 function BankAlt.Verdict(item)
     local r = item.result
     if not r then return nil end
-    if r.pinned and r.action == "keep" and r.reason == ns.Valuation.PIN_HERE_REASON then return "here" end
+    if r.pinned and ns.Valuation.Is(r, ns.Valuation.K.pinHere) then return "here" end
     if r.vendorPin then return "v" end -- a vendor pin (Pins.lua): V whatever the market says
     -- A pin valued for the bank alt where pins bank here (BankAlt.BanksHere) is a bank-here pin.
     if r.pinned and r.action == "mail" and r.route == "bank" and BankAlt.BanksHere() then return "here" end
@@ -118,7 +118,7 @@ function BankAlt.Verdict(item)
     -- An enchanter's cheap green or blue piece, soulbound or not: disenchant it here (Valuation.DisenchantsHere).
     if r.deHere and r.action == "keep" then return "de" end
     -- Soulbound, with a vendor price: V (the vendor window sells it only when vendor-pinned).
-    if r.action == "keep" and r.reason == "soulbound" and (r.vendor or 0) > 0 then return "v" end
+    if ns.Valuation.Is(r, ns.Valuation.K.soulbound) and (r.vendor or 0) > 0 then return "v" end
     if r.action == "mail" then
         -- Where the mailbox sends it, as the window does (operator, 2026-11-13: tags that ignored
         -- bindings and Return to sender disagreed with the window).
@@ -127,9 +127,10 @@ function BankAlt.Verdict(item)
         if r.route == "bank" then return "b" end
         return (r.route == "ah" or r.route == "de") and r.route or nil
     end
-    if r.reason == "not worth it" and (r.vendor or 0) > 0 then return "v" end
+    if ns.Valuation.Is(r, ns.Valuation.K.notWorth) and (r.vendor or 0) > 0 then return "v" end
     -- Grey junk: no auction price, but a vendor buys it.
-    local unpriced = r.reason == "no price" or r.reason == "junk (no price data)"
+    local unpriced = ns.Valuation.Is(r, ns.Valuation.K.noPrice) or ns.Valuation.Is(r, ns.Valuation.K.priceFailed)
+        or ns.Valuation.Is(r, ns.Valuation.K.junk)
     if item.quality == 0 and unpriced and (item.vendor or 0) > 0 then return "v" end
     return nil
 end
@@ -282,9 +283,8 @@ local function ageText(age)
 end
 
 -- Kept for a reason the tooltip doesn't repeat: the game's own lines (soulbound, quest item,
--- conjured item), the lock glow's line (Border), or nothing to say yet.
-BankAlt.QUIET_KEEPS = { soulbound = true, ["quest item"] = true, ["conjured item"] = true, locked = true,
-    ["in use"] = true, ["item info not loaded yet"] = true }
+-- conjured item), the lock glow's line (Border), or nothing to say yet: the kinds flagged `quiet`
+-- in Valuation.KINDS.
 
 --- Pure: the label and the line for an item with no verdict tag: where the Mailworthy window
 --- mails it, or why it stays in the bags. nil when there's nothing to add. `noBankAlt`: the bank
@@ -304,7 +304,7 @@ function BankAlt.OtherLine(item, noBankAlt)
         end
         return "Mail", "Goes to your bank alt at the mailbox: " .. tostring(r.reason) .. "."
     end
-    if r.action ~= "keep" or BankAlt.QUIET_KEEPS[r.reason] then return nil end
+    if r.action ~= "keep" or ns.Valuation.Flag(r, "quiet") then return nil end
     return "Keep", "Stays in your bags: " .. ns.MailWindow.StayReason(r) .. "."
 end
 
@@ -606,7 +606,7 @@ function BankAlt.Waiting()
     for _, list in ipairs({ result.mail or {}, result.keep or {}, result.unmailable or {} }) do
         for _, item in ipairs(list) do
             local r = item.result
-            if item.vendor == nil or (type(r) == "table" and (r.reason == "item info not loaded yet" or r.failed)) then
+            if item.vendor == nil or (type(r) == "table" and (ns.Valuation.Is(r, ns.Valuation.K.notLoaded) or r.failed)) then
                 return true
             end
         end

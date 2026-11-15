@@ -224,7 +224,7 @@ describe("bank pins", function()
             it.result = ns.Valuation.Evaluate(it, nil, settings())
             assert.equal("v", ns.BankAlt.Verdict(it))
             assert.is_true(it.result.bound)
-            assert.is_nil(ns.Routes.HARD_KEEPS[it.result.reason], "like every pin, not a hard keep: Return to sender wins")
+            assert.is_false(ns.Valuation.HardKeep(it.result), "like every pin, not a hard keep: Return to sender wins")
             assert.is_nil(ns.Routes.Divert(it, it.result, nil, settings(), { { to = "Bob Surname", profession = 333 } }))
         end)
 

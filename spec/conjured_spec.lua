@@ -135,13 +135,13 @@ describe("conjured items", function()
     it("the pure rule: a hard keep, after soulbound and quest, before any price", function()
         local V, S = ns.Valuation, ns.Valuation.DEFAULTS
         local stone = { itemID = HEALTHSTONE, count = 1, stacks = 1, quality = 1, classID = 0, vendor = 0 }
-        assert.same({ action = "keep", reason = "conjured item" }, V.Evaluate(stone, { ah = 90000, age = 0 }, S))
-        assert.same({ action = "keep", reason = "conjured item" }, V.Evaluate(stone, nil, S))
-        assert.same({ action = "keep", reason = "conjured item" },
+        assert.same({ action = "keep", kind = "conjured", reason = "conjured item" }, V.Evaluate(stone, { ah = 90000, age = 0 }, S))
+        assert.same({ action = "keep", kind = "conjured", reason = "conjured item" }, V.Evaluate(stone, nil, S))
+        assert.same({ action = "keep", kind = "conjured", reason = "conjured item" },
             V.Evaluate({ itemID = BISCUIT, conjured = true, count = 1, quality = 1, vendor = 0 }, { ah = nil }, S))
-        assert.is_true(V.Unmailable({ action = "keep", reason = "conjured item" }))
-        assert.is_true(ns.Routes.HARD_KEEPS["conjured item"])
-        assert.is_true(ns.BankAlt.QUIET_KEEPS["conjured item"], "the game's tooltip already says so")
+        assert.is_true(V.Unmailable({ action = "keep", kind = "conjured", reason = "conjured item" }))
+        assert.is_true(ns.Valuation.KINDS.conjured.hard)
+        assert.is_true(ns.Valuation.KINDS.conjured.quiet, "the game's tooltip already says so")
     end)
 
     it("no binding takes one: a warlock-only item goes to the warlock friend, a conjured one doesn't", function()

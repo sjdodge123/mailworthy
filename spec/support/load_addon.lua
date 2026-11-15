@@ -25,5 +25,10 @@ return function(saved)
         chunk("Mailworthy", ns)
     end
     ns.Init()
+    -- spec/verdict_kinds_spec.lua: every verdict's wording changed, so a decision that read the
+    -- text instead of the kind fails the critical path run under it.
+    if rawget(_G, "MAILWORTHY_SPEC_REWORD") then
+        for _, def in pairs(ns.Valuation.KINDS) do def.text = "(reworded) " .. def.text end
+    end
     return ns
 end

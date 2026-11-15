@@ -192,7 +192,7 @@ function Border.TooltipLine(itemID)
         -- A hard keep (soulbound, a quest's, ...) beats the pin: the glow says why nothing happens.
         local item = ns.BankAlt and ns.BankAlt.ItemFor and ns.BankAlt.ItemFor(itemID)
         local r = item and item.result
-        local stays = r and not r.pinned and r.action == "keep" and ns.Routes.HARD_KEEPS[r.reason] and r.reason or nil
+        local stays = r and not r.pinned and ns.Valuation.HardKeep(r) and r.reason or nil
         local text = size == "short" and Border.ShortPinTooltip(ns.Pins.Effective(itemID), stays)
             or Border.PinTooltip(ns.Pins.Effective(itemID), stays)
         return text, ns.Pins.Palette(itemID).fg

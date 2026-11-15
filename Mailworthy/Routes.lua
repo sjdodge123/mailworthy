@@ -49,13 +49,8 @@ Routes.SCOPES = { account = "All my characters", character = "This character" }
 Routes.SCOPE_REPORT = { account = "all my characters", character = "this character", guild = "guild template" }
 Routes.ROUTE = "friend"     -- the verdict route of a diverted item
 
--- Verdicts a binding never overrides (AGENTS safety: never a locked item, and
--- nothing the game wouldn't let us attach).
-Routes.HARD_KEEPS = {
-    locked = true, soulbound = true, ["quest item"] = true, ["a quest needs it"] = true, ["in use"] = true,
-    ["profession tool"] = true, ["item info not loaded yet"] = true, ["conjured item"] = true,
-    ammo = true, -- the ranged weapon's (Ammo.lua)
-}
+-- Verdicts a binding never overrides (AGENTS safety: never a locked item, and nothing the game
+-- wouldn't let us attach): the kinds flagged `hard` in Valuation.KINDS (Valuation.HardKeep).
 
 -- Verdicts a class binding doesn't override either: AGENTS safety keeps anything but white items
 -- (without a price source) in the bags (Codex review, 2026-11-08), and an item with no auction
@@ -66,9 +61,7 @@ function Routes.PriceKeep(verdict)
     if type(verdict) == "table" and type(verdict.was) == "table" then return Routes.PriceKeep(verdict.was) end
     if verdict and verdict.action == "mail" and verdict.route == ns.Valuation.NO_PRICE then return true end
     if not (verdict and verdict.action == "keep") then return false end
-    local reason = tostring(verdict.reason)
-    return reason == "no price" or reason == "uncommon or better (no price data)"
-        or reason == "junk (no price data)" or reason:find("^price too old") ~= nil
+    return ns.Valuation.Flag(verdict, "priceKeep")
 end
 
 local skipped = {} -- route key -> true for this mailbox visit
@@ -357,7 +350,7 @@ end
 --- it goes to the bank alt, the player asked for exactly that) or after a failed price call (AGENTS safety;
 --- Codex review, 2026-11-08). The row's button (Routes.Choices) is held to the same.
 function Routes.Divertible(verdict, price)
-    if verdict and verdict.action == "keep" and Routes.HARD_KEEPS[verdict.reason] then return false end
+    if ns.Valuation.HardKeep(verdict) then return false end
     if verdict and (verdict.pinned or verdict.failed) then return false end
     -- A binding naming this character keeps the item here (Routes.Force): no pick moves it (AGENTS Safety).
     if verdict and verdict.forMe then return false end
@@ -403,7 +396,7 @@ end
 function Routes.Force(item, route, unit, settings)
     local to, crafter = Routes.Recipient(route)
     if Routes.IsMe(to) then
-        return { action = "keep", reason = Routes.What(route) .. " are for this character", forMe = route.key }
+        return ns.Valuation.Keep(ns.Valuation.K.forMe, { forMe = route.key }, Routes.What(route))
     end
     local n = item.count or 1
     return {

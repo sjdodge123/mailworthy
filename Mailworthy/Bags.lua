@@ -190,7 +190,7 @@ function Bags.ApplySendSwitches(item, settings, priced)
     if r.action == "mail" and settings[key] == false then
         r.action, r.held = "keep", "sending " .. ns.Valuation.SEND_LABEL[tag] .. " items is off"
     elseif tag == "v" and r.action == "keep" and settings.sendVendor == true and priced and not item.bound
-        and r.reason == "not worth it" and (item.quality or 0) >= 1 and not r.failed then
+        and ns.Valuation.Is(r, ns.Valuation.K.notWorth) and (item.quality or 0) >= 1 and not r.failed then
         r.action, r.route, r.keptFor = "mail", ns.Valuation.VENDOR, r.reason
         r.reason = "vendor item (sending Vendor items is on)"
         r.postage = r.postage or (settings.postage or 0) * (item.stacks or 1)
@@ -332,7 +332,7 @@ function Bags.Evaluate(settings)
         local list = owed and owed[item.itemID]
         local r = item.result
         -- A soulbound item never goes back to anyone, vendor-pinned or not (its keep reason is the pin's).
-        local hard = ns.Valuation.Unmailable(r) or (r.action == "keep" and ns.Routes.HARD_KEEPS[r.reason]) or item.bound
+        local hard = ns.Valuation.Unmailable(r) or ns.Valuation.HardKeep(r) or item.bound
         local parts, rest = {}, nil
         -- Return to sender beats a bank pin: what another player mailed goes back to them, shown as
         -- any return; the rest of a pinned item goes to the bank alt (operator, 2026-11-13:
@@ -382,13 +382,13 @@ function Bags.Evaluate(settings)
     -- Locked items first (operator, 2026-11-07: "I click them, they disappear off the menu and
     -- then there's not a quick way to see what's been locked"): one press on the row unlocks.
     table.sort(result.keep, function(a, b)
-        local la, lb = a.result.reason == "locked", b.result.reason == "locked"
+        local la, lb = ns.Valuation.Is(a.result, ns.Valuation.K.locked), ns.Valuation.Is(b.result, ns.Valuation.K.locked)
         if la ~= lb then return la end
         return byGain(a, b)
     end)
     result.locked = 0
     for _, item in ipairs(result.keep) do
-        if item.result.reason == "locked" then result.locked = result.locked + 1 end
+        if ns.Valuation.Is(item.result, ns.Valuation.K.locked) then result.locked = result.locked + 1 end
     end
     return result
 end

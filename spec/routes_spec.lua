@@ -68,7 +68,7 @@ describe("bindings", function()
                 "case and a realm suffix don't hide this character")
             assert.equal(BOB, ns.Routes.Divert(item, { action = "mail" }, nil, D,
                 { { to = BOB, profession = ENCHANTING, key = "bob" } }).to, "a binding to someone else still mails")
-            assert.is_nil(ns.Routes.Divert(item, { action = "keep", reason = "locked" }, nil, D, { self }),
+            assert.is_nil(ns.Routes.Divert(item, { action = "keep", kind = "locked", reason = "locked" }, nil, D, { self }),
                 "a hard keep stays a hard keep")
         end)
 
@@ -138,7 +138,7 @@ describe("bindings", function()
             local v = ns.Routes.Divert(cloak, { action = "mail", route = "de" }, { ah = 4900, age = 0 }, D,
                 { { to = BOB, profession = ENCHANTING, key = "k", cap = 50000 } })
             assert.equal(BOB, v.to)
-            assert.is_nil(ns.Routes.Divert(cloak, { action = "keep", reason = "soulbound" }, nil, D,
+            assert.is_nil(ns.Routes.Divert(cloak, { action = "keep", kind = "soulbound", reason = "soulbound" }, nil, D,
                 { { to = BOB, profession = ENCHANTING, key = "k" } }), "soulbound gear never leaves")
             local capped
             v, capped = ns.Routes.Divert(cloak, { action = "mail", route = "ah" }, { ah = 60000, age = 0 }, D,
@@ -151,17 +151,23 @@ describe("bindings", function()
             local routes = { { to = BOB, profession = ENCHANTING, key = "333|bob surname", cap = 50000 } }
             local item = { classID = 7, subclassID = 12, count = 20, stacks = 1, vendor = 2 }
             local D = ns.Valuation.DEFAULTS
-            local v = ns.Routes.Divert(item, { action = "keep", reason = "not worth it" }, nil, D, routes)
+            local v = ns.Routes.Divert(item, { action = "keep", kind = "notWorth", reason = "not worth it" }, nil, D, routes)
             assert.equal("mail", v.action)
             assert.equal("friend", v.route)
             assert.equal(BOB, v.to)
             assert.equal("Enchanting materials go to Bob Surname", v.reason)
             assert.equal(40, v.vendor)
             assert.equal(30, v.postage)
-            local hard = { "locked", "soulbound", "quest item", "conjured item", "in use", "profession tool",
-                "item info not loaded yet" }
-            for _, reason in ipairs(hard) do
-                assert.is_nil(ns.Routes.Divert(item, { action = "keep", reason = reason }, nil, D, routes), reason)
+            local hard = { "locked", "soulbound", "questItem", "conjured", "questNeeds", "inUse", "tool", "ammo",
+                "notLoaded" }
+            for _, kind in ipairs(hard) do
+                assert.is_nil(ns.Routes.Divert(item, ns.Valuation.Keep(kind, {}, "x"), nil, D, routes), kind)
+            end
+            -- Every kind flagged hard is in that list: a new hard keep gets this check too.
+            local listed = {}
+            for _, kind in ipairs(hard) do listed[kind] = true end
+            for kind, def in pairs(ns.Valuation.KINDS) do
+                if def.hard then assert.is_true(listed[kind] == true, kind .. " is hard but not checked here") end
             end
             assert.is_nil(ns.Routes.Divert({ classID = 7, subclassID = 5 }, { action = "mail" }, nil, D, routes))
             assert.is_nil(ns.Routes.Divert(item, { action = "mail" }, nil, D, {}))
@@ -193,7 +199,7 @@ describe("bindings", function()
             assert.is_nil(v, "a stale 9g price still caps a recipe")
             assert.equal(smith, capped)
             assert.equal(BOB, ns.Routes.Divert(recipe, unpriced, { ah = 2000, age = 8 }, D, { smith }).to, "stale, under the cap")
-            assert.is_nil(ns.Routes.Divert(recipe, { action = "keep", reason = "no price", failed = true },
+            assert.is_nil(ns.Routes.Divert(recipe, { action = "keep", kind = "noPrice", reason = "no price", failed = true },
                 { ah = nil, failed = true }, D, { smith }), "a failed price call mails nothing")
             assert.is_nil(ns.Routes.Divert(recipe, unpriced, { ah = nil }, D,
                 { { to = BOB, profession = 197, key = "t" } }), "a Tailoring binding doesn't take Blacksmithing plans")
@@ -225,7 +231,7 @@ describe("bindings", function()
             assert.equal(49999, v.ahUnit)
             v = ns.Routes.Divert(item, { action = "keep", reason = "price too old (9 days)" }, { ah = 90000, age = 9 }, D, { route })
             assert.equal(BOB, v.to, "a stale price can't cap")
-            v = ns.Routes.Divert(item, { action = "keep", reason = "no price" }, { ah = nil }, D, { route })
+            v = ns.Routes.Divert(item, { action = "keep", kind = "noPrice", reason = "no price" }, { ah = nil }, D, { route })
             assert.equal(BOB, v.to)
             route.cap = nil
             v = ns.Routes.Divert(item, { action = "mail", route = "ah" }, { ah = 10000000, age = 0 }, D, { route })
@@ -282,7 +288,7 @@ describe("bindings", function()
             -- exactly as much is not more
             assert.is_nil((ns.Routes.Divert(gloves, verdict, { ah = 4200, age = 0, de = 3930 }, D, { picky })))
             -- a vendor pays more than either
-            local belt = { ns.Routes.Divert(gloves, { action = "keep", reason = "not worth it", ahNet = 82 },
+            local belt = { ns.Routes.Divert(gloves, { action = "keep", kind = "notWorth", reason = "not worth it", ahNet = 82 },
                 { ah = 150, age = 0, de = 120 }, D, { picky }) }
             assert.is_nil(belt[1])
             assert.same({ to = BOB, de = 90, best = 310, by = "vendor" }, belt[4])
@@ -291,17 +297,18 @@ describe("bindings", function()
             assert.is_nil((ns.Routes.Divert(gloves, { action = "mail", route = "noprice" }, { de = 300 }, D, { picky })))
             -- no disenchant value (a material without a price; no price source at all): sent anyway
             assert.equal(BOB, ns.Routes.Divert(gloves, verdict, { ah = 4200, age = 0 }, D, { picky }).to)
-            assert.equal(BOB, ns.Routes.Divert(gloves, { action = "keep", reason = "uncommon or better (no price data)" },
+            assert.equal(BOB, ns.Routes.Divert(gloves,
+                { action = "keep", kind = "uncommon", reason = "uncommon or better (no price data)" },
                 nil, D, { picky }).to)
             -- no price source, but a disenchant addon has a value (item.de, Bags.Evaluate): it decides
-            local nosource = { action = "keep", reason = "uncommon or better (no price data)" }
+            local nosource = { action = "keep", kind = "uncommon", reason = "uncommon or better (no price data)" }
             local worth = { classID = 4, subclassID = 2, quality = 2, count = 1, stacks = 1, vendor = 310, de = 100 }
             assert.same({ to = BOB, de = 70, best = 310, by = "vendor" }, select(4, ns.Routes.Divert(worth, nosource, nil, D, { picky })))
             worth.de = 5000
             assert.equal(BOB, ns.Routes.Divert(worth, nosource, nil, D, { picky }).to)
             -- only gear: dust and recipes go whatever the switch says
             local dustItem = { classID = 7, subclassID = 12, count = 20, stacks = 1, vendor = 2 }
-            assert.equal(BOB, ns.Routes.Divert(dustItem, { action = "keep", reason = "not worth it", ahNet = 900 },
+            assert.equal(BOB, ns.Routes.Divert(dustItem, { action = "keep", kind = "notWorth", reason = "not worth it", ahNet = 900 },
                 { ah = 50, age = 0, de = 1 }, D, { picky }).to)
             local formula = { classID = 9, subclassID = 8, quality = 2, count = 1, stacks = 1, vendor = 100 }
             assert.equal(BOB, ns.Routes.Divert(formula, verdict, { ah = 500, age = 0, de = 1 }, D, { picky }).to)
@@ -311,10 +318,12 @@ describe("bindings", function()
             assert.is_nil(over[1])
             assert.equal(picky, over[2], "42s each, at or above the 10s cap")
             assert.is_nil(over[4])
-            assert.is_nil((ns.Routes.Divert(gloves, { action = "keep", reason = "locked" }, { ah = 100, age = 0, de = 5000 }, D,
+            assert.is_nil((ns.Routes.Divert(gloves,
+                { action = "keep", kind = "locked", reason = "locked" }, { ah = 100, age = 0, de = 5000 }, D,
                 { picky })))
             -- a failed price call mails nothing
-            assert.is_nil((ns.Routes.Divert(gloves, { action = "keep", reason = "no price" }, { failed = true, de = 5000 }, D,
+            assert.is_nil((ns.Routes.Divert(gloves,
+                { action = "keep", kind = "noPrice", reason = "no price" }, { failed = true, de = 5000 }, D,
                 { picky })))
         end)
     end)
@@ -1121,7 +1130,8 @@ describe("routing priority and row picks", function()
         local ench = { to = BOB, profession = 333, cap = 5000, key = "e", scope = "guild" }
         local _, capped = ns.Routes.Divert(green(7000), { action = "mail", route = "noprice" }, { ah = nil, de = 500 }, D, { ench })
         assert.equal(ench, capped)
-        assert.equal(BOB, ns.Routes.Divert(green(800), { action = "keep", reason = "not worth it" }, { ah = 900, age = 0 }, D,
+        assert.equal(BOB, ns.Routes.Divert(green(800),
+            { action = "keep", kind = "notWorth", reason = "not worth it" }, { ah = 900, age = 0 }, D,
             { ench }).to, "a cheap green goes to the enchanter")
         local _, unitCap = ns.Routes.Units(green(800), { ah = 400, age = 0 }, D)
         assert.equal(800, unitCap, "vendor 8s beats auction 4s")
@@ -1139,7 +1149,7 @@ describe("routing priority and row picks", function()
         assert.equal(2, #list, "not the tailor's, not this character's own")
         assert.equal("f", list[1].key)
         assert.equal("g", list[2].key)
-        assert.same({}, ns.Routes.Choices(bar, { action = "keep", reason = "locked" }, nil, D, { friend }))
+        assert.same({}, ns.Routes.Choices(bar, { action = "keep", kind = "locked", reason = "locked" }, nil, D, { friend }))
         assert.same({}, ns.Routes.Choices(bar, { action = "mail", route = "bank", pinned = true }, nil, D, { friend }))
         assert.same({}, ns.Routes.Choices(bar, own, { failed = true }, D, { friend }))
         local mage = { to = BOB, class = "MAGE", key = "m", scope = "account" }
