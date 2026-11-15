@@ -564,7 +564,7 @@ local function hearHello(name, msg)
     end
     local peer = Comms.UpdatePeer(name, { name = name, professions = msg.professions, characters = characters,
         version = msg.version, at = serverTime() }, true)
-    if ns.BankAlt then ns.BankAlt.Invalidate() end
+    if ns.Bags then ns.Bags.InputsChanged("peer", true) end -- a friend's skills can change a binding's verdict
     ns.Log.Add("comms", "hello from %s: professions %s, %d other character(s)", name,
         #peer.professions > 0 and table.concat(peer.professions, ",") or "none", #characters)
     return peer
@@ -591,7 +591,7 @@ local function hearSkills(name, msg)
     local peer = Comms.UpdatePeer(name, { skills = skills, at = serverTime() })
     -- A binding's crafter can change with a skill: the bag tags read again at their next draw
     -- (before, the next bag update redrew them; Codex review, 2026-11-14).
-    if ns.BankAlt then ns.BankAlt.Invalidate() end
+    if ns.Bags then ns.Bags.InputsChanged("peer", true) end -- a friend's skills can change a binding's verdict
     ns.Log.Add("comms", "skills from %s: %s", name, Comms.SkillText(msg.skills))
     return peer
 end

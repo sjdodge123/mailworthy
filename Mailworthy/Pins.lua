@@ -34,7 +34,7 @@
 --     dress-up case may also run for a piece of gear (it opens the dressing room; harmless).
 --   * controller: R3 while the bags have focus (PadKey: our own binding; the selected slot is
 --     read from SmartNavigation, read-only).
--- /mw pins lists them. Switches: /mw feature pinClick off, /mw feature padPin off.
+-- /mw pins (or Settings > Pinned items) lists them (PinsUI.lua). Switches: /mw feature pinClick off, /mw feature padPin off.
 local _, ns = ...
 
 local Pins = {}
@@ -189,23 +189,6 @@ function Pins.List()
         return tostring(a.itemID) < tostring(b.itemID)
     end)
     return list
-end
-
-function Pins.PrintList()
-    local list = Pins.List()
-    if #list == 0 then
-        ns.Print(ns.Gamepad.Fill("No pinned items. Ctrl+Alt+click an item in your bags (controller: {PADRSTICK}): once to"
-            .. " always bank it, twice to always vendor it, a third time to unpin."))
-        return
-    end
-    for _, kind in ipairs({ { Pins.BANK, "Bank pins (on this character " .. Pins.ModeText() .. "): " },
-        { Pins.VENDOR, "Vendor pins (never mailed, tagged V): " } }) do
-        local names = {}
-        for _, entry in ipairs(list) do
-            if entry.kind == kind[1] then names[#names + 1] = tostring(entry.link or entry.name) end
-        end
-        if #names > 0 then ns.Print(kind[2] .. table.concat(names, ", ")) end
-    end
 end
 
 --- For /mw report.

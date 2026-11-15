@@ -298,13 +298,13 @@ local function tagText(verdict, item, settings)
             money(unit), basis, ageText(p.age), math.floor(settings.cut * 100 + 0.5),
             ns.Valuation.DURATION_HOURS[settings.duration], money(r.gain))
     elseif verdict == "v" and r.vendorPin then
-        return string.format("Vendor it (%s): you pinned it for the vendor (/mw pins lists pins).%s", money(r.vendor),
+        return string.format("Vendor it (%s): you pinned it for the vendor (Settings > Pinned items lists them).%s", money(r.vendor),
             r.bound and " Soulbound, so it can't be mailed, but a vendor buys it." or "") .. unpin
     elseif verdict == "here" then
         return "Bank it here: you pinned it, and " .. (HERE_BECAUSE[ns.Pins.HereBecause()] or HERE_BECAUSE.setting) .. "."
             .. unpin
     elseif verdict == "b" and r.pinned then
-        return "Bank it on your bank alt: you pinned it, so Send mails it there (/mw pins lists pins)." .. unpin
+        return "Bank it on your bank alt: you pinned it, so Send mails it there (Settings > Pinned items lists them)." .. unpin
     elseif verdict == "b" then
         local why = tostring(r.reason):gsub("^bank: ", "")
         return (BankAlt.BanksHere() and "Bank it here, don't list it yet: " or "Bank it on your bank alt, don't list it yet: ")
