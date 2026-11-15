@@ -106,7 +106,7 @@ describe("window views", function()
         assert.equal("list", ns.RoutesUI.View())
         assert.is_true(ns.Nav.Current():IsVisible())
         r = reachable()
-        for _, name in ipairs({ "Remove1", "CapUp1", "CapDown1", "Scope1", "Add", "Done" }) do
+        for _, name in ipairs({ "Remove1", "CapUp1", "CapDown1", "Scope1", "Add", "Guild", "Ledger", "Done" }) do
             assert.truthy(r["MailworthyFriends" .. name], "reaches " .. name)
         end
         assert.is_nil(r.MailworthyFriendsRemove2)

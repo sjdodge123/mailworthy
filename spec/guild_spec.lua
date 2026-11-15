@@ -183,6 +183,7 @@ describe("guild template", function()
             ns.Guild.DraftAdd(MEMBER, ENCHANTING)
             assert.equal(GEAR, ns.Guild.Draft()[2].gear)
             WowStub.state.addonMessages = {}
+            _G.MailworthyFriendsPublish:Click() -- two presses (UX review U7)
             _G.MailworthyFriendsPublish:Click()
             assert.equal("333=Plain Member:1001", WowStub.state.addonMessages[2].message:match("|([^|]+)$"))
             assert.equal(GEAR, ns.Guild.Template().rules[2].gear)
@@ -479,6 +480,9 @@ describe("guild template", function()
             assert.equal("Rettana Quilwrit", ns.Guild.Draft()[2].to)
             assert.equal("Publish to guild", _G.MailworthyFriendsPublish:GetText())
             WowStub.state.addonMessages = {}
+            _G.MailworthyFriendsPublish:Click() -- two presses (UX review U7): the first sends nothing
+            assert.equal(0, #WowStub.state.addonMessages)
+            assert.equal("Sure?", _G.MailworthyFriendsPublish:GetText())
             _G.MailworthyFriendsPublish:Click()
             assert.equal(2, #WowStub.state.addonMessages)
             local head = "T2|" .. WowStub.state.serverTime .. "|Rettana Quilwrit|"
