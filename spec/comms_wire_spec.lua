@@ -135,6 +135,17 @@ describe("addon message wire", function()
         assert.equal("H2|", WowStub.state.addonMessages[before + 1].message:sub(1, 3))
     end)
 
+    it("multipart messages (Guild, Contributions): per slot, a new head starts again, count 0 is whole at once", function()
+        local add = ns.Comms.Assembler()
+        assert.is_nil(add("guild A\nbob", "rev1", 1, 2, "one"))
+        assert.is_nil(add("guild B\nbob", "rev1", 2, 2, "two"), "another slot never joins")
+        assert.is_nil(add("guild A\nbob", "rev1", 1, 2, "again"), "a part already in is kept")
+        assert.same({ "one", "two" }, add("guild A\nbob", "rev1", 2, 2, "two"))
+        assert.is_nil(add("guild A\nbob", "rev1", 2, 2, "two"), "done: a new message starts")
+        assert.is_nil(add("guild A\nbob", "rev2", 1, 2, "new"), "another head starts again")
+        assert.same({}, add("guild A\nann", "rev3", 0, 0, nil))
+    end)
+
     it("a kind whose module is missing (an older build) decodes to nil, like any unknown kind", function()
         ns.Stale = nil
         assert.is_nil(ns.Comms.Decode(WIRE.F))

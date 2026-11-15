@@ -54,7 +54,8 @@ Guild.ASK_DELAY = 12        -- seconds after login (after the hello)
 Guild.FUTURE = 600          -- a revision further ahead of our server time is refused
 Guild.GEAR_NO_CAP = 999999999 -- on the wire: the Gear switch on, no price cap (odd, 9 digits)
 
-local partial, pending = {}, {} -- sender -> template being assembled / waiting for the roster
+local pending = {} -- sender -> a template waiting for the roster
+local assemble = ns.Comms.Assembler() -- guild key + sender -> the template being put together from its parts
 local lastAnswer, lastAsk, answering = -math.huge, -math.huge, false
 
 local Util = ns.Util
@@ -423,26 +424,19 @@ function Guild.Hear(sender, msg, channel)
     end
     local part = msg.part
     if part.rev >= myRev() then answering = false end -- someone else is sending one as new: no need
-    local p = partial[lower(sender)]
-    if not p or p.rev ~= part.rev or p.count ~= part.count or p.author ~= part.author then
-        p = { rev = part.rev, author = part.author, count = part.count, rules = {}, got = 0 }
-        partial[lower(sender)] = p
-    end
-    if part.rule and not p.rules[part.index] then
-        p.rules[part.index] = part.rule
-        p.got = p.got + 1
-    end
-    if p.got < p.count then return nil end
-    partial[lower(sender)] = nil
+    -- Per guild and sender, like Contributions: parts heard in another guild never join.
+    local parts = assemble((guildKey() or "") .. "\n" .. lower(sender),
+        table.concat({ part.rev, part.count, part.author }, "|"), part.index, part.count, part.rule)
+    if not parts then return nil end
     local rules, seen = {}, {}
-    for i = 1, p.count do
-        local r = p.rules[i]
+    for i = 1, part.count do
+        local r = parts[i]
         if not seen[r.profession] then -- one rule per profession: the first wins
             seen[r.profession] = true
             rules[#rules + 1] = r
         end
     end
-    return Guild.Offer(sender, p.author, p.rev, rules)
+    return Guild.Offer(sender, part.author, part.rev, rules)
 end
 
 -- The kinds (Comms.Register). GUILD only, checked in Guild.Hear (a copy on another channel still

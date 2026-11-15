@@ -209,6 +209,30 @@ local function decode(text)
     return msg, def
 end
 
+--- A message in parts (a guild template's rules, a guild giving counter): returns
+--- `add(slot, head, index, count, body)`, which keeps `body` as part `index` of `count` and returns
+--- the bodies by index once every part is in (count 0: at once, none), else nil. `slot` names whose
+--- parts they are: the guild key and the sender, so parts heard in another guild (or from another
+--- sender) never join (Codex review). `head` is what every part of one message shares (its revision,
+--- author, count...): a part with another head starts the message again. A part already in is kept.
+function Comms.Assembler()
+    local partial = {}
+    return function(slot, head, index, count, body)
+        local p = partial[slot]
+        if not p or p.head ~= head then
+            p = { head = head, parts = {}, got = 0 }
+            partial[slot] = p
+        end
+        if body ~= nil and p.parts[index] == nil then
+            p.parts[index] = body
+            p.got = p.got + 1
+        end
+        if p.got < count then return nil end
+        partial[slot] = nil
+        return p.parts
+    end
+end
+
 --- Pure: a message from another Mailworthy, or nil: { kind, version, ... } with the fields its
 --- kind's decoder gives: { kind = "hello", version, professions = { ids }, characters = { { name,
 --- professions = { ids } }, ... } }, { kind = "ask", version }, { kind = "skills", version, skills =

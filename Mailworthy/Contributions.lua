@@ -267,7 +267,7 @@ function Contributions.DecodePart(rest)
     return { asOf = asOf, index = index, count = count, total = total, since = since, days = days }
 end
 
-local partial = {} -- "guild key\nlower sender" -> the counter being assembled from its parts
+local assemble = ns.Comms.Assembler() -- "guild key\nlower sender" -> the counter being put together from its parts
 
 --- Take part of `sender`'s counter (Comms.Hear: a decoded "G" message). GUILD only; this account's own
 --- characters are skipped (their counters are here already). Returns "taken", "partial" or why not.
@@ -280,21 +280,14 @@ function Contributions.Hear(sender, part, channel)
     if not key then return "no guild" end
     if part.asOf > unixTime(now()) then return "asOf in the future" end
     local lower = name:lower()
-    local slot = key .. "\n" .. lower -- per guild: parts heard in another guild never join (Codex review)
-    local p = partial[slot]
-    if not p or p.asOf ~= part.asOf or p.count ~= part.count or p.total ~= part.total or p.since ~= part.since then
-        p = { asOf = part.asOf, count = part.count, total = part.total, since = part.since, parts = {}, got = 0 }
-        partial[slot] = p
-    end
-    if not p.parts[part.index] then
-        p.parts[part.index] = part.days
-        p.got = p.got + 1
-    end
-    if p.got < p.count then return "partial" end
-    partial[slot] = nil
+    -- per guild: parts heard in another guild never join (Codex review)
+    local parts = assemble(key .. "\n" .. lower, table.concat({ part.asOf, part.count, part.total, part.since }, "|"),
+        part.index, part.count, part.days)
+    if not parts then return "partial" end
+    local p = part
     local today, days, sum = Contributions.Day(p.asOf), {}, 0
     for i = 1, p.count do
-        for _, d in ipairs(p.parts[i]) do
+        for _, d in ipairs(parts[i]) do
             if days[today - d.back] then return "a day twice" end
             days[today - d.back] = d.units
             sum = sum + d.units

@@ -256,6 +256,23 @@ describe("guild template", function()
             assert.equal(2, #ns.Guild.Template().rules, "a sender outside the roster: waits, not taken")
         end)
 
+        it("parts heard in another guild never join a template (keyed by guild and sender, like Contributions)", function()
+            local msgs = ns.Guild.Encode(REV, GM, RULES)
+            hear(GM, msgs[1])
+            WowStub.state.guild.name = "Other Guild" -- the same roster, another guild key
+            hear(GM, msgs[2])
+            assert.is_nil(ns.Guild.Template(), "half from the first guild, half from this one: nothing")
+            assert.is_nil(MailworthyDB.guildTemplates and MailworthyDB.guildTemplates[ns.Guild.Key("Bank Of Azeroth")])
+            WowStub.state.now = WowStub.state.now + 60 -- past Comms.DUPLICATE_WINDOW
+            hear(GM, msgs[1]) -- the whole template heard in this guild
+            assert.equal(2, #ns.Guild.Template().rules)
+            WowStub.state.guild.name = "Bank Of Azeroth"
+            WowStub.state.now = WowStub.state.now + 60
+            hear(OFFICER, msgs[1])
+            hear(MEMBER, msgs[2]) -- another sender's part never completes the officer's copy
+            assert.is_nil(ns.Guild.Template())
+        end)
+
         it("a rule for someone outside the guild is left out", function()
             publishFrom(GM, REV, { { profession = ENCHANTING, to = BOB }, { profession = TAILORING, to = "Outside Person" } })
             assert.equal(1, #ns.Guild.Template().rules)
