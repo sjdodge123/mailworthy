@@ -35,8 +35,8 @@ function Returns.On() return on and Returns.Available() end
 function Returns.Set(value)
     on = value == true
     ns.Log.Add("returns", "return to sender %s", on and "on" or "off")
-    -- The bag tags count Return to sender (R): redraw them (Codex review, 2026-11-13).
-    if ns.BankAlt and ns.BankAlt.Redraw then pcall(ns.BankAlt.Redraw) end
+    -- The bag tags count Return to sender (R): redrawn (Codex review, 2026-11-13).
+    ns.Bags.InputsChanged("returns")
 end
 
 function Returns.Toggle()
@@ -95,15 +95,30 @@ function Returns.Owed(log, me)
     return owed
 end
 
+--- Pure: is anything in the scan's lists (`scan.mail`, `scan.keep`: items with an itemID) owed back
+--- to a player, per `owed` (Returns.Owed)? The mailbox window shows Return to sender only then, or
+--- while it is on: a player who only mails a bank alt never sees it (UX pass, 2026-11-15).
+function Returns.Due(owed, scan)
+    if type(owed) ~= "table" or type(scan) ~= "table" then return false end
+    for _, list in ipairs({ scan.mail, scan.keep }) do
+        for _, item in ipairs(type(list) == "table" and list or {}) do
+            local id = type(item) == "table" and item.itemID
+            if id and type(owed[id]) == "table" and #owed[id] > 0 then return true end
+        end
+    end
+    return false
+end
+
 --- What this character owes back right now (Returns.Owed over this realm + faction's ledger).
 function Returns.Current()
     return Returns.Owed(ns.Ledger.Store().log, ns.PlayerName())
 end
 
---- Pure: which of `slots` ({ bag, slot, count }) go back to whom, from `owed` (this item ID's
---- list from Returns.Owed; counts are used up, so several bag groups of one item share it).
---- Whole stacks, the biggest first, never past what is owed. Returns { { to, slots, count } },
---- and the slots left over.
+--- Which of `slots` ({ bag, slot, count }) go back to whom, from `owed` (this item ID's list from
+--- Returns.Owed). Not pure: it uses up `owed`'s counts in place, on purpose, so several bag groups
+--- of one item (bound or not, in use or not: Bags.Group) share what is owed; pass a copy to keep
+--- yours (Bags.Evaluate copies settings.returns' list once per scan). Whole stacks, the biggest
+--- first, never past what is owed. Returns { { to, slots, count } }, and the slots left over.
 function Returns.Split(slots, owed)
     local left = {}
     for _, s in ipairs(slots or {}) do left[#left + 1] = s end

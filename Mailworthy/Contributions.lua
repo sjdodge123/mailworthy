@@ -44,15 +44,11 @@ Contributions.COUNT_MAX = 2147483647   -- Postgres int4
 Contributions.DAY_MAX = 47482          -- floor(UNIX_MAX / 86400)
 Contributions.ROSTER_GAP = 10          -- seconds between roster reads on GUILD_ROSTER_UPDATE (one more follows)
 
-local function call(fn, ...)
-    if type(fn) ~= "function" then return nil end
-    local results = { pcall(fn, ...) }
-    if not results[1] then return nil end
-    return unpack(results, 2, table.maxn(results))
-end
+local Util = ns.Util
+local call = Util.Call
 
-local function now() return call(GetServerTime) or time() end
-local function tableOr(t) return type(t) == "table" and t or {} end
+local now = Util.Now
+local tableOr = Util.Table
 
 --- Pure: a whole number from 0 to COUNT_MAX, or nil.
 local function whole(x)
@@ -87,8 +83,7 @@ end
 -- Counting -------------------------------------------------------------------------------------
 
 function Contributions.Store()
-    MailworthyDB.guildGiven = tableOr(MailworthyDB.guildGiven)
-    return MailworthyDB.guildGiven
+    return Util.Store(MailworthyDB, "guildGiven")
 end
 
 --- Pure: a counter as SavedVariables hold it, cleaned and with days before the window dropped
@@ -180,8 +175,7 @@ function Contributions.Count(to, tag, at, char)
     at = unixTime(at or now()) or unixTime(time())
     local today = Contributions.Day(at)
     local all = Contributions.Store()
-    local guild = tableOr(all[tag.key])
-    all[tag.key] = guild
+    local guild = Util.Store(all, tag.key)
     local c = Contributions.Clean(guild[char:lower()], today) or { name = char, total = 0, since = at, days = {} }
     c.name = char
     c.total = math.min(Contributions.COUNT_MAX, c.total + units)
@@ -273,7 +267,7 @@ function Contributions.DecodePart(rest)
     return { asOf = asOf, index = index, count = count, total = total, since = since, days = days }
 end
 
-local partial = {} -- "guild key\nlower sender" -> the counter being assembled from its parts
+local assemble = ns.Comms.Assembler() -- "guild key\nlower sender" -> the counter being put together from its parts
 
 --- Take part of `sender`'s counter (Comms.Hear: a decoded "G" message). GUILD only; this account's own
 --- characters are skipped (their counters are here already). Returns "taken", "partial" or why not.
@@ -286,30 +280,21 @@ function Contributions.Hear(sender, part, channel)
     if not key then return "no guild" end
     if part.asOf > unixTime(now()) then return "asOf in the future" end
     local lower = name:lower()
-    local slot = key .. "\n" .. lower -- per guild: parts heard in another guild never join (Codex review)
-    local p = partial[slot]
-    if not p or p.asOf ~= part.asOf or p.count ~= part.count or p.total ~= part.total or p.since ~= part.since then
-        p = { asOf = part.asOf, count = part.count, total = part.total, since = part.since, parts = {}, got = 0 }
-        partial[slot] = p
-    end
-    if not p.parts[part.index] then
-        p.parts[part.index] = part.days
-        p.got = p.got + 1
-    end
-    if p.got < p.count then return "partial" end
-    partial[slot] = nil
+    -- per guild: parts heard in another guild never join (Codex review)
+    local parts = assemble(key .. "\n" .. lower, table.concat({ part.asOf, part.count, part.total, part.since }, "|"),
+        part.index, part.count, part.days)
+    if not parts then return "partial" end
+    local p = part
     local today, days, sum = Contributions.Day(p.asOf), {}, 0
     for i = 1, p.count do
-        for _, d in ipairs(p.parts[i]) do
+        for _, d in ipairs(parts[i]) do
             if days[today - d.back] then return "a day twice" end
             days[today - d.back] = d.units
             sum = sum + d.units
         end
     end
     if sum > p.total then return "days above the total" end
-    MailworthyDB.guildHeard = tableOr(MailworthyDB.guildHeard)
-    local guild = tableOr(MailworthyDB.guildHeard[key])
-    MailworthyDB.guildHeard[key] = guild
+    local guild = Util.Store(MailworthyDB, "guildHeard", key)
     local old = guild[lower]
     local oldAsOf = type(old) == "table" and tonumber(old.asOf) or 0
     if oldAsOf >= p.asOf and oldAsOf <= unixTime(now()) then return "not newer" end
@@ -335,9 +320,9 @@ local function readRoster()
     if call(IsInGuild) ~= true then return nil end
     local names, n = {}, 0
     local function add(name)
-        name = type(name) == "string" and ns.Routes.Clean(name) or nil
-        if name then
-            names[name:lower()] = true
+        local key = Util.NameKey(name)
+        if key then
+            names[key] = true
             n = n + 1
         end
     end
@@ -495,16 +480,15 @@ function Contributions.Export(guildName)
     local guild = type(guildName) == "string" and guildName ~= "" and guildName or ns.Guild.Mine()
     if not guild or type(MailworthyDB) ~= "table" then return nil end
     local key = ns.Guild.Key(guild)
-    local _, realm, faction = ns.Characters.Current()
+    local realmKey, realm, faction = Util.RealmKey()
     local templates, peers, given = tableOr(MailworthyDB.guildTemplates), tableOr(MailworthyDB.peers),
         tableOr(MailworthyDB.guildGiven)
     -- This account's names, read without Ledger.IsOwn: its Config.BankAlt() creates missing settings tables,
     -- and the export writes nothing (Codex review).
-    local realmKey = tostring(realm) .. "|" .. tostring(faction)
     local own = {}
     local function addOwn(name)
-        name = type(name) == "string" and ns.Routes.Clean(name) or nil
-        if name then own[name:lower()] = true end
+        local lower = Util.NameKey(name)
+        if lower then own[lower] = true end
     end
     addOwn(ns.PlayerName())
     addOwn(tableOr(MailworthyDB.bankAlts)[realmKey])
@@ -559,6 +543,20 @@ function Contributions.Share(reason)
     if sent then ns.Log.Add("contributions", "giving told to the guild (%s)", tostring(reason)) end
     return sent
 end
+
+-- "G2|..." (Comms.Register): GUILD only, both ways: taken only on GUILD, and sent there right after
+-- each hello (and by Share after a mailbox visit that counted some).
+ns.Comms.Register("G", {
+    kind = "giving",
+    module = "Contributions",
+    channels = { GUILD = true },
+    decode = function(rest)
+        local part = ns.Contributions.DecodePart(rest)
+        return part and { part = part } or nil
+    end,
+    hear = function(name, msg, channel) return ns.Contributions.Hear(name, msg.part, channel) or nil end,
+    afterHello = function() return ns.Contributions.Messages() end,
+})
 
 ns.On("PLAYER_LOGIN", function() Contributions.Migrate() end)
 ns.On("MAIL_CLOSED", function()

@@ -30,7 +30,7 @@ Version.CURSEFORGE = "CurseForge"
 
 local told = false   -- the chat line went out this session
 local heard          -- { version, from }: the newest version heard this session (newer or not)
-local listeners = {}
+local changed = ns.Util.Signal("version redraw")
 
 function Version.On() return ns.Features.On("versionNotice") end
 
@@ -65,16 +65,9 @@ function Version.Message()
 end
 
 --- Call `fn` (no arguments) when a newer version is first heard (windows redraw their line).
-function Version.OnChanged(fn)
-    if type(fn) == "function" then listeners[#listeners + 1] = fn end
-end
+Version.OnChanged = changed.Add
 
-local function notify()
-    for _, fn in ipairs(listeners) do
-        local ok, err = pcall(fn)
-        if not ok then ns.Log.Add("error", "version redraw: %s", tostring(err)) end
-    end
-end
+local function notify() changed.Fire() end
 
 --- The newest version heard from any peer, this session or kept with the peers, and who has
 --- it: version, name (nil, nil when none was heard).
@@ -121,8 +114,7 @@ end
 function Version.Hear(name, text)
     if not Version.Parse(text) or type(name) ~= "string" then return nil end
     local before = Version.Outdated() -- before the peer keeps it, or a known peer would redraw nothing (Codex review)
-    local peer = ns.Comms.Peer(name)
-    if type(peer) == "table" then peer.release = text end
+    ns.Comms.UpdatePeer(name, { release = text }) -- a known peer keeps it (none is made for it)
     if not heard or Version.Newer(text, heard.version) then heard = { version = text, from = name } end
     local own = Version.Own()
     ns.Log.Add("comms", "version from %s: %s", name, text)
@@ -158,3 +150,16 @@ end
 function Version.ResetSession()
     told, heard = false, nil
 end
+
+-- "U2|v0.31.0" (Comms.Register): right after each hello, release builds only. The separator is
+-- required ("U2v0.31.0" is junk) and fields after the version are left out, so a later build can add some.
+ns.Comms.Register("U", {
+    kind = "release",
+    module = "Version",
+    decode = function(_, text)
+        local release = text:match("^U%d+|([^|]*)")
+        return ns.Version.Parse(release) and { release = release } or nil
+    end,
+    hear = function(name, msg) return ns.Version.Hear(name, msg.release) or nil end,
+    afterHello = function() return ns.Version.Message() end,
+})

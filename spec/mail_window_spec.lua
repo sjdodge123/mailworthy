@@ -50,6 +50,21 @@ describe("mail window", function()
         assert.equal("Send to Roknua", text("MailworthyMailSend"))
     end)
 
+    -- UX pass, 2026-11-15 (operator: "many people only use this addon just to mail stuff to one bank alt
+    -- and nothing else"): no friend, guild or return controls for a player who has none of them.
+    it("a bank-alt-only player sees no pick buttons, bindings block or Return to sender", function()
+        _G.MailworthyMailButton:Click()
+        for i = 1, ns.MailWindow.MAIL_ROWS do
+            assert.is_false(_G["MailworthyMailPick" .. i]:IsShown(), "pick button on Mailing row " .. i)
+        end
+        for i = 1, ns.MailWindow.STAY_ROWS do
+            assert.is_false(_G["MailworthyStayPick" .. i]:IsShown(), "pick button on Staying row " .. i)
+        end
+        assert.is_false(_G.MailworthyMailFriends:IsShown(), "no bindings block")
+        assert.is_false(_G.MailworthyMailReturn:IsShown(), "nothing in the bags was mailed here by another player")
+        assert.equal("Send to Roknua", text("MailworthyMailSend"))
+    end)
+
     it("Skip once beside the bank alt: its items move to Staying, Send has nothing for it, Undo puts them back", function()
         -- operator, 2026-11-08: "Players should be able to click skip once for their bank alt sends too"
         _G.MailworthyMailButton:Click()
@@ -85,12 +100,12 @@ describe("mail window", function()
 
     it("formats item names and reasons for people", function()
         assert.equal("|cffffffffCopper Ore|r |cffaaaaaax20|r", ns.MailWindow.ItemText(WowStub.link(2770, "Copper Ore"), 20))
-        assert.equal("sells better at a vendor", ns.MailWindow.StayReason({ reason = "not worth it", gain = -10 }))
+        assert.equal("sells better at a vendor", ns.MailWindow.StayReason({ kind = "notWorth", reason = "not worth it", gain = -10 }))
         assert.equal("only 4s 10c more than a vendor (needs 5s)",
-            ns.MailWindow.StayReason({ reason = "not worth it", gain = 410, threshold = 500 }))
-        assert.equal("no auction price yet", ns.MailWindow.StayReason({ reason = "no price" }))
-        assert.equal("the price lookup failed", ns.MailWindow.StayReason({ reason = "no price", failed = true }))
-        assert.equal("profession tool", ns.MailWindow.StayReason({ reason = "profession tool" }))
+            ns.MailWindow.StayReason({ kind = "notWorth", reason = "not worth it", gain = 410, threshold = 500 }))
+        assert.equal("no auction price yet", ns.MailWindow.StayReason({ kind = "noPrice", reason = "no price" }))
+        assert.equal("the price lookup failed", ns.MailWindow.StayReason({ kind = "noPrice", reason = "no price", failed = true }))
+        assert.equal("profession tool", ns.MailWindow.StayReason({ kind = "tool", reason = "profession tool" }))
         -- Kept for this character's own crafting: bank it (operator, 2026-11-11).
         local craft = { action = "keep", reason = "your Tailoring needs it", neededBy = "Tailoring" }
         assert.equal("bank it: your Tailoring needs it", ns.MailWindow.StayReason(craft))
@@ -98,7 +113,7 @@ describe("mail window", function()
         -- The Staying row: BH items read in BH's colour with its letters, like the bag tag (Palette).
         assert.equal(ns.Palette.Hex(ns.Palette.BH.fg) .. "BH bank it: your Tailoring needs it|r", ns.MailWindow.StayText(craft))
         assert.equal("It stays: profession tool.",
-            (ns.MailWindow.TooltipLines({ result = { action = "keep", reason = "profession tool" } }, true)))
+            (ns.MailWindow.TooltipLines({ result = { action = "keep", kind = "tool", reason = "profession tool" } }, true)))
     end)
 
     it("the total counts what goes with no price yet, and says what goes without a price source (Codex review)", function()
@@ -162,10 +177,10 @@ describe("mail window", function()
             assert.equal("Mailing to Bob.", where, "a binding's recipient, as the row's chip says")
             where = L({ result = { route = "return", to = "Ann" } }, false, false, "Roknua")
             assert.equal("Going back to Ann.", where)
-            where, press = L({ result = { reason = "locked" } }, true, true)
+            where, press = L({ result = { kind = "locked", reason = "locked" } }, true, true)
             assert.equal("Locked in Mailworthy: it stays in your bags and is never mailed.", where)
             assert.equal("Press to unlock.", press)
-            where, press = L({ result = { reason = "not worth it", gain = 0 } }, true, false)
+            where, press = L({ result = { kind = "notWorth", reason = "not worth it", gain = 0 } }, true, false)
             assert.equal("It stays: sells better at a vendor.", where)
             assert.equal("Click to lock it, so it always stays.", press)
         end)
@@ -959,13 +974,13 @@ describe("mail window", function()
             assert.equal("Nothing to mail without a bank alt or a binding.", W.EmptyText(false))
             assert.equal("Nothing worth mailing in your bags right now.", W.EmptyText(true))
             local keep = { { result = { held = "no bank alt", gain = 4981 } }, { result = { held = "no bank alt", gain = 2980 } },
-                { result = { reason = "locked" } } }
+                { result = { kind = "locked", reason = "locked" } } }
             local head, note = W.NoAltText(keep, true)
             assert.equal("+79s 61c would go to a bank alt", head)
             assert.equal("Pick one and this list is ready to send; until then your bags carry the AH / DE / V tags.", note)
             head = W.NoAltText({ { result = { held = "no bank alt" } } }, false)
             assert.equal("1 item would go to a bank alt", head)
-            assert.is_nil(W.NoAltText({ { result = { reason = "locked" } } }, false))
+            assert.is_nil(W.NoAltText({ { result = { kind = "locked", reason = "locked" } } }, false))
         end)
 
         it("a setting changed in Settings redraws the mail list beside it", function()
@@ -1152,5 +1167,115 @@ describe("mail window", function()
         WowStub.state.now = WowStub.state.now + 1
         _G.MailworthyPadCircle:Click()
         assert.is_false(ns.MailWindow.Frame():IsShown())
+    end)
+
+    -- UX review U6 / U7 (2026-11-15): "..." on what opens a window; Remove asks first, Skip once doesn't.
+    it("buttons that open a window end in ...; a binding's Remove asks Sure? first, Skip once is one press", function()
+        ns.Routes.Add("Bob Surname", 333)
+        ns.Routes.Add("Ann Other", 197)
+        _G.MailworthyMailButton:Click()
+        assert.equal("Settings...", text("MailworthyMailSettings"))
+        assert.equal("Mail ledger...", text("MailworthyMailLedger"))
+        assert.equal("Bank alt summary...", text("MailworthyMailSummary"))
+        _G.MailworthyMailSkip1:Click()
+        assert.equal("Undo skip", text("MailworthyMailSkip1"), "Skip once: one press")
+        _G.MailworthyMailSkip1:Click()
+        local remove = _G.MailworthyMailUnbind1
+        remove:Click()
+        assert.equal(2, ns.Routes.Count())
+        assert.equal("Sure?", text("MailworthyMailUnbind1"))
+        WowStub.runTimers(3) -- 3 s on: back to Remove, and the next press asks again
+        assert.equal("Remove", text("MailworthyMailUnbind1"))
+        remove:Click()
+        WowStub.state.now = WowStub.state.now + 4
+        remove:Click()
+        assert.equal(2, ns.Routes.Count(), "a second press after the 3 s asks again")
+        assert.equal("Sure?", text("MailworthyMailUnbind1"))
+        -- The row now shows another binding: the armed Sure? is cancelled, nothing removed.
+        ns.Routes.Remove(ns.Routes.List()[1].key)
+        ns.MailWindow.Refresh()
+        assert.equal("Remove", text("MailworthyMailUnbind1"))
+        remove:Click()
+        remove:Click()
+        assert.equal(0, ns.Routes.Count())
+    end)
+
+    -- UX review U4 (2026-11-15): a row with a pick button was two D-pad stops (the row, then its pick).
+    -- Now one: Square on the highlighted row moves its pick on; the button stays for the mouse.
+    describe("row picks with the controller: one stop per row, Square picks", function()
+        local BOB = "Bob Surname"
+        local DUST, ORE
+        local function tick() _G.MailworthyPadWatcher.scripts.OnUpdate(_G.MailworthyPadWatcher, 0.2) end
+        local function square()
+            WowStub.state.now = WowStub.state.now + 1
+            _G.MailworthyPadSquare:Click()
+            tick()
+        end
+        local function entry(id)
+            for _, list in ipairs({ ns.MailWindow.Result().mail, ns.MailWindow.Result().keep }) do
+                for _, it in ipairs(list) do if it.itemID == id then return it end end
+            end
+        end
+
+        before_each(function()
+            DUST, ORE = WowStub.link(10940, "Strange Dust"), WowStub.link(2770, "Copper Ore")
+            WowStub.setBag(0, 4, WowStub.item(10940, "Strange Dust", { count = 10, sell = 2, class = 7, subclass = 12 }))
+            ns.Routes.Add(BOB, 333)
+            WowStub.state.gamepadUI = true
+            WowStub.state.activeFrame = MailFrame
+            ns.MailWindow.Show("send")
+            tick()
+        end)
+
+        it("Square on the highlighted row moves its pick on, and the highlight stays with the item", function()
+            assert.equal("CLICK MailworthyPadSquare:LeftButton", WowStub.state.bindings.PAD3)
+            local pick = ns.MailWindow.PickFor(10940)
+            assert.equal("Friend", pick:GetText())
+            assert.equal(BOB, entry(10940).result.to)
+            for _, c in ipairs(ns.Nav.Candidates()) do
+                assert.are_not.equal(pick, c.button, "the pick button is not a D-pad stop of its own")
+            end
+            ns.Nav.Select(ns.MailWindow.RowFor(10940))
+            square()
+            assert.equal(ns.Routes.MINE, ns.Routes.Picked(DUST))
+            assert.equal("Me", ns.MailWindow.PickFor(10940):GetText())
+            assert.are_not.equal(BOB, entry(10940).result.to)
+            assert.equal(ns.MailWindow.RowFor(10940), ns.Nav.Current(), "the highlight followed the item")
+            square()
+            assert.equal(BOB, entry(10940).result.to, "and back to the friend")
+            pick:Click() -- the mouse still has the button
+            assert.equal(ns.Routes.MINE, ns.Routes.Picked(DUST))
+        end)
+
+        it("nothing on a row without a pick, nor while a send runs", function()
+            ns.Nav.Select(ns.MailWindow.RowFor(2770))
+            square()
+            assert.is_nil(ns.Routes.Picked(ORE))
+            assert.is_false(ns.Locks.IsItemLocked(2770), "Square is not Cross")
+            _G.MailworthyMailSend:Click()
+            assert.is_true(ns.Mailer.Busy())
+            local row = ns.MailWindow.RowFor(10940)
+            if row then
+                ns.Nav.Select(row)
+                square()
+            end
+            assert.is_false(ns.MailWindow.PadPick())
+            assert.is_nil(ns.Routes.Picked(DUST), "no pick mid-send")
+            WowStub.runTimers()
+        end)
+
+        it("the row tooltip and the legend name Square only while a row has a pick", function()
+            local dust = entry(10940)
+            local _, _, line = ns.MailWindow.TooltipLines(dust, false, true, "Roknua", false)
+            assert.truthy(line and line:find("Me: where it goes this visit", 1, true), tostring(line))
+            assert.is_nil(select(3, ns.MailWindow.TooltipLines(dust, false, false, "Roknua", false)), "mouse: the button")
+            assert.is_nil(select(3, ns.MailWindow.TooltipLines(dust, false, true, "Roknua", true)), "not mid-send")
+            assert.is_nil(select(3, ns.MailWindow.TooltipLines(entry(2770), false, true, "Roknua", false)), "no pick")
+            assert.truthy(ns.MailWindow.Footer():find(" pick", 1, true), ns.MailWindow.Footer())
+            ns.Routes.Remove(ns.Routes.List()[1].key)
+            ns.MailWindow.Refresh()
+            assert.is_nil(ns.MailWindow.PickFor(10940))
+            assert.is_nil(ns.MailWindow.Footer():find(" pick", 1, true), ns.MailWindow.Footer())
+        end)
     end)
 end)

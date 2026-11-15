@@ -57,7 +57,7 @@ Valuation.DEFAULTS = {
     sendVendor = false,    -- items a vendor pays more for (V): they stay unless the player wants them sent too
 }
 
--- The setting behind each verdict tag (BankAlt.Verdict), in the order the settings window shows them.
+-- The setting behind each verdict tag (Valuation.Verdict), in the order the settings window shows them.
 Valuation.SEND = { ah = "sendAuction", de = "sendDisenchant", b = "sendBank", v = "sendVendor" }
 Valuation.SEND_ORDER = { "ah", "de", "b", "v" }
 Valuation.SEND_LABEL = { ah = "Auction", de = "Disenchant", b = "Bank", v = "Vendor" }
@@ -357,8 +357,7 @@ end
 
 --- Soulbound, quest and conjured items can never be mailed: the window doesn't list them.
 function Valuation.Unmailable(result)
-    return result.action == "keep" and (result.reason == "soulbound" or result.reason == "quest item"
-        or result.reason == ns.Conjured.REASON)
+    return Valuation.Flag(result, "unmailable")
 end
 
 --- Armor (class 4) or weapon (class 2), uncommon or better.
@@ -444,11 +443,72 @@ function Valuation.Threshold(vendorTotal, settings)
     return math.max(Valuation.MinGain(settings), math.ceil(vendorTotal * settings.minGainPct))
 end
 
-local function keep(reason, extra)
+-- Verdict kinds (UX and architecture pass, 2026-11-15). A keep verdict's `kind` is what code reads;
+-- its `reason` is only what the player reads, so rewording a reason never changes a decision. Before,
+-- Routes.HARD_KEEPS, BankAlt.QUIET_KEEPS and about 30 comparisons matched the display text, and one of
+-- them matched text nothing produced any more. spec/verdict_kinds_spec.lua keeps it that way: no code
+-- compares a reason, and the critical path passes again with every reason reworded.
+--   hard:       nothing overrides it: no binding, pick, pin or Return to sender (AGENTS.md Safety)
+--   unmailable: the game can never mail it; the window doesn't list it
+--   priceKeep:  kept for want of a price: a class binding never takes it (Routes.PriceKeep)
+--   quiet:      the bag tooltip adds nothing (the game's own line, or the lock glow's, says it)
+-- `text` may hold one %s (the profession, the binding's materials).
+Valuation.KINDS = {
+    locked = { text = "locked", hard = true, quiet = true },
+    vendorPin = { text = "vendor: you pinned it" },
+    soulbound = { text = "soulbound", hard = true, unmailable = true, quiet = true },
+    questItem = { text = "quest item", hard = true, unmailable = true, quiet = true },
+    conjured = { text = ns.Conjured.REASON, hard = true, unmailable = true, quiet = true },
+    questNeeds = { text = "a quest needs it", hard = true },
+    inUse = { text = "in use", hard = true, quiet = true },
+    tool = { text = "profession tool", hard = true },
+    ammo = { text = ns.Ammo.REASON, hard = true },
+    notLoaded = { text = "item info not loaded yet", hard = true, quiet = true },
+    pinHere = { text = "bank here: you pinned it" },
+    priceFailed = { text = "no price", priceKeep = true }, -- the price call failed (also `failed = true`)
+    noPrice = { text = "no price", priceKeep = true },     -- unpriced gear while UNPRICED_GEAR is off
+    junk = { text = "junk (no price data)", priceKeep = true },
+    uncommon = { text = "uncommon or better (no price data)", priceKeep = true }, -- no price source
+    profession = { text = "your %s needs it" },
+    deHere = { text = "disenchant it here: your Enchanting levels on it" },
+    notWorth = { text = "not worth it" },
+    forMe = { text = "%s are for this character" }, -- a binding naming this character (Routes.Force)
+}
+
+--- Kind ids for code: `K.locked` is "locked"; a misspelt `K.lokced` errors at once instead of never matching.
+Valuation.K = setmetatable({}, { __index = function(_, id)
+    error("Valuation.K: no verdict kind " .. tostring(id), 2)
+end })
+for id in pairs(Valuation.KINDS) do rawset(Valuation.K, id, id) end
+
+--- Pure: a verdict's flag (Valuation.KINDS: hard, unmailable, priceKeep, quiet); only keep verdicts have one.
+function Valuation.Flag(r, flag)
+    if type(r) ~= "table" or r.action ~= "keep" or r.kind == nil then return false end
+    local kind = Valuation.KINDS[r.kind]
+    return kind ~= nil and kind[flag] == true
+end
+
+--- Pure: a keep that nothing overrides (AGENTS.md Safety: binding, pick, pin, Return to sender).
+function Valuation.HardKeep(r) return Valuation.Flag(r, "hard") end
+
+--- Pure: is `r` a verdict of this kind (an id from Valuation.K)?
+function Valuation.Is(r, kind) return type(r) == "table" and r.kind ~= nil and r.kind == kind end
+
+--- A keep verdict of `kind` (Valuation.K), `arg` filling its text's %s.
+function Valuation.Keep(kind, extra, arg)
+    local def = Valuation.KINDS[kind]
+    if not def then error("Valuation.Keep: no verdict kind " .. tostring(kind), 2) end
     local r = extra or {}
-    r.action, r.reason = "keep", reason
+    r.action, r.kind = "keep", kind
+    r.reason = def.text:find("%s", 1, true) and string.format(def.text, tostring(arg)) or def.text
     return r
 end
+local keep = Valuation.Keep
+local K = Valuation.K
+-- The texts some windows and specs show (display only: code reads `kind`).
+Valuation.PIN_HERE_REASON = Valuation.KINDS.pinHere.text
+Valuation.VENDOR_PIN_REASON = Valuation.KINDS.vendorPin.text
+Valuation.DE_HERE_REASON = Valuation.KINDS.deHere.text
 
 --- A mail verdict; an auction / common route may turn into "bank" (listRoute keeps the original).
 local function mail(route, reason, r, item, settings)
@@ -467,15 +527,48 @@ function Valuation.BankForCraft(r)
     return type(r) == "table" and r.action == "keep" and r.neededBy ~= nil and not r.convert and not r.deHere
 end
 
+--- Pure: the tag for a valued item (`item.result`, Valuation.Evaluate's verdict after Bags.Evaluate's
+--- bindings, picks and returns): "ah" / "de" when the auction house or disenchanting beats the vendor by
+--- the minimum gain, "b" when it should be banked for a later phase instead of listed, "craft" when this
+--- character's own profession needs it (bank it until then), "here" for a bank-here pin, "friend" /
+--- "return" for what the mailbox sends to a binding or back to its sender, "v" when the vendor wins,
+--- nil when there's nothing to say (locked, soulbound, tool, no price...). `banksHere`: this character
+--- banks what goes "to the bank" itself (Config.BanksHere: it is the bank alt, or has none).
+--- Was BankAlt.Verdict (A3: Bags.ApplySendSwitches read it a layer up).
+function Valuation.Verdict(item, banksHere)
+    local r = item.result
+    if not r then return nil end
+    if r.pinned and Valuation.Is(r, K.pinHere) then return "here" end
+    if r.vendorPin then return "v" end -- a vendor pin (Pins.lua): V whatever the market says
+    -- A pin valued for the bank alt where pins bank here (banksHere) is a bank-here pin.
+    if r.pinned and r.action == "mail" and r.route == "bank" and banksHere then return "here" end
+    if Valuation.BankForCraft(r) then return "craft" end
+    -- An enchanter's cheap green or blue piece, soulbound or not: disenchant it here (Valuation.DisenchantsHere).
+    if r.deHere and r.action == "keep" then return "de" end
+    -- Soulbound, with a vendor price: V (the vendor window sells it only when vendor-pinned).
+    if Valuation.Is(r, K.soulbound) and (r.vendor or 0) > 0 then return "v" end
+    if r.action == "mail" then
+        -- Where the mailbox sends it, as the window does (operator, 2026-11-13: tags that ignored
+        -- bindings and Return to sender disagreed with the window).
+        if r.route == "return" then return "return" end
+        if r.to then return "friend" end
+        if r.route == "bank" then return "b" end
+        return (r.route == "ah" or r.route == "de") and r.route or nil
+    end
+    if Valuation.Is(r, K.notWorth) and (r.vendor or 0) > 0 then return "v" end
+    -- Grey junk: no auction price, but a vendor buys it.
+    local unpriced = Valuation.Is(r, K.noPrice) or Valuation.Is(r, K.priceFailed) or Valuation.Is(r, K.junk)
+    if item.quality == 0 and unpriced and (item.vendor or 0) > 0 then return "v" end
+    return nil
+end
+
 local evaluate
 
 -- item.pin: where this character banks the item's pin (Pins.Effective; Pins.lua loads before this
 -- file, kept apart so this stays pure): on the bank alt (BA) or here (BH).
 Valuation.PIN_BANK = "bank"
 Valuation.PIN_HERE = "here"
-Valuation.PIN_HERE_REASON = "bank here: you pinned it"
 Valuation.PIN_VENDOR = "vendor"
-Valuation.VENDOR_PIN_REASON = "vendor: you pinned it"
 
 --- Pure: the crafting profession of this character that uses the item and keeps it (the keep
 --- below), or nil; with the rest of Valuation.NeededBy's returns.
@@ -504,7 +597,7 @@ Valuation.ProfessionKeep = professionKeep
 ---   behind it), liquidity (Valuation.Liquidity), ahNet, deNet, gain, threshold } (copper, totals).
 function Valuation.Evaluate(item, price, settings)
     settings = settings or Valuation.DEFAULTS
-    if item.locked then return keep("locked") end
+    if item.locked then return keep(K.locked) end
     -- A vendor pin (Pins.lua): it stays for the vendor and shows V, soulbound or not (an outgrown quest
     -- reward: before the soulbound keep, so it gets the tag; a vendor buys what can't be mailed). It
     -- only ever keeps an item; a quest's item, a conjured item, an item in use, a profession tool and
@@ -512,7 +605,7 @@ function Valuation.Evaluate(item, price, settings)
     if item.pin == Valuation.PIN_VENDOR and not item.quest and not item.questFor and not item.inUse
         and not Valuation.IsConjured(item) and not Valuation.IsTool(item) and not Valuation.IsAmmo(item)
         and (item.vendor or 0) > 0 then
-        return keep(Valuation.VENDOR_PIN_REASON, { vendor = item.vendor * (item.count or 1), pinned = true,
+        return keep(K.vendorPin, { vendor = item.vendor * (item.count or 1), pinned = true,
             vendorPin = true, bound = item.bound or nil })
     end
     -- Soulbound: never mailed. What a vendor buys carries its value, so the bag shows V (operator,
@@ -522,19 +615,19 @@ function Valuation.Evaluate(item, price, settings)
     if item.bound then
         local sellable = not item.quest and not item.questFor and not item.inUse and not Valuation.IsConjured(item)
             and not Valuation.IsTool(item) and not Valuation.IsAmmo(item) and (item.vendor or 0) > 0
-        return keep("soulbound", { vendor = sellable and item.vendor * (item.count or 1) or nil,
+        return keep(K.soulbound, { vendor = sellable and item.vendor * (item.count or 1) or nil,
             deHere = sellable and Valuation.DisenchantsHere(item, nil, settings) or nil })
     end
-    if item.quest then return keep("quest item") end
+    if item.quest then return keep(K.questItem) end
     -- Conjured (a Healthstone, operator 2026-11-10): gone 15 minutes after logout, never mailed.
-    if Valuation.IsConjured(item) then return keep(ns.Conjured.REASON) end
+    if Valuation.IsConjured(item) then return keep(K.conjured) end
     -- An item an active quest's objective names (Quests.lua), quest item or not: never sold.
-    if item.questFor then return keep("a quest needs it", { quest = item.questFor }) end
-    if item.inUse then return keep("in use") end
-    if Valuation.IsTool(item) then return keep("profession tool") end
+    if item.questFor then return keep(K.questNeeds, { quest = item.questFor }) end
+    if item.inUse then return keep(K.inUse) end
+    if Valuation.IsTool(item) then return keep(K.tool) end
     -- The ammo the equipped bow, crossbow or gun fires (operator, 2026-11-14): a hunter's arrows were
     -- listed for the bank alt. The other type is valued like any item.
-    if Valuation.IsAmmo(item) then return keep(ns.Ammo.REASON) end
+    if Valuation.IsAmmo(item) then return keep(K.ammo) end
     -- A bank pin (Pins.lua): the player asked for this item to always go to the bank alt and be
     -- banked there, whatever the market or a profession of this character says. Past every hard
     -- keep above, so a pin never mails what the rule wouldn't touch. It overrides the no-price-source
@@ -546,15 +639,14 @@ function Valuation.Evaluate(item, price, settings)
     -- Item data first, for either pin: an item whose data hasn't loaded is a hard keep, so not even
     -- Return to sender takes it (Codex review, 2026-11-13).
     if (item.pin == Valuation.PIN_HERE or item.pin == Valuation.PIN_BANK) and item.vendor == nil then
-        return keep("item info not loaded yet")
+        return keep(K.notLoaded)
     end
     if item.pin == Valuation.PIN_HERE then
-        return keep(Valuation.PIN_HERE_REASON, { pinned = true, vendor = (item.vendor or 0) * (item.count or 1) })
+        return keep(K.pinHere, { pinned = true, vendor = (item.vendor or 0) * (item.count or 1) })
     end
     if item.pin == Valuation.PIN_BANK then
-        if item.vendor == nil then return keep("item info not loaded yet") end
         if type(price) == "table" and price.failed then
-            return keep("no price", { vendor = item.vendor * (item.count or 1), failed = true })
+            return keep(K.priceFailed, { vendor = item.vendor * (item.count or 1), failed = true })
         end
         -- The pin beats "keep my professions' materials" (operator, 2026-11-13: "a bank pin is a hard
         -- decision by the user and needs to be honored"); pinConflict names the profession, so the
@@ -578,8 +670,8 @@ function Valuation.Evaluate(item, price, settings)
                 neededBy = profession, vendor = item.vendor * (item.count or 1),
                 postage = (settings.postage or 0) * (item.stacks or 1) }
         end
-        return keep("your " .. profession .. " needs it", { untilSkill = untilSkill, convert = convert,
-            window = window, neededBy = profession })
+        return keep(K.profession, { untilSkill = untilSkill, convert = convert,
+            window = window, neededBy = profession }, profession)
     end
     local r = evaluate(item, price, settings)
     -- Level my professions (operator, 2026-11-14: "when i see something with low sale price like that and
@@ -587,15 +679,15 @@ function Valuation.Evaluate(item, price, settings)
     -- with Enchanting, a green or blue piece that only a vendor would buy, or that has no auction price, and
     -- is worth less than the cap (the higher of its auction and vendor price) stays to be disenchanted here
     -- (tag DE). What the auction house or a disenchant sale pays more for still goes (profit first).
-    if (r.reason == "not worth it" or (r.action == "mail" and r.route == Valuation.NO_PRICE)
-            or ((r.reason == "no price" or r.reason == "uncommon or better (no price data)") and not r.failed))
+    if (Valuation.Is(r, K.notWorth) or (r.action == "mail" and r.route == Valuation.NO_PRICE)
+            or Valuation.Is(r, K.noPrice) or Valuation.Is(r, K.uncommon))
         and Valuation.DisenchantsHere(item, price, settings) then
         -- `was`: the verdict it replaces, so the price rules still read it (Routes.PriceKeep: a class
         -- binding never takes an unpriced green, picked or not; Codex review, 2026-11-14).
-        return keep(Valuation.DE_HERE_REASON, { vendor = r.vendor, ahUnit = r.ahUnit, gain = r.gain,
-            deHere = true, neededBy = "Enchanting", was = { action = r.action, route = r.route, reason = r.reason } })
+        return keep(K.deHere, { vendor = r.vendor, ahUnit = r.ahUnit, gain = r.gain, deHere = true,
+            neededBy = "Enchanting", was = { action = r.action, route = r.route, reason = r.reason, kind = r.kind } })
     end
-    if settings.keepProfessionMats and r.reason ~= "item info not loaded yet" then
+    if settings.keepProfessionMats and not Valuation.Is(r, K.notLoaded) then
         local _, outgrown = Valuation.NeededBy(item, settings.professions, settings.tiers, settings.priceOf)
         r.outgrown = outgrown -- "your First Aid (80) is past it", in the workings
     end
@@ -603,11 +695,14 @@ function Valuation.Evaluate(item, price, settings)
 end
 
 Valuation.ENCHANTING = 333
-Valuation.DE_HERE_REASON = "disenchant it here: your Enchanting levels on it"
+-- A new binding's price cap, copper per unit (Routes.DEFAULT_CAP reads it), and an enchanter's
+-- disenchant-here cap without a binding of their own: 10s (operator, 2026-11-11: "i think 10s is a good
+-- default option to start"; it was 5g, 2026-10-26). Here, not in Routes: Valuation reads it (A3).
+Valuation.DEFAULT_CAP = 1000
 
 --- Pure: this character has Enchanting ("Keep my professions' materials" on) and `item` is a green or
 --- blue weapon or armor piece worth less than `settings.deHereCap` (copper per unit; default the
---- bindings' 10s, Routes.DEFAULT_CAP), its worth the higher of its current auction and vendor price.
+--- bindings' 10s, Valuation.DEFAULT_CAP), its worth the higher of its current auction and vendor price.
 function Valuation.DisenchantsHere(item, price, settings)
     settings = settings or Valuation.DEFAULTS
     if not settings.keepProfessionMats then return false end
@@ -621,12 +716,12 @@ function Valuation.DisenchantsHere(item, price, settings)
     if type(price) == "table" and price.ah ~= nil and (price.age == nil or price.age <= settings.maxAgeDays) then
         worth = math.max(worth, Valuation.SmoothedPrice(price) or 0)
     end
-    return worth < (tonumber(settings.deHereCap) or (ns.Routes and ns.Routes.DEFAULT_CAP) or 1000)
+    return worth < (tonumber(settings.deHereCap) or Valuation.DEFAULT_CAP)
 end
 
 -- Evaluate past the hard keeps and the profession keep: price against vendor.
 evaluate = function(item, price, settings)
-    if item.vendor == nil then return keep("item info not loaded yet") end
+    if item.vendor == nil then return keep(K.notLoaded) end
 
     local n = item.count or 1
     local vendor = item.vendor * n
@@ -641,13 +736,12 @@ evaluate = function(item, price, settings)
         if (item.quality or 0) >= 1 and Valuation.IsStaple(item) then
             return mail("common", "staple trade good (no price data)", { vendor = vendor, postage = postage }, item, settings)
         end
-        return keep(item.quality == 0 and "junk (no price data)" or "uncommon or better (no price data)",
-            { vendor = vendor })
+        return keep(item.quality == 0 and K.junk or K.uncommon, { vendor = vendor })
     end
 
     -- The auction price call failed: nothing is mailed on it, not even for a disenchant value
     -- (AGENTS safety: never when the price call failed; Codex review, 2026-11-08).
-    if price.failed then return keep("no price", { vendor = vendor, failed = true }) end
+    if price.failed then return keep(K.priceFailed, { vendor = vendor, failed = true }) end
     local r = { vendor = vendor, postage = postage }
     local stale = price.ah ~= nil and price.age ~= nil and price.age > settings.maxAgeDays
     if price.ah ~= nil and not stale then
@@ -677,7 +771,7 @@ evaluate = function(item, price, settings)
     if price.ah == nil or stale then
         return Valuation.Unpriced(item, price, vendor, postage, settings, stale and price.age or nil)
     end
-    return keep("not worth it", r)
+    return keep(K.notWorth, r)
 end
 
 --- Pure: the verdict for an item the price source has no auction price for, or only one older
@@ -686,14 +780,14 @@ end
 --- trade good is mailed as a common item (Bank on top, BankReason), anything else goes to the bank
 --- alt to wait for a price (route NO_PRICE). Unpriced gear only while UNPRICED_GEAR is on.
 function Valuation.Unpriced(item, price, vendor, postage, settings, staleDays)
-    if type(price) == "table" and price.failed then return keep("no price", { vendor = vendor, failed = true }) end
-    if (item.quality or 0) == 0 then return keep("junk (no price data)", { vendor = vendor }) end
+    if type(price) == "table" and price.failed then return keep(K.priceFailed, { vendor = vendor, failed = true }) end
+    if (item.quality or 0) == 0 then return keep(K.junk, { vendor = vendor }) end
     local old = staleDays and string.format("auction price too old (%d days)", staleDays) or nil
     if Valuation.IsStaple(item) then
         return mail("common", staleDays and string.format("staple trade good (price %d days old)", staleDays)
             or "staple trade good (no price yet)", { vendor = vendor, postage = postage }, item, settings)
     end
-    if not Valuation.UNPRICED_GEAR and Valuation.CanDisenchant(item) then return keep("no price", { vendor = vendor }) end
+    if not Valuation.UNPRICED_GEAR and Valuation.CanDisenchant(item) then return keep(K.noPrice, { vendor = vendor }) end
     return mail(Valuation.NO_PRICE, old or "no auction price yet", { vendor = vendor, postage = postage }, item, settings)
 end
 

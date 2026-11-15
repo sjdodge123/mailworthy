@@ -50,10 +50,9 @@ describe("the locked items window", function()
         ns.HandleSlash("locks")
         tick()
         assert.equal("settings", ns.PadKey.Wanted(), "the window takes the controller like the others")
-        for _ = 1, 2 do -- from the top (the X): the first row, then the second
-            WowStub.state.now = WowStub.state.now + 1
-            _G.MailworthyPadDown:Click()
-        end
+        -- The highlight starts on the first row's Unlock (never the X: Nav.Candidates), one Down to the second.
+        WowStub.state.now = WowStub.state.now + 1
+        _G.MailworthyPadDown:Click()
         assert.equal(_G.MailworthyLocksUnlock2, ns.Nav.Current())
         WowStub.state.now = WowStub.state.now + 1
         _G.MailworthyPadCross:Click()
@@ -176,6 +175,7 @@ describe("the locked items window", function()
         it("\"Locked items (N)...\" counts the locks, opens the window beside Settings, and follows", function()
             WowStub.state.layout = true
             ns.SettingsUI.Show()
+            _G.MailworthySettingsTabMore:Click() -- the windows are on Bags and more (UX review U2)
             local button = _G.MailworthySettingsLocks
             assert.is_true(button:IsShown())
             assert.equal("Locked items (2)...", button:GetText())

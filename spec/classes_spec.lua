@@ -123,7 +123,9 @@ describe("class-only items", function()
             { name = BOB, level = 30, online = true, classID = 8, professions = { 333 } } } }
         ns.RoutesUI.Show()
         _G.MailworthyFriendsPick2:Click() -- 1 is you
-        assert.truthy(_G.MailworthyFriendsProfession1:GetText():find("> Mage items (only a mage can use them) <", 1, true))
+        -- suggested: the green fill, no "> <" arrows (UX review U6)
+        assert.equal("Mage items (only a mage can use them)", _G.MailworthyFriendsProfession1:GetText())
+        assert.is_true(ns.Widgets.IsToggled(_G.MailworthyFriendsProfession1))
         assert.is_true(_G.MailworthyFriendsProfession9:IsShown(), "and every profession after it")
         _G.MailworthyFriendsProfession1:Click()
         local r = ns.Routes.List()[1]

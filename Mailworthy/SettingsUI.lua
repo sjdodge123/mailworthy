@@ -1,12 +1,20 @@
--- The settings window (media/ux-pass-prototype.png), one task at a time:
---   main view: the bank alt on one row with Change..., then "What gets mailed"
---     (minimum gain, listing length, disenchant, profession materials, sell what I
---     gather, send by tag: AH / DE / B / V), "In your
---     bags" (tags, lock glow, pinned items, item tooltips) and "More" (friends, guild, bank alt summary, mail ledger,
---     minimap button, locked items);
+-- The settings window (media/simplify-prototype.png, panels 3-5), one task at a time, in views
+-- (Widgets.Views; UX review U2, 2026-11-15):
+--   "Mailing" (tab): the bank alt on one row with Change..., then what gets mailed: minimum gain,
+--     listing length, disenchant value, profession materials, sell what I gather, send by tag
+--     (AH / DE / BA / V);
+--   "Bags and more" (tab): in your bags (tags, lock glow, pins, item tooltips, pin warning, minimap
+--     button) and the windows (locked items, pinned items, friends, guild, mail ledger, bank alt
+--     summary, report). A player with no binding, no guild template in use and nothing in the ledger
+--     sees one "Friends and guild..." button for the first three (UX review U1); they come back
+--     the moment one is in use;
 --   pick view (Change... / Choose...; a bank alt is optional since 2026-11-08): the known
 --     characters, "This character is my bank alt" (a main on another WoW account),
---     an optional typed name, Back. Picking saves and returns to the main view.
+--     an optional typed name, Back. Picking saves and returns to the settings.
+-- Each view is laid out by rows (no fixed y per button), so the window sizes to its view. Buttons
+-- carry short labels; the full explanation is in the button's tooltip, shown to the controller too
+-- while the highlight is on it (Widgets.Tip; UX review U8). On shows one way: the green fill and
+-- ": on" (U6).
 -- Keyboard/mouse: click. Controller: the D-pad moves Mailworthy's own highlight,
 -- Cross presses, Circle closes (PadKey "settings" set, Nav); every setting is a
 -- button, so nothing needs typing. The name box is an optional fallback the player
@@ -22,17 +30,22 @@ local UI = {}
 ns.SettingsUI = UI
 
 UI.MAX_CHOICES = 6
-local WIDTH, MAIN_HEIGHT, ROW, VERSION_ROW = 420, 600, 26, 20
+UI.TABS = { "mailing", "more" }
+local WIDTH, ROW, VERSION_ROW, TOP = 420, 26, 20, -74
+local LEFT, RIGHT, HALF = 24, 214, 182 -- the two columns of half-width buttons
 
-local frame, nameBox, nameHint, current, emptyHint, legend, pricesLine, versionLine, changeButton
+local win, frame, views, nameBox, nameHint, current, emptyHint, pricesLine, versionLine, changeButton
 local choiceRows = {}
 local sendButtons = {} -- verdict tag ("ah", "de", "b", "v") -> its Send switch
-local amountLabel, pctLabel, disenchantButton, minimapButton, tagsButton, glowButton, matsButton, hereButton, friendsButton
-local gatherButton, guildButton, locksButton, pinButton, tooltipButton
+local amountLabel, pctLabel, disenchantButton, minimapButton, tagsButton, glowButton, matsButton, hereButton
+local gatherButton, locksButton, pinButton, tooltipButton, pinWarningButton, pinnedButton
+local friendsButton, guildButton, ledgerButton, summaryButton, reportButton, friendsGuildButton
+local tabButtons = {}
 local durationButtons = {}
-local mainWidgets, pickWidgets = {}, {}
-local typedLabel, useNameButton, backButton
+local typedLabel, useNameButton, backButton, doneButton
+local rows = { mailing = {}, more = {} } -- each view's rows, top to bottom (layout)
 local view = "main"
+local tab = "mailing"
 local pendingUnknown -- a typed name Mailworthy hasn't seen, waiting for a second press
 
 local W = ns.Widgets
@@ -40,23 +53,17 @@ local money = function(c) return ns.Valuation.Money(c) end
 
 function UI.Frame() return frame end
 --- The footer (the Mailworthy mark's key, the controller legend), for specs.
-function UI.Footer() return legend and legend:GetText() end
+function UI.Footer() return win and win.legend:GetText() end
 --- The "a newer Mailworthy is out" line ("" when there's none), for specs.
 function UI.VersionLine() return versionLine and versionLine:GetText() end
 --- "main" (the settings) or "pick" (choosing the bank alt).
 function UI.View() return view end
+--- The settings' tab: "mailing" or "more" (Bags and more).
+function UI.Tab() return tab end
+--- The buttons each view shows (Widgets.Views: "mailing", "more", "pick"), for specs.
+function UI.Views() return views end
 
-local function add(list, widget)
-    list[#list + 1] = widget
-    return widget
-end
-
-local function heading(list, text, y)
-    local h = add(list, W.Label(frame, "GameFontNormal"))
-    h:SetPoint("TOPLEFT", 20, y)
-    h:SetText(text)
-    return h
-end
+local function at(widget, x, y, point) win.at(widget, x, y, point) end
 
 local function setHint(text) nameHint:SetText(text or "") end
 
@@ -64,6 +71,14 @@ local function setView(v)
     view = v
     pendingUnknown = nil
     if nameHint then setHint("") end
+end
+
+--- Show a tab ("mailing" / "more") of the settings.
+function UI.SetTab(t)
+    if t ~= "mailing" and t ~= "more" then return end
+    tab = t
+    setView("main")
+    UI.Refresh()
 end
 
 function UI.UseTyped()
@@ -115,51 +130,263 @@ function UI.ToggleHere()
     UI.Refresh()
 end
 
--- Main view: the bank alt on one row --------------------------------------------------
+-- Layout by rows ---------------------------------------------------------------------------
+-- A row: { h = height, items = { { widget, x, dy, point }, ... }, when = fn() (shown only while it
+-- says so), grid = fn() -> buttons (two per row, the visible ones only) }. Placing a view walks its
+-- rows from the top; a row added or hidden moves everything under it.
 
-local function createBankAltRow()
-    heading(mainWidgets, "Bank alt", -46)
-    current = add(mainWidgets, W.Label(frame, "GameFontHighlight"))
-    current:SetPoint("TOPLEFT", 28, -70)
-    current:SetWidth(270)
+local function row(viewName, h, items, when)
+    rows[viewName][#rows[viewName] + 1] = { h = h, items = items, when = when }
+end
+
+local function place(viewName, y)
+    for _, r in ipairs(rows[viewName]) do
+        if r.grid then
+            local list = r.grid()
+            for i, b in ipairs(list) do
+                at(b, i % 2 == 1 and LEFT or RIGHT, y)
+                if i % 2 == 0 or i == #list then y = y - ROW end
+            end
+        elseif not r.when or r.when() then
+            for _, it in ipairs(r.items) do at(it[1], it[2], y + (it[3] or 0), it[4]) end
+            y = y - r.h
+        else
+            for _, it in ipairs(r.items) do it[1]:Hide() end
+        end
+    end
+    return y
+end
+
+local function heading(viewName, text)
+    local h = views.Add(viewName, W.Label(frame, "GameFontNormal"))
+    h:SetText(text)
+    row(viewName, 22, { { h, 20, 0 } })
+    return h
+end
+
+-- A setting changed: this window, and the mail list beside it, which it decides (QoL pass,
+-- 2026-11-09; before, the list only followed when Settings closed).
+local function changed()
+    UI.Refresh()
+    if ns.MailWindow then ns.MailWindow.RefreshIfShown() end
+end
+
+local function button(viewName, text, width, name, onClick, tipText)
+    local b = views.Add(viewName, W.Button(frame, text, width, onClick, "MailworthySettings" .. name))
+    if tipText then W.Tip(b, nil, tipText) end
+    return b
+end
+
+local function toggle(viewName, width, name, onClick, tipText)
+    return button(viewName, "", width, name, function()
+        onClick()
+        changed()
+    end, tipText)
+end
+
+-- Tabs: Mailing / Bags and more --------------------------------------------------------------
+
+local function createTabs()
+    for i, t in ipairs(UI.TABS) do
+        local b = button({ "mailing", "more" }, t == "mailing" and "Mailing" or "Bags and more", HALF,
+            t == "mailing" and "TabMailing" or "TabMore", function() UI.SetTab(t) end,
+            t == "mailing" and "The bank alt and what gets mailed." or "Tags, pins, tooltips and Mailworthy's other windows.")
+        at(b, i == 1 and LEFT or RIGHT, -44)
+        tabButtons[t] = b
+    end
+end
+
+-- Mailing: the bank alt on one row, what gets mailed ----------------------------------------
+
+local function stepper(key, name, tipText)
+    local text = views.Add("mailing", W.Label(frame, "GameFontHighlight"))
+    local minus = button("mailing", "-", 32, name .. "Down", function()
+        ns.Config.Step(key, -1)
+        changed()
+    end, tipText)
+    local plus = button("mailing", "+", 32, name .. "Up", function()
+        ns.Config.Step(key, 1)
+        changed()
+    end, tipText)
+    row("mailing", 28, { { text, 28, -4 }, { minus, 302, 0 }, { plus, 340, 0 } })
+    return text
+end
+
+local function createMailing()
+    local label = views.Add("mailing", W.Label(frame, "GameFontNormal"))
+    label:SetText("Bank alt:")
+    current = views.Add("mailing", W.Label(frame, "GameFontHighlight"))
+    current:SetWidth(200)
     current:SetJustifyH("LEFT")
-    changeButton = add(mainWidgets, W.Button(frame, "Change...", 96, function()
+    changeButton = button("mailing", "Change...", 96, "Change", function()
         setView("pick")
         UI.Refresh()
-    end, "MailworthySettingsChange"))
-    changeButton:SetPoint("TOPRIGHT", -24, -66)
+    end, "Pick the character that receives the mail (same realm and faction), or say this character is the bank alt.")
+    row("mailing", 30, { { label, 20, -4 }, { current, 92, -4 }, { changeButton, -24, 0, "TOPRIGHT" } })
+    heading("mailing", "What gets mailed")
+    amountLabel = stepper("minGain", "Amount",
+        "Mail an item only when the auction house brings at least this much more than a vendor pays.")
+    pctLabel = stepper("minGainPct", "Percent", "... and at least this much more than its vendor price, in percent.")
+    local listing = views.Add("mailing", W.Label(frame, "GameFontHighlight"))
+    listing:SetText("Auction listing")
+    local items = { { listing, 28, -4 } }
+    for i, hours in ipairs(ns.Valuation.DURATION_HOURS) do
+        local b = button("mailing", hours .. "h", 56, "Duration" .. i, function()
+            ns.Config.Set("duration", i)
+            changed()
+        end, "The listing length Mailworthy counts the auction deposit for.")
+        items[#items + 1] = { b, 196 + (i - 1) * 60, 0 }
+        durationButtons[i] = b
+    end
+    row("mailing", 30, items)
+    disenchantButton = toggle("mailing", HALF, "Disenchant", function()
+        ns.Config.Set("disenchant", not ns.Config.Get("disenchant"))
+    end, function() return UI.DisenchantTip(ns.Config.Get("disenchant"), ns.Prices.DisenchantAddon()) end)
+    -- Full width: "on my bank alt (BA)" is the state's name (the critical path reads it).
+    matsButton = toggle("mailing", 372, "Mats", function()
+        -- Three states: on (kept here) -> off (valued like anything else) -> on my bank alt -> on.
+        local keepHere, toAlt = ns.Config.Get("keepProfessionMats"), ns.Config.Get("matsToBankAlt")
+        if keepHere and not toAlt then
+            ns.Config.Set("keepProfessionMats", false)
+        elseif not keepHere then
+            ns.Config.Set("keepProfessionMats", true)
+            ns.Config.Set("matsToBankAlt", true)
+        else
+            ns.Config.Set("matsToBankAlt", false)
+        end
+        if ns.BankAlt then ns.BankAlt.Redraw() end
+    end, function() return UI.MatsTip(ns.Config.Values(), ns.Bags.CraftingText(ns.Characters.Professions())) end)
+    row("mailing", ROW, { { matsButton, LEFT, 0 } })
+    gatherButton = toggle("mailing", HALF, "Gather", function()
+        ns.Config.Set("sellGathered", not ns.Config.Get("sellGathered"))
+        if ns.BankAlt then ns.BankAlt.Redraw() end
+    end, function()
+        local gathering = {}
+        for _, p in ipairs(ns.Valuation.GatheringProfessions(ns.Characters.Professions())) do gathering[#gathering + 1] = p.name end
+        return string.format("Sell what I gather: %s (%s). On: what this character's gathering professions bring in "
+            .. "is mailed to be sold, not kept for its crafting professions.", ns.Config.Get("sellGathered") and "on" or "off",
+            #gathering > 0 and table.concat(gathering, ", ") or "no gathering profession here")
+    end)
+    row("mailing", ROW + 4, { { disenchantButton, LEFT, 0 }, { gatherButton, RIGHT, 0 } })
+    -- What Send takes of the bank alt's share, by verdict (Bags.ApplySendSwitches): one switch per tag.
+    local send = views.Add("mailing", W.Label(frame, "GameFontHighlight"))
+    send:SetText("Send by tag")
+    items = { { send, 28, -4 } }
+    for i, tag in ipairs(ns.Valuation.SEND_ORDER) do
+        local key = ns.Valuation.SEND[tag]
+        local b = toggle("mailing", 64, "Send" .. ns.Valuation.SEND_LABEL[tag], function()
+            ns.Config.Set(key, not ns.Config.Get(key))
+        end, string.format("Send mails the items tagged %s (%s) to your bank alt while this is on.",
+            ns.Valuation.SEND_TAG[tag], ns.Valuation.SEND_LABEL[tag]:lower()))
+        items[#items + 1] = { b, 124 + (i - 1) * 68, 0 }
+        sendButtons[tag] = b
+    end
+    row("mailing", 30, items)
+end
+
+-- Bags and more: in your bags, the windows ---------------------------------------------------
+
+local function window(name, onClick, tipText)
+    return button("more", "", HALF, name, onClick, tipText)
+end
+
+local function createMore()
+    heading("more", "In your bags")
+    tagsButton = toggle("more", HALF, "Tags", function()
+        ns.Config.Set("tagsEverywhere", not ns.Config.Flag("tagsEverywhere"))
+        if ns.BankAlt then ns.BankAlt.Redraw() end
+    end, "The AH / BA / BH / DE / V tags on your bag items: on every character, or only on your bank alt and after Send.")
+    glowButton = toggle("more", HALF, "Glow", function()
+        ns.Config.Set("glowEverywhere", not ns.Config.Flag("glowEverywhere"))
+        if ns.Border then ns.Border.RefreshAll() end
+    end, "Locked items glow blue in your bags: always, or only while the Mailworthy window is open.")
+    row("more", ROW, { { tagsButton, LEFT, 0 }, { glowButton, RIGHT, 0 } })
+    -- Where this character banks its pinned items (Pins.lua; operator, 2026-11-13): BA or BH.
+    pinButton = toggle("more", HALF, "Pins", function()
+        ns.Pins.SetMode(ns.Pins.Mode() == ns.Pins.HERE and ns.Pins.BANK or ns.Pins.HERE, "settings")
+    end, function() return UI.PinTip() end)
+    -- How much Mailworthy adds to item tooltips (Config.Tooltips; a CurseForge request, 2026-11-14).
+    tooltipButton = toggle("more", HALF, "Tooltips", function()
+        ns.Config.CycleTooltips()
+    end, function() return UI.TooltipsTip(ns.Config.Tooltips()) end)
+    row("more", ROW, { { pinButton, LEFT, 0 }, { tooltipButton, RIGHT, 0 } })
+    -- The pin warning (PinWarning.lua) as a switch (UX review U3: it was /mw pinwarning only).
+    pinWarningButton = toggle("more", HALF, "PinWarning", function()
+        ns.Config.Set("hidePinWarning", not ns.Config.Flag("hidePinWarning"))
+    end, "Warn once when a pin to your bank alt takes an item this character's profession uses. The Mailworthy"
+        .. " window's row and the item's tooltip say it every time.")
+    minimapButton = toggle("more", HALF, "Minimap", function()
+        ns.Config.Set("minimapHidden", ns.Config.MinimapShown())
+        if ns.MinimapButton then ns.MinimapButton.Refresh() end
+    end, "Mailworthy's button on the minimap (click: these settings).")
+    row("more", ROW + 4, { { pinWarningButton, LEFT, 0 }, { minimapButton, RIGHT, 0 } })
+    heading("more", "Windows")
+    -- QoL pass D (2026-11-09): the locked items window; the count is in the label.
+    locksButton = window("Locks", function() ns.LocksUI.Show(frame) end,
+        "This character's locked items, each with Unlock (also one no longer in your bags).")
+    pinnedButton = window("Pinned", function() ns.PinsUI.Show(frame) end,
+        "The account's pinned items, each with Unpin (also one no longer in your bags).")
+    friendsButton = window("Friends", function() ns.RoutesUI.Show(frame) end,
+        "Bindings: a profession's materials mailed to a friend, a guild member or one of your characters.")
+    -- 2026-11-07: "I want a new button for guild inside the mailworthy settings"
+    guildButton = window("Guild", function() ns.RoutesUI.ShowGuild(frame) end,
+        "Your guild's template: turn the guild rules on or off; the guild master and officers edit it.")
+    ledgerButton = window("Ledger", function() ns.LedgerUI.Show(frame) end,
+        "What other players mailed you beyond what you mailed back, and the whole mail log.")
+    friendsGuildButton = window("FriendsGuild", function() ns.RoutesUI.Show(frame, "list") end,
+        "Bindings for friends, the guild's template and the mail ledger: one button until you use one of them.")
+    summaryButton = window("Summary", function()
+        if ns.BankAlt then ns.BankAlt.ShowWindow(frame) end
+    end, "On your bank alt (or without one): what to list, disenchant or sell to a vendor.")
+    reportButton = window("Report", function() UI.OpenReport() end,
+        "A copyable report for a bug report: settings, switches, the last send and the log.")
+    rows.more[#rows.more + 1] = { grid = function()
+        local list = { locksButton, pinnedButton }
+        local folded = UI.Solo()
+        for _, b in ipairs({ friendsButton, guildButton, ledgerButton }) do
+            if folded then b:Hide() else list[#list + 1] = b end
+        end
+        if folded then list[#list + 1] = friendsGuildButton else friendsGuildButton:Hide() end
+        list[#list + 1] = summaryButton
+        list[#list + 1] = reportButton
+        for _, b in ipairs(list) do b:Show() end
+        return list
+    end }
 end
 
 -- Pick view: who gets the mail --------------------------------------------------------
 
 local function createPicker()
-    heading(pickWidgets, "Who gets your mail?", -46)
-    local sub = add(pickWidgets, W.Label(frame, "GameFontHighlightSmall"))
+    local h = views.Add("pick", W.Label(frame, "GameFontNormal"))
+    h:SetPoint("TOPLEFT", 20, -46)
+    h:SetText("Who gets your mail?")
+    local sub = views.Add("pick", W.Label(frame, "GameFontHighlightSmall"))
     sub:SetPoint("TOPLEFT", 28, -66)
     sub:SetText("Mailworthy mails only to this character (same realm and faction).")
-    emptyHint = add(pickWidgets, W.Label(frame, "GameFontHighlightSmall"))
+    emptyHint = W.Label(frame, "GameFontHighlightSmall")
     emptyHint:SetWidth(WIDTH - 56)
     emptyHint:SetJustifyH("LEFT")
     emptyHint:SetText("No other characters on this realm and faction yet: log in on your bank alt once "
         .. "with Mailworthy installed, or type its name below. If this character is the bank alt (for "
         .. "example for a main on another WoW account), press the button below instead.")
     for i = 1, UI.MAX_CHOICES do
-        local row = {}
-        row.button = W.Button(frame, "", 290, function()
-            if row.name then UI.Choose(row.name) end
+        local r = {}
+        r.button = W.Button(frame, "", 290, function()
+            if r.name then UI.Choose(r.name) end
         end, "MailworthySettingsChoice" .. i)
-        row.forget = W.Button(frame, "Forget", 70, function()
-            if row.name then
-                ns.Config.ForgetName(row.name)
+        -- Two presses (UX review U7): "Sure?" for 3 seconds, the second forgets the name.
+        r.forget = W.ConfirmButton(frame, "Forget", "Sure?", 70, function()
+            if r.name then
+                ns.Config.ForgetName(r.name)
                 UI.Refresh()
             end
         end, "MailworthySettingsForget" .. i)
-        choiceRows[i] = row
+        choiceRows[i] = r
     end
-    hereButton = add(pickWidgets, W.Button(frame, "", 372, function() UI.ToggleHere() end, "MailworthySettingsHere"))
-    typedLabel = add(pickWidgets, W.Label(frame, "GameFontHighlightSmall"))
+    hereButton = views.Add("pick", W.Button(frame, "", 372, function() UI.ToggleHere() end, "MailworthySettingsHere"))
+    typedLabel = views.Add("pick", W.Label(frame, "GameFontHighlightSmall"))
     typedLabel:SetText("Or type a name:")
-    nameBox = add(pickWidgets, CreateFrame("EditBox", "MailworthySettingsName", frame, "InputBoxTemplate"))
+    nameBox = views.Add("pick", CreateFrame("EditBox", "MailworthySettingsName", frame, "InputBoxTemplate"))
     nameBox:SetSize(170, 20)
     nameBox:SetAutoFocus(false)
     nameBox:SetMaxLetters(48)
@@ -174,31 +401,27 @@ local function createPicker()
         self:ClearFocus()
     end)
     nameBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
-    useNameButton = add(pickWidgets, W.Button(frame, "Use name", 90, function() UI.UseTyped() end,
+    useNameButton = views.Add("pick", W.Button(frame, "Use name", 90, function() UI.UseTyped() end,
         "MailworthySettingsUseName"))
-    nameHint = add(pickWidgets, W.Label(frame, "GameFontHighlightSmall"))
+    nameHint = views.Add("pick", W.Label(frame, "GameFontHighlightSmall"))
     nameHint:SetWidth(WIDTH - 56)
     nameHint:SetJustifyH("LEFT")
-    backButton = add(pickWidgets, W.Button(frame, "Back", 100, function()
+    backButton = views.Add("pick", W.Button(frame, "Back", 100, function()
         setView("main")
         UI.Refresh()
     end, "MailworthySettingsBack"))
 end
 
---- Pick view layout for the choices that show; returns the window height.
+--- Pick view layout for the choices that show; returns the y of its bottom row (Back).
 local function layoutPicker(shown)
-    local function at(widget, x, y, point)
-        widget:ClearAllPoints()
-        widget:SetPoint(point or "TOPLEFT", frame, point or "TOPLEFT", x, y)
-    end
     local y = -88
     if shown == 0 then
         at(emptyHint, 28, y)
         y = y - 56
     end
-    for i, row in ipairs(choiceRows) do
-        at(row.button, 24, y - (i - 1) * ROW)
-        at(row.forget, 324, y - (i - 1) * ROW)
+    for i, r in ipairs(choiceRows) do
+        at(r.button, 24, y - (i - 1) * ROW)
+        at(r.forget, 324, y - (i - 1) * ROW)
     end
     y = y - shown * ROW - 6
     at(hereButton, 24, y)
@@ -210,177 +433,34 @@ local function layoutPicker(shown)
     at(nameHint, 28, y)
     y = y - 32
     at(backButton, -24, y, "TOPRIGHT")
-    return -y + 52
-end
-
--- Main view: what gets mailed, in your bags, more -------------------------------------
-
--- A setting changed: this window, and the mail list beside it, which it decides (QoL pass,
--- 2026-11-09; before, the list only followed when Settings closed).
-local function changed()
-    UI.Refresh()
-    if ns.MailWindow then ns.MailWindow.RefreshIfShown() end
-end
-
-local function stepper(y, key, name)
-    local text = add(mainWidgets, W.Label(frame, "GameFontHighlight"))
-    text:SetPoint("TOPLEFT", 28, y - 4)
-    local minus = add(mainWidgets, W.Button(frame, "-", 32, function()
-        ns.Config.Step(key, -1)
-        changed()
-    end, "MailworthySettings" .. name .. "Down"))
-    minus:SetPoint("TOPLEFT", 302, y)
-    local plus = add(mainWidgets, W.Button(frame, "+", 32, function()
-        ns.Config.Step(key, 1)
-        changed()
-    end, "MailworthySettings" .. name .. "Up"))
-    plus:SetPoint("TOPLEFT", 340, y)
-    return text
-end
-
-local function toggle(width, name, onClick)
-    return add(mainWidgets, W.Button(frame, "", width, function()
-        onClick()
-        changed()
-    end, "MailworthySettings" .. name))
-end
-
-local function createRule()
-    heading(mainWidgets, "What gets mailed", -102)
-    amountLabel = stepper(-124, "minGain", "Amount")
-    pctLabel = stepper(-152, "minGainPct", "Percent")
-    local listing = add(mainWidgets, W.Label(frame, "GameFontHighlight"))
-    listing:SetPoint("TOPLEFT", 28, -184)
-    listing:SetText("Auction listing")
-    for i, hours in ipairs(ns.Valuation.DURATION_HOURS) do
-        local b = add(mainWidgets, W.Button(frame, hours .. "h", 56, function()
-            ns.Config.Set("duration", i)
-            changed()
-        end, "MailworthySettingsDuration" .. i))
-        b:SetPoint("TOPLEFT", 196 + (i - 1) * 60, -180)
-        durationButtons[i] = b
-    end
-    disenchantButton = toggle(372, "Disenchant", function()
-        ns.Config.Set("disenchant", not ns.Config.Get("disenchant"))
-    end)
-    disenchantButton:SetPoint("TOPLEFT", 24, -210)
-    matsButton = toggle(372, "Mats", function()
-        -- Three states: on (kept here) -> off (valued like anything else) -> on my bank alt -> on.
-        local keepHere, toAlt = ns.Config.Get("keepProfessionMats"), ns.Config.Get("matsToBankAlt")
-        if keepHere and not toAlt then
-            ns.Config.Set("keepProfessionMats", false)
-        elseif not keepHere then
-            ns.Config.Set("keepProfessionMats", true)
-            ns.Config.Set("matsToBankAlt", true)
-        else
-            ns.Config.Set("matsToBankAlt", false)
-        end
-        if ns.BankAlt then ns.BankAlt.Redraw() end
-    end)
-    matsButton:SetPoint("TOPLEFT", 24, -236)
-    gatherButton = toggle(372, "Gather", function()
-        ns.Config.Set("sellGathered", not ns.Config.Get("sellGathered"))
-        if ns.BankAlt then ns.BankAlt.Redraw() end
-    end)
-    gatherButton:SetPoint("TOPLEFT", 24, -262)
-    -- What Send takes of the bank alt's share, by verdict (Bags.ApplySendSwitches): one switch per tag.
-    local send = add(mainWidgets, W.Label(frame, "GameFontHighlight"))
-    send:SetPoint("TOPLEFT", 28, -292)
-    send:SetText("Send by tag")
-    for i, tag in ipairs(ns.Valuation.SEND_ORDER) do
-        local key = ns.Valuation.SEND[tag]
-        local b = toggle(64, "Send" .. ns.Valuation.SEND_LABEL[tag], function()
-            ns.Config.Set(key, not ns.Config.Get(key))
-        end)
-        b:SetPoint("TOPLEFT", 124 + (i - 1) * 68, -288)
-        sendButtons[tag] = b
-    end
-end
-
-local function createBagsAndMore()
-    heading(mainWidgets, "In your bags", -324)
-    tagsButton = toggle(182, "Tags", function()
-        ns.Config.Set("tagsEverywhere", not ns.Config.Flag("tagsEverywhere"))
-        if ns.BankAlt then ns.BankAlt.Redraw() end
-    end)
-    tagsButton:SetPoint("TOPLEFT", 24, -346)
-    glowButton = toggle(182, "Glow", function()
-        ns.Config.Set("glowEverywhere", not ns.Config.Flag("glowEverywhere"))
-        if ns.Border then ns.Border.RefreshAll() end
-    end)
-    glowButton:SetPoint("TOPLEFT", 214, -346)
-    -- Where this character banks its pinned items (Pins.lua; operator, 2026-11-13): BA or BH.
-    pinButton = toggle(372, "Pins", function()
-        ns.Pins.SetMode(ns.Pins.Mode() == ns.Pins.HERE and ns.Pins.BANK or ns.Pins.HERE, "settings")
-    end)
-    pinButton:SetPoint("TOPLEFT", 24, -372)
-    -- How much Mailworthy adds to item tooltips (Config.Tooltips; a CurseForge request, 2026-11-14).
-    tooltipButton = toggle(372, "Tooltips", function()
-        ns.Config.CycleTooltips()
-    end)
-    tooltipButton:SetPoint("TOPLEFT", 24, -398)
-    heading(mainWidgets, "More", -434)
-    friendsButton = add(mainWidgets, W.Button(frame, "", 182, function() ns.RoutesUI.Show(frame) end,
-        "MailworthySettingsFriends"))
-    friendsButton:SetPoint("TOPLEFT", 24, -456)
-    add(mainWidgets, W.Button(frame, "Bank alt summary...", 182, function()
-        if ns.BankAlt then ns.BankAlt.ShowWindow(frame) end
-    end, "MailworthySettingsSummary")):SetPoint("TOPLEFT", 214, -456)
-    -- 2026-11-07: "I want a new button for guild inside the mailworthy settings"
-    guildButton = add(mainWidgets, W.Button(frame, "", 182, function() ns.RoutesUI.ShowGuild(frame) end,
-        "MailworthySettingsGuild"))
-    guildButton:SetPoint("TOPLEFT", 24, -482)
-    add(mainWidgets, W.Button(frame, "Mail ledger...", 182, function() ns.LedgerUI.Show(frame) end,
-        "MailworthySettingsLedger")):SetPoint("TOPLEFT", 214, -482)
-    minimapButton = toggle(182, "Minimap", function()
-        ns.Config.Set("minimapHidden", ns.Config.MinimapShown())
-        if ns.MinimapButton then ns.MinimapButton.Refresh() end
-    end)
-    minimapButton:SetPoint("TOPLEFT", 24, -508)
-    -- QoL pass D (2026-11-09): the locked items window; the count is in the label.
-    locksButton = add(mainWidgets, W.Button(frame, "", 182, function() ns.LocksUI.Show(frame) end,
-        "MailworthySettingsLocks"))
-    locksButton:SetPoint("TOPLEFT", 214, -508)
-    pricesLine = add(mainWidgets, W.Label(frame, "GameFontDisableSmall"))
-    pricesLine:SetPoint("TOPLEFT", 28, -550)
-    pricesLine:SetWidth(270)
-    pricesLine:SetJustifyH("LEFT")
-    -- A newer Mailworthy is out (Version.lua): under the Prices line; the window grows to fit it.
-    versionLine = add(mainWidgets, W.Label(frame, "GameFontHighlightSmall"))
-    versionLine:SetPoint("TOPLEFT", 28, -568)
-    versionLine:SetWidth(WIDTH - 56)
-    versionLine:SetJustifyH("LEFT")
-    add(mainWidgets, W.Button(frame, "Done", 100, function() frame:Hide() end, "MailworthySettingsDone"))
-        :SetPoint("TOPRIGHT", -24, -544)
+    return y
 end
 
 function UI.Create()
     if frame then return frame end
-    frame = W.Window("MailworthySettingsFrame", WIDTH, MAIN_HEIGHT)
-    frame:SetFrameStrata("FULLSCREEN_DIALOG")
-    frame:SetPoint("CENTER")
-    local title = W.Label(frame, "GameFontNormalLarge")
-    title:SetPoint("TOP", 0, -18)
-    title:SetText("Mailworthy settings")
-    createBankAltRow()
+    win = W.Shell({ name = "MailworthySettingsFrame", width = WIDTH, height = 400, title = "Mailworthy settings",
+        refresh = function() UI.Refresh() end })
+    frame = win.frame
+    views = W.Views({ mailing = {}, more = {}, pick = {} })
+    createTabs()
+    createMailing()
+    createMore()
     createPicker()
-    createRule()
-    createBagsAndMore()
-    legend = W.Label(frame, "GameFontHighlightSmall")
-    legend:SetPoint("BOTTOM", 0, 16)
-    ns.Nav.Attach(frame)
-    ns.Log.Add("ui", "settings window created")
-    return frame
-end
-
-local function selected(text, on)
-    return on and ("|cff33ff99> " .. text .. " <|r") or text
-end
-
-local function showAll(list, on)
-    for _, w in ipairs(list) do
-        if on then w:Show() else w:Hide() end
+    pricesLine = views.Add({ "mailing", "more" }, W.Label(frame, "GameFontDisableSmall"))
+    pricesLine:SetWidth(270)
+    pricesLine:SetJustifyH("LEFT")
+    -- A newer Mailworthy is out (Version.lua): under the Prices line; the window grows to fit it.
+    versionLine = views.Add({ "mailing", "more" }, W.Label(frame, "GameFontHighlightSmall"))
+    versionLine:SetWidth(WIDTH - 56)
+    versionLine:SetJustifyH("LEFT")
+    doneButton = views.Add({ "mailing", "more" }, win.Done("MailworthySettingsDone"))
+    views.pooled = { emptyHint }
+    for _, r in ipairs(choiceRows) do
+        views.pooled[#views.pooled + 1] = r.button
+        views.pooled[#views.pooled + 1] = r.forget
     end
+    views.Show("mailing")
+    return frame
 end
 
 --- Pure: the bank alt row: "Name  (class level)" or "(this character)", or none yet. `mark` (the
@@ -397,36 +477,30 @@ function UI.BankAltText(bankAlt, here, choices, mark)
 end
 
 local function fillPicker(bankAlt, here, choices)
-    hereButton:SetText(selected("This character is my bank alt", here))
+    hereButton:SetText("This character is my bank alt")
     W.SetToggled(hereButton, here)
     local shown, marked = 0, false
-    for i, row in ipairs(choiceRows) do
+    for i, r in ipairs(choiceRows) do
         local c = choices[i]
-        row.name = c and c.name or nil
+        if (c and c.name) ~= r.name then W.Disarm(r.forget) end -- the row shows another name now
+        r.name = c and c.name or nil
         if c then
             local detail = c.known and string.format("(%s %s)", tostring(c.class or "?"):lower(), tostring(c.level or "?"))
                 or "(not seen)"
             local nameText, m = ns.Comms.Mark(c.name)
             marked = marked or m
-            row.button:SetText(selected(nameText .. "  " .. detail, bankAlt == c.name))
-            W.SetToggled(row.button, bankAlt == c.name)
-            row.button:Show()
-            if c.known then row.forget:Hide() else row.forget:Show() end
+            r.button:SetText(nameText .. "  " .. detail)
+            W.SetToggled(r.button, bankAlt == c.name)
+            r.button:Show()
+            if c.known then r.forget:Hide() else r.forget:Show() end
             shown = shown + 1
         else
-            row.button:Hide()
-            row.forget:Hide()
+            r.button:Hide()
+            r.forget:Hide()
         end
     end
     if shown == 0 then emptyHint:Show() else emptyHint:Hide() end
     return shown, marked
-end
-
-local function hideChoices()
-    for _, row in ipairs(choiceRows) do
-        row.button:Hide()
-        row.forget:Hide()
-    end
 end
 
 --- Pure: the Guild button: "Guild..." / "Guild (rules on)..." / "Guild (new template)...".
@@ -434,6 +508,43 @@ function UI.GuildButtonText(inGuild, template)
     if not inGuild or not template then return "Guild..." end
     if template.use == nil then return "Guild (new template)..." end
     return template.use and "Guild (rules on)..." or "Guild (rules off)..."
+end
+
+--- A player who mails only a bank alt (UX review U1): no binding of their own or the account's, no
+--- guild template in use (on, new, or a draft being written), nothing in the mail ledger. Settings
+--- then folds Friends, Guild and Mail ledger into one "Friends and guild..." button.
+function UI.Solo()
+    if #ns.Routes.Personal() > 0 then return false end
+    if ns.Guild.On() and ns.Guild.Mine() then
+        if ns.Guild.InUse() then return false end
+        local template = ns.Guild.Template()
+        if template and template.use == nil then return false end
+        if ns.Guild.CanPublish() and #(ns.Guild.Draft() or {}) > 0 then return false end
+    end
+    if ns.Ledger.On() and #(ns.Ledger.Debts() or {}) > 0 then return false end
+    return true
+end
+
+--- Pure: the Profession materials button's label for Config.Values `v` (U8: short; the tooltip says
+--- the rest): "Profession materials: on (BH)" / "on my bank alt (BA)" / "off".
+function UI.MatsText(v)
+    return "Profession materials: " .. (not v.keepProfessionMats and "off" or v.matsToBankAlt and "on my bank alt (BA)"
+        or "on (BH)")
+end
+
+--- Pure: its explanation. `crafting`: "First Aid 80, Tailoring 130" (Bags.CraftingText), or "".
+function UI.MatsTip(v, crafting)
+    return string.format("This character keeps its profession materials: %s (%s). Press: %s.",
+        not v.keepProfessionMats and "off" or v.matsToBankAlt and "on my bank alt (BA)" or "on (BH)",
+        crafting ~= "" and crafting or "no crafting profession here",
+        not v.keepProfessionMats and "kept on your bank alt (BA)" or v.matsToBankAlt and "kept here (BH)"
+            or "off: valued like anything else")
+end
+
+--- Pure: the Disenchant value button's explanation; `addon` is the disenchant addon in use, or nil.
+function UI.DisenchantTip(on, addon)
+    return string.format("Include disenchant value: %s (%s). On: an item that brings more as enchanting materials "
+        .. "is tagged DE and mailed to be disenchanted.", on and "on" or "off", addon or "era tables")
 end
 
 local function fillMain(bankAlt, here, choices)
@@ -446,23 +557,15 @@ local function fillMain(bankAlt, here, choices)
     pctLabel:SetText(string.format("and at least |cffffffff%d%%|r over the vendor price",
         math.floor(v.minGainPct * 100 + 0.5)))
     for i, b in ipairs(durationButtons) do
-        b:SetText(selected(ns.Valuation.DURATION_HOURS[i] .. "h", v.duration == i))
+        b:SetText(ns.Valuation.DURATION_HOURS[i] .. "h")
         W.SetToggled(b, v.duration == i)
     end
-    local deAddon = ns.Prices.DisenchantAddon()
-    disenchantButton:SetText(string.format("Include disenchant value: %s (%s)", v.disenchant and "on" or "off",
-        deAddon or "era tables"))
+    disenchantButton:SetText("Disenchant value: " .. (v.disenchant and "on" or "off"))
     W.SetToggled(disenchantButton, v.disenchant == true)
-    local crafting = ns.Bags.CraftingText(ns.Characters.Professions()) -- "First Aid 80, Tailoring 130"
     -- Per character (Config.CHARACTER): kept here, mailed to the bank alt (BA), or valued like the rest.
-    matsButton:SetText(string.format("This character keeps its profession materials: %s (%s)",
-        not v.keepProfessionMats and "off" or v.matsToBankAlt and "on my bank alt (BA)" or "on (BH)",
-        crafting ~= "" and crafting or "no crafting profession here"))
+    matsButton:SetText(UI.MatsText(v))
     W.SetToggled(matsButton, v.keepProfessionMats == true)
-    local gathering = {}
-    for _, p in ipairs(ns.Valuation.GatheringProfessions(ns.Characters.Professions())) do gathering[#gathering + 1] = p.name end
-    gatherButton:SetText(string.format("Sell what I gather: %s (%s)", v.sellGathered and "on" or "off",
-        #gathering > 0 and table.concat(gathering, ", ") or "no gathering profession here"))
+    gatherButton:SetText("Sell what I gather: " .. (v.sellGathered and "on" or "off"))
     W.SetToggled(gatherButton, v.sellGathered == true)
     for tag, b in pairs(sendButtons) do
         local on = v[ns.Valuation.SEND[tag]] == true
@@ -474,29 +577,51 @@ local function fillMain(bankAlt, here, choices)
     glowButton:SetText("Lock glow: " .. (ns.Config.Flag("glowEverywhere") and "always" or "in Mailworthy"))
     W.SetToggled(glowButton, ns.Config.Flag("glowEverywhere") == true)
     pinButton:SetText(UI.PinText())
+    W.SetToggled(pinButton, ns.Pins.Mode() == ns.Pins.HERE)
     tooltipButton:SetText(UI.TooltipsText(ns.Config.Tooltips()))
     W.SetToggled(tooltipButton, ns.Config.Tooltips() ~= "full")
-    W.SetToggled(pinButton, ns.Pins.Mode() == ns.Pins.HERE)
+    local warn = not ns.Config.Flag("hidePinWarning")
+    pinWarningButton:SetText("Pin warning: " .. (warn and "on" or "off"))
+    W.SetToggled(pinWarningButton, warn)
+    minimapButton:SetText("Minimap button: " .. (ns.Config.MinimapShown() and "shown" or "hidden"))
+    W.SetToggled(minimapButton, ns.Config.MinimapShown() == true)
     local bindings = #ns.Routes.Personal()
     friendsButton:SetText(bindings == 0 and "Friends..."
         or string.format("Friends (%d binding%s)...", bindings, bindings == 1 and "" or "s"))
     guildButton:SetText(UI.GuildButtonText(ns.Guild.On() and ns.Guild.Mine() ~= nil, ns.Guild.On() and ns.Guild.Template()))
+    ledgerButton:SetText("Mail ledger...")
+    friendsGuildButton:SetText("Friends and guild...")
+    summaryButton:SetText("Bank alt summary...")
+    reportButton:SetText("Report...")
     locksButton:SetText(ns.LocksUI.ButtonText(ns.Locks.Count()))
-    minimapButton:SetText("Minimap button: " .. (ns.Config.MinimapShown() and "shown" or "hidden"))
-    W.SetToggled(minimapButton, ns.Config.MinimapShown() == true)
+    pinnedButton:SetText(ns.PinsUI.ButtonText(#ns.Pins.List()))
     pricesLine:SetText(UI.PricesText())
     versionLine:SetText(ns.Version.Text() or "")
+    for t, b in pairs(tabButtons) do W.SetToggled(b, tab == t) end
     return marked
 end
 
---- Pure: the Item tooltips button, for Config.Tooltips' `size`.
+--- Pure: the Item tooltips button, for Config.Tooltips' `size` (U8: short; UI.TooltipsTip says more).
 function UI.TooltipsText(size)
-    return "Item tooltips: " .. (size == "short" and "short (one line)" or size == "off" and "off"
-        or "full (the verdict and its numbers)")
+    return "Item tooltips: " .. (size == "short" and "short" or size == "off" and "off" or "full")
 end
 
---- Pure: the Pinned items button: where this character banks its pins, in the tag's letters.
+--- Pure: the Item tooltips button's explanation.
+function UI.TooltipsTip(size)
+    return "How much Mailworthy adds to item tooltips: " .. (size == "short" and "short (one line)" or size == "off"
+        and "off" or "full (the verdict and its numbers)") .. ". Press: full, short, off, round again."
+end
+
+--- Pure: the Pins button (U8: short): where this character banks its pins, in the tag's letters.
 function UI.PinText()
+    local why = ns.Pins.HereBecause()
+    local P = ns.Palette
+    if why == "no bank alt" or why == "bank alt" then return "Pins: " .. P.Letters(P.BH) .. " bank here" end
+    return "Pins: " .. (why == "setting" and (P.Letters(P.BH) .. " bank here") or (P.Letters(P.BA) .. " to bank alt"))
+end
+
+--- Pure: the Pins button's explanation (what the pins do on this character, and why).
+function UI.PinTip()
     local why = ns.Pins.HereBecause()
     local P = ns.Palette
     if why == "no bank alt" or why == "bank alt" then
@@ -504,7 +629,7 @@ function UI.PinText()
             or "no bank alt") .. ")"
     end
     return "Pinned items: " .. (why == "setting" and (P.Letters(P.BH) .. " bank here, on this character")
-        or (P.Letters(P.BA) .. " mail to your bank alt"))
+        or (P.Letters(P.BA) .. " mail to your bank alt")) .. ". Press to switch."
 end
 
 --- The main view's "Prices:" line: the auction source in use (Auctionator wins over
@@ -513,55 +638,70 @@ function UI.PricesText()
     return "Prices: " .. (ns.Prices.SourceText() or "none (install Auctionator or TSM; white items and staple trade goods only)")
 end
 
+--- Report... (UX review U3): /mw report's box, beside the settings.
+function UI.OpenReport()
+    ns.Report.Open()
+    local f = ns.Report.Frame()
+    if f then W.PlaceBeside(f, frame) end
+end
+
 function UI.Refresh()
     if not frame then return end
     local bankAlt = ns.Config.BankAlt()
     local here = ns.Config.IsBankAltHere()
     local choices = ns.Config.Choices()
-    showAll(mainWidgets, view == "main")
-    showAll(pickWidgets, view == "pick")
+    views.Show(view == "pick" and "pick" or tab)
     local markedMain = fillMain(bankAlt, here, choices)
     local shown, markedPick = fillPicker(bankAlt, here, choices)
+    local bottom
     if view == "pick" then
-        frame:SetHeight(layoutPicker(shown))
+        bottom = layoutPicker(shown)
     else
-        hideChoices()
-        frame:SetHeight(MAIN_HEIGHT + (ns.Version.Text() and VERSION_ROW or 0))
+        for _, r in ipairs(choiceRows) do
+            r.button:Hide()
+            r.forget:Hide()
+        end
+        emptyHint:Hide()
+        local y = place(tab, TOP) - 6
+        at(pricesLine, 28, y - 6)
+        at(doneButton, -24, y, "TOPRIGHT")
+        bottom = y
+        if ns.Version.Text() then
+            at(versionLine, 28, y - 26)
+            bottom = y - VERSION_ROW
+        end
     end
-    legend:SetText(W.Footer(ns.MailButton.GamepadUI(), (view == "pick" and markedPick) or (view ~= "pick" and markedMain)))
-    ns.Nav.Revalidate()
+    win.Finish(bottom, (view == "pick" and markedPick) or (view ~= "pick" and markedMain))
 end
 
---- Opens on the settings (a bank alt is optional: Choose... picks one).
+function UI.RefreshIfShown()
+    if frame and frame:IsShown() then UI.Refresh() end
+end
+
+--- Opens on the settings (a bank alt is optional: Choose... picks one), on the tab last shown.
 --- `opener`: the Mailworthy window whose button opened it (placed beside that), or nil (centred).
---- `startView`: "pick" opens on choosing the bank alt (the mail window's Choose bank alt...).
+--- `startView`: "pick" opens on choosing the bank alt (the mail window's Choose bank alt...);
+--- "mailing" or "more" opens on that tab.
 function UI.Show(opener, startView)
     if not frame then UI.Create() end
-    W.PlaceBeside(frame, opener)
-    setView(startView == "pick" and "pick" or "main")
-    UI.Refresh()
-    frame:Show()
-    frame:Raise()
-    ns.Log.Add("ui", "settings shown (%s)", view)
+    if startView == "mailing" or startView == "more" then tab = startView end
+    win.Show(opener, function() setView(startView == "pick" and "pick" or "main") end)
+    ns.Log.Add("ui", "settings shown (%s, %s)", view, tab)
 end
 
 function UI.Toggle()
     if frame and frame:IsShown() then frame:Hide() else UI.Show() end
 end
 
-ns.On("PLAYER_LOGIN", function() UI.Create() end)
+ns.On("PLAYER_LOGIN", function()
+    UI.Create()
+    -- Friends / Guild / Mail ledger fold and unfold with what is in use (UX review U1).
+    ns.Ledger.OnChanged(UI.RefreshIfShown)
+end)
 -- A new Mailworthy user can be a name on screen (Comms.Mark): redraw.
-ns.Comms.OnMarksChanged(function()
-    if frame and frame:IsShown() then UI.Refresh() end
-end)
-ns.Version.OnChanged(function()
-    if frame and frame:IsShown() then UI.Refresh() end
-end)
+ns.Comms.OnMarksChanged(UI.RefreshIfShown)
+ns.Version.OnChanged(UI.RefreshIfShown)
 -- The "Locked items (N)..." button counts the locks.
-ns.Locks.OnChanged(function()
-    if frame and frame:IsShown() then UI.Refresh() end
-end)
--- The Pinned items button follows the pin mode (also set from the pin warning).
-ns.Pins.OnChanged(function()
-    if frame and frame:IsShown() then UI.Refresh() end
-end)
+ns.Locks.OnChanged(UI.RefreshIfShown)
+-- The Pins button follows the pin mode (also set from the pin warning); "Pinned items (N)..." counts them.
+ns.Pins.OnChanged(UI.RefreshIfShown)

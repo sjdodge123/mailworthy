@@ -67,13 +67,22 @@ function Nav.TopLeft(candidates)
     return best
 end
 
---- Visible buttons under the window, with their centres.
+-- Buttons the D-pad passes over: still there for the mouse, done another way with the controller
+-- (the mail window's row pick buttons: Square on the row picks; UX review U4). Ours only.
+local skipped = setmetatable({}, { __mode = "k" })
+function Nav.Skip(button) if button then skipped[button] = true end end
+
+--- Visible buttons under the window, with their centres. The window's own X (Widgets.Window's
+--- CloseButton) is left out: it sits above every other button, so the top-left start landed on it
+--- and the first Cross closed the window (UX pass, 2026-11-15). Circle closes it with a controller.
 function Nav.Candidates()
     local list = {}
+    local root = Nav.Root()
+    local close = root and rawget(root, "CloseButton")
     local function walk(frame)
         for _, child in ipairs({ frame:GetChildren() }) do
-            if child:IsVisible() then
-                if child:IsObjectType("Button") then
+            if child:IsVisible() and child ~= close then
+                if child:IsObjectType("Button") and not skipped[child] then
                     local x, y = child:GetCenter()
                     if x and y then list[#list + 1] = { button = child, x = x, y = y } end
                 end
@@ -81,9 +90,17 @@ function Nav.Candidates()
             end
         end
     end
-    local root = Nav.Root()
     if root then walk(root) end
     return list
+end
+
+--- Is one of the registered windows other than `except` shown (PadKey: the free-standing
+--- windows, Settings, Friends, Ledger, ..., take the "settings" binding set)?
+function Nav.AnyShown(except)
+    for frame in pairs(highlights) do
+        if frame ~= except and frame:IsShown() then return true end
+    end
+    return false
 end
 
 local function entryFor(button, candidates)
@@ -145,6 +162,14 @@ local wraps = setmetatable({}, { __mode = "k" })
 --- row lands on Send, Down from the bottom row goes back to the top).
 function Nav.SetWrap(frame, fn) wraps[frame] = fn end
 
+--- Every window without a wrap of its own (UX review U5, 2026-11-15): Down from the bottom row goes
+--- back to the top-left button (Settings was about 14 Downs to Done and stopped there). Only from
+--- the bottom row itself (Nav.AtEdge): a button in the middle with nothing below in its cone stays.
+function Nav.DefaultWrap(dir)
+    if dir == "down" and Nav.AtEdge("down") then return true end
+    return nil
+end
+
 function Nav.Move(dir)
     local candidates = Nav.Candidates()
     local from = current and entryFor(current, candidates)
@@ -152,7 +177,7 @@ function Nav.Move(dir)
     local nextEntry = Nav.Pick(from, candidates, dir)
     if nextEntry then return Nav.Select(nextEntry.button) end
     local root = Nav.Root()
-    local wrap = root and wraps[root]
+    local wrap = root and (wraps[root] or Nav.DefaultWrap)
     if not wrap then return end
     local ok, target = pcall(wrap, dir, current)
     if not ok then return ns.Log.Add("nav", "wrap error: %s", tostring(target)) end

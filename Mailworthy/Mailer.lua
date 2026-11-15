@@ -24,7 +24,7 @@ local _, ns = ...
 local Mailer = {}
 ns.Mailer = Mailer
 
-Mailer.PER_MAIL = 12
+Mailer.PER_MAIL = 12 -- stacks per mail (ATTACHMENTS_MAX_SEND, measured); Bags.Evaluate counts mails by it too
 Mailer.DELAY = 0.5
 Mailer.TIMEOUT = 10
 Mailer.SUBJECT = "Mailworthy %d/%d"
@@ -35,14 +35,10 @@ Mailer.RESERVE = 500 -- copper the player keeps after postage: 5s
 
 local state = { busy = false, run = 0 }
 Mailer.state = state
-local listeners = {}
+local changed, sent = ns.Util.Signal("mailer changed"), ns.Util.Signal("mailer sent")
 
-local function call(fn, ...)
-    if type(fn) ~= "function" then return nil end
-    local results = { pcall(fn, ...) }
-    if not results[1] then return nil end
-    return unpack(results, 2, table.maxn(results))
-end
+local Util = ns.Util
+local call = Util.Call
 
 -- Timers belong to one send run: once that run stops (combat, mailbox closed,
 -- failure) or a new one starts, its pending timers do nothing.
@@ -56,17 +52,14 @@ local function after(delay, fn)
             Mailer.Stop("error: " .. tostring(err))
         end
     end
-    if C_Timer and type(C_Timer.After) == "function" then C_Timer.After(delay, run) else run() end
+    Util.After(delay, run)
 end
 
-function Mailer.OnChanged(fn) table.insert(listeners, fn) end
+Mailer.OnChanged = changed.Add
 
-local sentListeners = {}
 --- fn(mailsSent) once a send run has mailed everything it planned.
-function Mailer.OnSent(fn) table.insert(sentListeners, fn) end
-local function notify()
-    for _, fn in ipairs(listeners) do pcall(fn) end
-end
+Mailer.OnSent = sent.Add
+local function notify() changed.Fire() end
 
 local function setStatus(text, ...)
     state.status = string.format(text, ...)
@@ -183,21 +176,17 @@ function Mailer.Blocker(bankAlt, mails)
     return nil
 end
 
---- Is this bag slot still exactly what the preview showed?
+-- The mailer's words for Bags.StillThere's checks (the stayed list and the log show them).
+local RECHECK = {
+    read = function(bag, slot) return call(C_Container and C_Container.GetContainerItemInfo, bag, slot) end,
+    bound = true,
+    words = { gone = "gone", different = "a different item", count = "count changed", inUse = "in use",
+        bound = "soulbound", conjured = "conjured", ammo = "ammo", locked = "locked", quest = "an active quest needs it" },
+}
+
+--- Is this bag slot still exactly what the preview showed? (Bags.StillThere: the shared re-check.)
 function Mailer.StillThere(stack)
-    local info = call(C_Container and C_Container.GetContainerItemInfo, stack.bag, stack.slot)
-    if type(info) ~= "table" then return false, "gone" end
-    if info.itemID ~= stack.itemID or info.hyperlink ~= stack.link then return false, "a different item" end
-    if (tonumber(info.stackCount) or 1) ~= stack.count then return false, "count changed" end
-    if info.isLocked then return false, "in use" end
-    if info.isBound then return false, "soulbound" end
-    if ns.Conjured.Is(info.itemID) then return false, "conjured" end
-    -- A bow, crossbow or gun equipped since the preview: its ammo stays (Ammo.lua).
-    if ns.Ammo.Is(info.hyperlink) then return false, "ammo" end
-    if ns.Locks.IsItemLocked(info.itemID) then return false, "locked" end
-    -- A quest accepted mid-run (Codex review, 2026-11-08): what it asks for stays.
-    if ns.Quests.For(info.hyperlink) then return false, "an active quest needs it" end
-    return true
+    return ns.Bags.StillThere(stack, RECHECK)
 end
 
 local function attachedCount()
@@ -209,19 +198,18 @@ local function attachedCount()
 end
 
 local function record(mail)
-    MailworthyDB.mailed = type(MailworthyDB.mailed) == "table" and MailworthyDB.mailed or {}
-    local now = call(GetServerTime) or time()
+    local mailed, now = Util.Store(MailworthyDB, "mailed"), Util.Now()
     for _, stack in ipairs(mail.attached or {}) do
         local r = stack.item.result or {}
-        MailworthyDB.mailed[stack.itemID] = { route = r.route, listRoute = r.listRoute, reason = r.reason, gain = r.gain, at = now,
+        mailed[stack.itemID] = { route = r.route, listRoute = r.listRoute, reason = r.reason, gain = r.gain, at = now,
             from = ns.PlayerName(), to = mail.to }
     end
 end
 
 --- Drop records older than KEEP_DAYS.
 function Mailer.Prune(now)
-    now = now or call(GetServerTime) or time()
-    for itemID, entry in pairs(type(MailworthyDB.mailed) == "table" and MailworthyDB.mailed or {}) do
+    now = now or Util.Now()
+    for itemID, entry in pairs(Util.Table(MailworthyDB.mailed)) do
         if type(entry) ~= "table" or (tonumber(entry.at) or 0) < now - Mailer.KEEP_DAYS * 86400 then
             MailworthyDB.mailed[itemID] = nil
         end
@@ -294,17 +282,13 @@ function Mailer.Dismiss()
 end
 
 local function plural(n, one, many) return string.format("%d %s", n, n == 1 and one or (many or one .. "s")) end
-local function itemName(link) return tostring(link):match("%[(.-)%]") or tostring(link) end
+local function itemName(link) return Util.LinkName(link) or tostring(link) end
 local function firstNames(names)
     local out = {}
     for i, name in ipairs(names) do out[i] = tostring(name):match("^(%S+)") or tostring(name) end
     return out
 end
-local function andList(names)
-    if #names == 0 then return "nobody" end
-    if #names == 1 then return names[1] end
-    return table.concat(names, ", ", 1, #names - 1) .. " and " .. names[#names]
-end
+local function andList(names) return Util.ListText(names, "nobody") end
 
 --- Pure: the receipt as text (media/qol-prototype.png, "After: a receipt"). `vendorLeft`: items
 --- left in the bags for the vendor. Returns the window's headline, its note (may be ""), and the
@@ -420,7 +404,7 @@ sendNext = function(index)
         if state.sent > 0 and type(kit) == "table" and kit.IG_MAINMENU_OPTION_CHECKBOX_ON then
             pcall(PlaySound, kit.IG_MAINMENU_OPTION_CHECKBOX_ON)
         end
-        for _, fn in ipairs(sentListeners) do pcall(fn, state.sent) end
+        sent.Fire(state.sent)
         return
     end
     if InCombatLockdown() then return Mailer.Stop("combat") end
@@ -457,9 +441,7 @@ function Mailer.Recipients(mails, sentOnly)
             names[#names + 1] = to
         end
     end
-    if #names == 0 then return "nobody" end
-    if #names == 1 then return names[1] end
-    return table.concat(names, ", ", 1, #names - 1) .. " and " .. names[#names]
+    return Util.ListText(names, "nobody")
 end
 
 --- One press: send every mail in the plan: the bank alt's, then each binding's.

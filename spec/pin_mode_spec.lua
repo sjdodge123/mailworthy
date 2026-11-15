@@ -83,19 +83,23 @@ describe("pin mode and tags", function()
                 local item = { link = "x", itemID = 1, count = 1, stacks = 1, quality = 1, vendor = nil, pin = pin }
                 local r = ns.Valuation.Evaluate(item, { ah = 500, age = 0 }, ns.Valuation.Settings({}, false))
                 assert.equal("item info not loaded yet", r.reason, pin)
-                assert.is_true(ns.Routes.HARD_KEEPS[r.reason])
+                assert.is_true(ns.Valuation.HardKeep(r))
             end
         end)
 
         it("the Settings button flips it and says where pins go, in the tag's letters", function()
             ns.SettingsUI.Show()
-            assert.truthy(_G.MailworthySettingsPins:GetText():find("BA|r mail to your bank alt", 1, true))
+            -- a short label; the explanation (its old label) in the tooltip (UX review U8)
+            local tip = function() return ns.Widgets.TipText(_G.MailworthySettingsPins) end
+            assert.truthy(_G.MailworthySettingsPins:GetText():find("BA|r to bank alt", 1, true))
+            assert.truthy(tip():find("BA|r mail to your bank alt", 1, true))
             _G.MailworthySettingsPins:Click()
             assert.equal(ns.Pins.HERE, ns.Pins.Mode())
-            assert.truthy(_G.MailworthySettingsPins:GetText():find("BH|r bank here, on this character", 1, true))
+            assert.truthy(_G.MailworthySettingsPins:GetText():find("BH|r bank here", 1, true))
+            assert.truthy(tip():find("BH|r bank here, on this character", 1, true))
             MailworthyDB.bankAlts = {}
             ns.SettingsUI.Refresh()
-            assert.truthy(_G.MailworthySettingsPins:GetText():find("(no bank alt)", 1, true))
+            assert.truthy(tip():find("(no bank alt)", 1, true))
         end)
 
         it("a bank-here pin keeps the item, past the hard keeps, and is not a hard keep itself", function()
@@ -104,7 +108,7 @@ describe("pin mode and tags", function()
             assert.equal("keep", r.action)
             assert.equal(ns.Valuation.PIN_HERE_REASON, r.reason)
             assert.is_true(r.pinned)
-            assert.is_nil(ns.Routes.HARD_KEEPS[r.reason], "Return to sender still wins")
+            assert.is_false(ns.Valuation.HardKeep(r), "Return to sender still wins")
             item.bound = true
             assert.equal("soulbound", ns.Valuation.Evaluate(item, { ah = 500, age = 0 }, ns.Valuation.Settings({}, false)).reason)
         end)

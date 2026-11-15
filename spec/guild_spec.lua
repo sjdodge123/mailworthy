@@ -183,6 +183,7 @@ describe("guild template", function()
             ns.Guild.DraftAdd(MEMBER, ENCHANTING)
             assert.equal(GEAR, ns.Guild.Draft()[2].gear)
             WowStub.state.addonMessages = {}
+            _G.MailworthyFriendsPublish:Click() -- two presses (UX review U7)
             _G.MailworthyFriendsPublish:Click()
             assert.equal("333=Plain Member:1001", WowStub.state.addonMessages[2].message:match("|([^|]+)$"))
             assert.equal(GEAR, ns.Guild.Template().rules[2].gear)
@@ -254,6 +255,23 @@ describe("guild template", function()
             assert.equal(2, #ns.Guild.Template().rules, "a copy by a plain member is dropped, whoever passes it on")
             publishFrom("Not In Guild", REV + 2, {}, GM)
             assert.equal(2, #ns.Guild.Template().rules, "a sender outside the roster: waits, not taken")
+        end)
+
+        it("parts heard in another guild never join a template (keyed by guild and sender, like Contributions)", function()
+            local msgs = ns.Guild.Encode(REV, GM, RULES)
+            hear(GM, msgs[1])
+            WowStub.state.guild.name = "Other Guild" -- the same roster, another guild key
+            hear(GM, msgs[2])
+            assert.is_nil(ns.Guild.Template(), "half from the first guild, half from this one: nothing")
+            assert.is_nil(MailworthyDB.guildTemplates and MailworthyDB.guildTemplates[ns.Guild.Key("Bank Of Azeroth")])
+            WowStub.state.now = WowStub.state.now + 60 -- past Comms.DUPLICATE_WINDOW
+            hear(GM, msgs[1]) -- the whole template heard in this guild
+            assert.equal(2, #ns.Guild.Template().rules)
+            WowStub.state.guild.name = "Bank Of Azeroth"
+            WowStub.state.now = WowStub.state.now + 60
+            hear(OFFICER, msgs[1])
+            hear(MEMBER, msgs[2]) -- another sender's part never completes the officer's copy
+            assert.is_nil(ns.Guild.Template())
         end)
 
         it("a rule for someone outside the guild is left out", function()
@@ -424,7 +442,7 @@ describe("guild template", function()
             assert.equal("guild", ns.RoutesUI.View(), "/mw guild")
         end)
 
-        it("more guild rules than rows: the mailbox points at /mw guild, not Friends (Codex review)", function()
+        it("more guild rules than rows: the mailbox points at Settings... > Guild..., not Friends (Codex review)", function()
             publishFrom(GM, REV + 1, { { profession = ENCHANTING, to = BOB }, { profession = ALCHEMY, to = ANN },
                 { profession = TAILORING, to = GM }, { profession = 164, to = MEMBER } })
             ns.Guild.SetUse(true)
@@ -433,7 +451,7 @@ describe("guild template", function()
             ns.MailWindow.Show("send")
             assert.equal(4, ns.Routes.Count())
             assert.truthy(_G.MailworthyMailSkip2:IsShown())
-            assert.equal("|cffaaaaaa+ 2 more: guild rules, /mw guild|r", ns.MailWindow.MoreText(2, true))
+            assert.equal("|cffaaaaaa+ 2 more: guild rules, Settings... > Guild...|r", ns.MailWindow.MoreText(2, true))
             assert.equal("|cffaaaaaa+ 2 more: press Friends...|r", ns.MailWindow.MoreText(2, false))
             assert.is_false(_G.MailworthyMailSkip3:IsShown(), "the last row is the pointer")
         end)
@@ -479,6 +497,9 @@ describe("guild template", function()
             assert.equal("Rettana Quilwrit", ns.Guild.Draft()[2].to)
             assert.equal("Publish to guild", _G.MailworthyFriendsPublish:GetText())
             WowStub.state.addonMessages = {}
+            _G.MailworthyFriendsPublish:Click() -- two presses (UX review U7): the first sends nothing
+            assert.equal(0, #WowStub.state.addonMessages)
+            assert.equal("Sure?", _G.MailworthyFriendsPublish:GetText())
             _G.MailworthyFriendsPublish:Click()
             assert.equal(2, #WowStub.state.addonMessages)
             local head = "T2|" .. WowStub.state.serverTime .. "|Rettana Quilwrit|"
@@ -519,6 +540,11 @@ describe("guild template", function()
             WowStub.state.gamepadUI = true
             ns.Guild.DraftAdd(BOB, ENCHANTING)
             ns.SettingsUI.Show()
+            _G.MailworthyPadWatcher.scripts.OnUpdate(_G.MailworthyPadWatcher, 0.2)
+            ns.Nav.Select(_G.MailworthySettingsTabMore)
+            WowStub.state.now = WowStub.state.now + 1
+            _G.MailworthyPadCross:Click() -- Bags and more (UX review U2: the windows are on that tab)
+            assert.equal("more", ns.SettingsUI.Tab())
             local function reachable(button)
                 for _, c in ipairs(ns.Nav.Candidates()) do if c.button == button then return true end end
                 return false

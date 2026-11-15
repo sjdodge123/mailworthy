@@ -1,6 +1,6 @@
 -- The friends window (/mw friends, the settings' Friends button, the Mailworthy
 -- window's Friends button; media/ux-pass-prototype.png), one view at a time:
---   list: the player's own bindings, each with its price cap stepper, scope (all my
+--   list: the player's own bindings (then Guild... and Mail ledger...), each with its price cap stepper, scope (all my
 --     characters / this character), for an Enchanting binding its Gear switch on a third line
 --     ("Gear: all green and blue" / "Gear: only when disenchanting pays more";
 --     media/disenchant-binding-prototype.png), where the mail goes (the friend, or the
@@ -22,6 +22,7 @@
 -- button, so the controller drives it (PadKey "settings" set, Nav); nothing needs typing.
 local _, ns = ...
 
+
 local UI = {}
 ns.RoutesUI = UI
 
@@ -39,13 +40,13 @@ UI.TITLE = { friends = "Send materials to friends", guild = "Guild materials" }
 
 local W = ns.Widgets
 
-local frame, title, sub, bindHead, stepLabel, chosenLabel, emptyBindings, bindPage, candPage, refreshButton
-local addButton, backButton, doneButton, ledgerButton, hint, legend
+local win, frame, views, bindHead, stepLabel, chosenLabel, emptyBindings, bindPager, candPager, refreshButton
+local addButton, backButton, doneButton, ledgerButton, guildButton, hint
 local guildLabel, guildToggle, publishButton
 local bindingRows, candidateRows, professionRows = {}, {}, {}
-local pages = { bind = 1, cand = 1 }
 local candidates, picked = {}, nil
 local view = "list"
+local guildFromList = false -- the guild view was opened from the list (its Guild... button): Back returns there
 local marked -- a name on screen carries the Mailworthy mark: the footer says what it means
 local target = "me" -- what the add view makes: "me" (a binding) or "guild" (a template rule)
 
@@ -59,13 +60,11 @@ function UI.View() return view end
 --- Whether a name in the current view carries the Mailworthy mark (its key is in the footer).
 function UI.Marked() return marked end
 --- The footer line (the mark's key, the controller legend), for specs.
-function UI.Footer() return legend and legend:GetText() end
+function UI.Footer() return win and win.legend:GetText() end
 --- What the add view makes: "me" (a binding) or "guild" (a guild template rule).
 function UI.Target() return target end
-
-local function selected(text, on)
-    return on and ("|cff33ff99> " .. text .. " <|r") or text
-end
+--- The buttons each view shows (Widgets.Views), for specs.
+function UI.Views() return views end
 
 local function setHint(text) if hint then hint:SetText(text or "") end end
 
@@ -76,12 +75,7 @@ local function withMark(name, text)
     return out
 end
 
-local function pageOf(list, rows, key)
-    local count = math.max(1, math.ceil(#list / rows))
-    if pages[key] > count then pages[key] = 1 end
-    if pages[key] < 1 then pages[key] = count end -- back from the first page: the last
-    return pages[key], count
-end
+local function at(widget, x, y, point) win.at(widget, x, y, point) end
 
 --- Pure: the cap as the rule it is: "10s each or more: to my bank alt", or "no price cap".
 function UI.CapText(route)
@@ -133,11 +127,6 @@ function UI.GuildText(template, canPublish, fromText)
     return text, template.use and "Guild rules: on" or "Guild rules: off"
 end
 
-local function at(widget, x, y, point)
-    widget:ClearAllPoints()
-    widget:SetPoint(point or "TOPLEFT", frame, point or "TOPLEFT", x, y)
-end
-
 -- A binding row's buttons act on what the row shows: row.kind "route" (a binding: Routes),
 -- "draft" (a guild template rule being edited: Guild), "guild" (a guild rule in force: no buttons).
 local function createBindingRows()
@@ -146,7 +135,8 @@ local function createBindingRows()
         row.text = W.Label(frame, "GameFontHighlight")
         row.text:SetWidth(420)
         row.text:SetJustifyH("LEFT")
-        row.remove = W.Button(frame, "Remove", 80, function()
+        -- Two presses (UX review U7): "Sure?" for 3 seconds, the second press removes.
+        row.remove = W.ConfirmButton(frame, "Remove", "Sure?", 80, function()
             if not row.key then return end
             if row.kind == "draft" then
                 ns.Guild.DraftRemove(row.key)
@@ -156,8 +146,13 @@ local function createBindingRows()
                 setHint("Binding removed.")
                 UI.Refresh()
                 ns.MailWindow.RefreshIfShown()
+                ns.SettingsUI.RefreshIfShown() -- Friends / Guild / Mail ledger may fold again (UX review U1)
             end
-        end, "MailworthyFriendsRemove" .. i)
+        end, "MailworthyFriendsRemove" .. i, function()
+            setHint(row.kind == "draft" and "Press Remove again to take this rule out of the draft."
+                or "Press Remove again to remove this binding.")
+            UI.Refresh()
+        end)
         row.cap = W.Label(frame, "GameFontHighlightSmall")
         row.cap:SetWidth(CAP_WIDTH)
         row.cap:SetJustifyH("LEFT")
@@ -193,14 +188,7 @@ local function createBindingRows()
     emptyBindings = W.Label(frame, "GameFontHighlightSmall")
     emptyBindings:SetWidth(WIDTH - 56)
     emptyBindings:SetJustifyH("LEFT")
-    bindPage = W.Button(frame, "", 70, function()
-        pages.bind = pages.bind + 1
-        UI.Refresh()
-    end, "MailworthyFriendsBindPage")
-    W.PagerBack(frame, bindPage, "MailworthyFriendsBindPageBack", function()
-        pages.bind = pages.bind - 1
-        UI.Refresh()
-    end)
+    bindPager = W.Pager(frame, "MailworthyFriendsBindPage", function() UI.Refresh() end)
     addButton = W.Button(frame, "Add a binding...", 140, function()
         target = view == "guild" and "guild" or "me"
         view, picked = "add", nil
@@ -235,7 +223,8 @@ local function createGuild()
         end
         UI.Refresh()
     end, "MailworthyFriendsGuildRules")
-    publishButton = W.Button(frame, "Publish to guild", 150, function()
+    -- Two presses (UX review U7): it goes to every member of the guild.
+    publishButton = W.ConfirmButton(frame, "Publish to guild", "Sure?", 150, function()
         local ok, err = ns.Guild.Publish()
         if not ok then
             setHint("|cffff8040Not published: " .. tostring(err) .. ".|r")
@@ -245,7 +234,10 @@ local function createGuild()
             ns.Print(text .. " Members who turn the guild rules on mail these materials.")
         end
         UI.Refresh()
-    end, "MailworthyFriendsPublish")
+    end, "MailworthyFriendsPublish", function()
+        setHint("Press again to send these rules to every member of your guild.")
+        UI.Refresh()
+    end)
 end
 
 local function createAdd()
@@ -258,15 +250,7 @@ local function createAdd()
         UI.Refresh()
     end, "MailworthyFriendsRefresh")
     refreshButton:SetPoint("TOPRIGHT", -24, -42)
-    candPage = W.Button(frame, "", 70, function()
-        pages.cand = pages.cand + 1
-        UI.Refresh()
-    end, "MailworthyFriendsPage")
-    W.PagerBack(frame, candPage, "MailworthyFriendsPageBack", function()
-        pages.cand = pages.cand - 1
-        UI.Refresh()
-    end)
-    candPage:SetPoint("TOPRIGHT", -130, -42)
+    candPager = W.Pager(frame, "MailworthyFriendsPage", function() UI.Refresh() end)
     chosenLabel = W.Label(frame, "GameFontHighlightSmall")
     chosenLabel:SetPoint("TOPLEFT", 28, LIST_TOP - 2)
     chosenLabel:SetWidth(WIDTH - 56)
@@ -298,17 +282,10 @@ end
 
 function UI.Create()
     if frame then return frame end
-    frame = W.Window("MailworthyFriendsFrame", WIDTH, 400)
-    frame:SetFrameStrata("FULLSCREEN_DIALOG")
-    frame:SetPoint("CENTER")
-    title = W.Label(frame, "GameFontNormalLarge")
-    title:SetPoint("TOP", 0, -18)
-    title:SetText(UI.TITLE.friends)
-    sub = W.Label(frame, "GameFontHighlightSmall")
-    sub:SetPoint("TOPLEFT", 28, -44)
-    sub:SetWidth(WIDTH - 56)
-    sub:SetJustifyH("LEFT")
-    sub:SetText("Each binding mails a profession's materials to one player, every time, until you remove it.")
+    win = W.Shell({ name = "MailworthyFriendsFrame", width = WIDTH, height = 400, title = UI.TITLE.friends,
+        sub = "Each binding mails a profession's materials to one player, every time, until you remove it.",
+        log = "friends window", refresh = function() UI.Refresh() end })
+    frame = win.frame
     bindHead = W.Label(frame, "GameFontNormal")
     bindHead:SetText("Bindings")
     createBindingRows()
@@ -316,12 +293,24 @@ function UI.Create()
     createAdd()
     hint = W.Label(frame, "GameFontHighlightSmall")
     hint:SetJustifyH("LEFT")
-    doneButton = W.Button(frame, "Done", 100, function() frame:Hide() end, "MailworthyFriendsDone")
+    hint:SetWidth(WIDTH - 56)
+    doneButton = win.Done("MailworthyFriendsDone")
     ledgerButton = W.Button(frame, "Mail ledger...", 120, function() ns.LedgerUI.Show(frame) end, "MailworthyFriendsLedger")
-    legend = W.Label(frame, "GameFontHighlightSmall")
-    legend:SetPoint("BOTTOM", 0, 14)
-    ns.Nav.Attach(frame)
-    ns.Log.Add("ui", "friends window created")
+    -- The guild view from the list (UX review U1: Settings' "Friends and guild..." opens this window).
+    guildButton = W.Button(frame, "Guild...", 126, function() UI.OpenGuild(true) end, "MailworthyFriendsGuild")
+    local pooled = { emptyBindings, bindPager.next, candPager.next, refreshButton, guildToggle, publishButton,
+        addButton, backButton }
+    for _, row in ipairs(bindingRows) do
+        for _, w in ipairs(row.widgets) do pooled[#pooled + 1] = w end
+    end
+    for _, b in ipairs(candidateRows) do pooled[#pooled + 1] = b end
+    for _, b in ipairs(professionRows) do pooled[#pooled + 1] = b end
+    views = W.Views({
+        list = { win.sub, bindHead, addButton, guildButton, ledgerButton, doneButton },
+        guild = { stepLabel, guildLabel, chosenLabel, doneButton },
+        add = { stepLabel, chosenLabel, backButton, doneButton },
+    }, pooled)
+    views.Show("list")
     return frame
 end
 
@@ -356,15 +345,18 @@ local function show(widgets, on)
     end
 end
 
---- Rows for `list` from `top`; `kindOf(r)` names each row's kind. Returns the y below the last row.
+--- Rows for `list` from `top`; `kindOf(r)` names each row's kind. Returns the y below the last row,
+--- and below the pager, which sits under the list's last row when there is more than one page
+--- (UX review U5: never on the heading line the D-pad has to walk back up to).
 local function fillRows(list, top, kindOf, emptyText)
-    local page, count = pageOf(list, UI.BINDING_ROWS, "bind")
-    local first = (page - 1) * UI.BINDING_ROWS
+    local _, _, first = bindPager.Clamp(#list, UI.BINDING_ROWS)
     local shown, y = 0, top
     for i, row in ipairs(bindingRows) do
         local r = list[first + i]
-        row.kind = r and kindOf(r) or nil
-        row.key = r and (row.kind == "draft" and r.profession or r.key) or nil
+        local kind = r and kindOf(r) or nil
+        local key = r and (kind == "draft" and r.profession or r.key) or nil
+        if key ~= row.key or kind ~= row.kind then W.Disarm(row.remove) end -- the row shows another one now
+        row.kind, row.key = kind, key
         show(row.widgets, false)
         if r then
             placeRow(row, y)
@@ -405,14 +397,24 @@ local function fillRows(list, top, kindOf, emptyText)
     else
         emptyBindings:Hide()
     end
-    if count > 1 then
-        bindPage:SetText(string.format("%d/%d  >", page, count))
-        at(bindPage, -24, top + 26, "TOPRIGHT")
-        bindPage:Show()
-    else
-        bindPage:Hide()
+    y = y - (shown == 0 and 30 or 0)
+    if bindPager.Update() then
+        at(bindPager.next, -24, y + 2, "TOPRIGHT")
+        y = y - 28
     end
-    return y - (shown == 0 and 30 or 0)
+    return y
+end
+
+--- The hint on its own line above the bottom row (when it says something); returns the bottom row's y.
+local function hintLine(y)
+    local text = hint:GetText()
+    if text and text ~= "" then
+        at(hint, 28, y - 6)
+        hint:Show()
+        return y - 44
+    end
+    hint:Hide()
+    return y - 10
 end
 
 --- Pure: what the guild view says under the template line.
@@ -455,8 +457,7 @@ local function fillGuildHead(canPublish)
 end
 
 local function fillCandidates()
-    local page, count = pageOf(candidates, UI.CANDIDATE_ROWS, "cand")
-    local first = (page - 1) * UI.CANDIDATE_ROWS
+    local _, _, first = candPager.Clamp(#candidates, UI.CANDIDATE_ROWS)
     local shown = 0
     for i, b in ipairs(candidateRows) do
         local c = candidates[first + i]
@@ -467,12 +468,6 @@ local function fillCandidates()
         else
             b:Hide()
         end
-    end
-    if count > 1 then
-        candPage:SetText(string.format("%d/%d  >", page, count))
-        candPage:Show()
-    else
-        candPage:Hide()
     end
     refreshButton:Show()
     if #candidates == 0 then
@@ -518,15 +513,14 @@ local function fillProfessions()
     for i, b in ipairs(professionRows) do
         local p = options[i]
         if p then
-            b:SetText(selected(p.text, p.suggested))
+            b:SetText(p.text)
+            W.SetToggled(b, p.suggested) -- suggested: the green fill (UX review U6: one way to show it)
             b:Show()
             shown = shown + 1
         else
             b:Hide()
         end
     end
-    candPage:Hide()
-    refreshButton:Hide()
     if hint:GetText() == nil or hint:GetText() == "" then
         setHint("Over the cap (" .. ns.Valuation.Money(ns.Routes.DEFAULT_CAP) .. " each to start) a material goes to "
             .. "your bank alt instead.")
@@ -539,38 +533,23 @@ function UI.Refresh()
     if not frame then return end
     local list, guild, add = view == "list", view == "guild", view == "add"
     marked = false
-    title:SetText((guild or (add and target == "guild")) and UI.TITLE.guild or UI.TITLE.friends)
-    show({ sub }, list)
-    show({ stepLabel }, not list)
-    show({ bindHead }, false)
-    if not add then
-        for _, b in ipairs(candidateRows) do b:Hide() end
-        for _, b in ipairs(professionRows) do b:Hide() end
-        show({ candPage, refreshButton, chosenLabel }, false)
-    end
-    if not guild then show({ guildLabel, guildToggle }, false) end
-    if not guild then publishButton:Hide() end
-    if not list then ledgerButton:Hide() end
-    if add then
-        for _, row in ipairs(bindingRows) do show(row.widgets, false) end
-        show({ emptyBindings, bindPage, addButton }, false)
-    end
+    win.title:SetText((guild or (add and target == "guild")) and UI.TITLE.guild or UI.TITLE.friends)
+    views.Show(view)
     local y
     if list then
         local top = BIND_TOP
         at(bindHead, 20, top + 22)
-        bindHead:Show()
         y = fillRows(ns.Routes.Personal(), top, function() return "route" end,
             "None yet: press Add a binding to pick a player, then the profession whose materials they get.")
         addButton:SetText("Add a binding...")
         addButton:Show()
-        backButton:Hide()
-        at(addButton, 24, y - 10)
-        at(hint, 176, y - 14)
-        hint:SetWidth(WIDTH - 176 - 260)
-        at(ledgerButton, -134, y - 10, "TOPRIGHT")
-        ledgerButton:Show()
-        at(doneButton, -24, y - 10, "TOPRIGHT")
+        guildButton:SetText(ns.SettingsUI.GuildButtonText(ns.Guild.On() and ns.Guild.Mine() ~= nil,
+            ns.Guild.On() and ns.Guild.Template()))
+        y = hintLine(y)
+        at(addButton, 24, y)
+        at(guildButton, 172, y)
+        at(ledgerButton, -134, y, "TOPRIGHT")
+        at(doneButton, -24, y, "TOPRIGHT")
     elseif guild then
         local canPublish = ns.Guild.On() and ns.Guild.CanPublish()
         fillGuildHead(canPublish)
@@ -579,52 +558,50 @@ function UI.Refresh()
             y = fillRows(ns.Guild.Draft() or {}, GUILD_TOP, function() return "draft" end,
                 "No rules yet: press Add a rule to pick yourself or a guild member, then the profession whose "
                 .. "materials they get.")
-            addButton:SetText("Add a rule...")
-            addButton:Show()
-            publishButton:SetText(ns.Guild.DraftChanged() and "Publish to guild" or "Send again")
-            at(addButton, 24, y - 10)
-            at(publishButton, 174, y - 10)
-            publishButton:Show()
         else
             y = fillRows(template and template.rules or {}, GUILD_TOP, function() return "guild" end,
                 template and "This template has no rules." or "")
-            addButton:Hide()
-            publishButton:Hide()
         end
-        backButton:Hide()
-        at(doneButton, -24, y - 10, "TOPRIGHT")
-        y = y - 30
-        at(hint, 28, y - 14)
-        hint:SetWidth(WIDTH - 56)
+        y = hintLine(y)
+        if canPublish then
+            addButton:SetText("Add a rule...")
+            W.SetConfirmText(publishButton, ns.Guild.DraftChanged() and "Publish to guild" or "Send again")
+            at(addButton, 24, y)
+            at(publishButton, 174, y)
+            show({ addButton, publishButton }, true)
+        end
+        if guildFromList then
+            at(backButton, -134, y, "TOPRIGHT")
+            backButton:Show()
+        end
+        at(doneButton, -24, y, "TOPRIGHT")
     else
         at(chosenLabel, 28, LIST_TOP - 2) -- the guild view moves it under its template line
         if picked then
-            for _, b in ipairs(candidateRows) do b:Hide() end
             y = fillProfessions()
         else
-            for _, b in ipairs(professionRows) do b:Hide() end
             chosenLabel:Hide()
             y = fillCandidates()
         end
+        y = hintLine(y)
+        -- Step 1's pager on the bottom row, left of Back (UX review U5: never on the heading line).
+        if not picked and candPager.Update() then at(candPager.next, -134 - 100 - 8, y, "TOPRIGHT") end
+        at(backButton, -134, y, "TOPRIGHT")
         backButton:Show()
-        at(hint, 28, y - 14)
-        hint:SetWidth(WIDTH - 56 - 230)
-        at(backButton, -134, y - 10, "TOPRIGHT")
-        at(doneButton, -24, y - 10, "TOPRIGHT")
+        at(doneButton, -24, y, "TOPRIGHT")
     end
-    frame:SetHeight(-(y - 10) + 22 + 40)
-    legend:SetText(W.Footer(ns.MailButton.GamepadUI(), marked))
-    ns.Nav.Revalidate()
+    win.Finish(y, marked)
 end
 
 --- Step 1: a player.
 function UI.Pick(i)
-    local c = candidates[(pages.cand - 1) * UI.CANDIDATE_ROWS + i]
+    local c = candidates[(candPager.page - 1) * UI.CANDIDATE_ROWS + i]
     if not c then return end
     picked = c
     setHint("")
     UI.Refresh()
 end
+
 
 --- Step 2: the profession; a binding is saved for all the account's characters here, a
 --- guild rule goes to the draft (published with Publish to guild).
@@ -658,37 +635,42 @@ function UI.Bind(i)
     picked, view = nil, "list"
     UI.Refresh()
     ns.MailWindow.RefreshIfShown()
+    ns.SettingsUI.RefreshIfShown() -- the first binding: Friends, Guild and Mail ledger unfold (UX review U1)
 end
 
 --- `opener`: the Mailworthy window whose button opened it (placed beside that), or nil (centred).
-function UI.Show(opener)
+--- `startView`: "list" opens on the bindings even with none (Settings' "Friends and guild...": the
+--- list has Guild... and Mail ledger...); otherwise no bindings opens on step 1.
+function UI.Show(opener, startView)
     if not frame then UI.Create() end
-    W.PlaceBeside(frame, opener)
-    picked, target = nil, "me"
-    view = #ns.Routes.Personal() == 0 and "add" or "list"
-    pages.bind, pages.cand = 1, 1
-    setHint("")
-    UI.Reload("shown")
-    UI.Refresh()
-    frame:Show()
-    frame:Raise()
-    ns.Log.Add("ui", "friends window shown")
+    win.Show(opener, function()
+        picked, target, guildFromList = nil, "me", false
+        view = (startView == "list" or #ns.Routes.Personal() > 0) and "list" or "add"
+        bindPager.page, candPager.page = 1, 1
+        setHint("")
+        UI.Reload("shown")
+    end)
 end
 
---- The guild view (/mw guild, the settings' Guild button): the template, on / off, and for the
---- guild master and officers its editor. `opener` as for UI.Show.
-function UI.ShowGuild(opener)
-    if not frame then UI.Create() end
-    W.PlaceBeside(frame, opener)
-    picked, target, view = nil, "guild", "guild"
-    pages.bind, pages.cand = 1, 1
+--- The guild view: the template, on / off, and for the guild master and officers its editor.
+--- `fromList`: opened from this window's list (its Back returns there).
+function UI.OpenGuild(fromList)
+    picked, target, view, guildFromList = nil, "guild", "guild", fromList == true
+    bindPager.page, candPager.page = 1, 1
     setHint("")
     ns.Routes.RequestRoster()
     if ns.Guild.On() and not ns.Guild.Template() then ns.Guild.Ask("guild window") end
     UI.Refresh()
+    ns.Log.Add("ui", "guild window shown")
+end
+
+--- The guild view (/mw guild, the settings' Guild button). `opener` as for UI.Show.
+function UI.ShowGuild(opener)
+    if not frame then UI.Create() end
+    W.PlaceBeside(frame, opener)
+    UI.OpenGuild(false)
     frame:Show()
     frame:Raise()
-    ns.Log.Add("ui", "guild window shown")
 end
 
 function UI.Toggle()

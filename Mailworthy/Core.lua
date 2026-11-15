@@ -29,6 +29,7 @@ end
 ns.Features = { DEFAULTS = {
     mailButton = true, padTriangle = true, padNav = true, padLock = true, altClickLock = true, slotBorder = true,
     pinClick = true, padPin = true,
+    padPick = true, -- Square on a mailbox row picks (PadKey.KEY_FEATURE); off: the pick button is a D-pad stop again
     vendorButton = true, padVendor = true,
     minimapButton = true, bankAltTags = true, tooltipLines = true, comms = true, staleNudge = true, crafterOffer = true,
     tiers = true, tierCheck = true, guildTemplate = true, ledger = true, questNeeds = true, autoOpen = true,
@@ -102,10 +103,10 @@ local HELP = {
     "At a mailbox: open the Send Mail tab and the Mailworthy window opens (the Mailworthy button under the mail window"
         .. " toggles it). Controller: Send Mail tab ({PADRSHOULDER}); {PAD4} closes and reopens it.",
     "Lock an item (it stays locked wherever it moves): Alt+click it, or {PADLSTICK} in your bags (controller).",
-    "Pin an item to always bank it: Ctrl+Alt+click it, or {PADRSTICK} in your bags (controller). Settings > Pinned"
-        .. " items picks where, per character: BA (Send mails it to your bank alt) or BH (it stays, to bank here)."
+    "Pin an item to always bank it: Ctrl+Alt+click it, or {PADRSTICK} in your bags (controller). Settings > Bags and"
+        .. " more > Pins picks where, per character: BA (Send mails it to your bank alt) or BH (it stays, to bank here)."
         .. " Again: always vendor it (it stays, tagged V). A third time unpins."
-        .. " /mw pins lists them; /mw pinwarning on|off.",
+        .. " Pinned items... (/mw pins) lists them, each with Unpin; Pin warning (/mw pinwarning on|off).",
     "Locked items glow blue while the Mailworthy window is open (settings: always); a new lock glows a moment anywhere."
         .. " In the Mailworthy window, pressing an item locks or unlocks it.",
     "/mw or /mw settings - bank alt, minimum gain, disenchant, listing length, keep your professions' materials"
@@ -114,6 +115,7 @@ local HELP = {
         .. " (bindings; the Mailworthy window shows them with Skip once)",
     "/mw guild - your guild's template: turn the guild rules on or off; the guild master and officers edit it",
     "/mw locks - this character's locked items, each with Unlock (also for an item no longer in your bags)",
+    "/mw pins - the pinned items, each with Unpin (also for an item no longer in your bags)",
     "/mw scan - what Mailworthy would mail and why (sends nothing)",
     "Away from a mailbox: with 4 or fewer bag slots left, one chat line a session says what is worth mailing"
         .. " (the minimap button's tooltip too; /mw feature tripNudge off)",
@@ -122,7 +124,7 @@ local HELP = {
     "/mw summary - on your bank alt (or without one): what to list, disenchant or vendor",
     "At a vendor: the \"Mailworthy: sell V\" button under the merchant window ({PAD4} with a controller, or /mw vendor)"
         .. " lists the items tagged V and sells them, 12 stacks a press (the Buyback tab can undo a press).",
-    "/mw feature <mailButton|padTriangle|padNav|padLock|padPin|altClickLock|pinClick|slotBorder|vendorButton|padVendor"
+    "/mw feature <mailButton|padTriangle|padNav|padLock|padPin|padPick|altClickLock|pinClick|slotBorder|vendorButton|padVendor"
         .. "|minimapButton|bankAltTags"
         .. "|tooltipLines|comms|staleNudge|tiers|tierCheck|guildTemplate|ledger|questNeeds|autoOpen|returnToSender|bankAltMail"
         .. "|peerMark|versionNotice|tripNudge|crafterOffer"
@@ -147,10 +149,11 @@ function ns.HandleSlash(msg)
     elseif cmd == "locks" then
         ns.LocksUI.Show()
     elseif cmd == "pins" then
-        ns.Pins.PrintList()
+        ns.PinsUI.Show() -- the window, with Unpin (UX review U3; it printed the list)
     elseif cmd == "pinwarning" then
         ns.Config.Set("hidePinWarning", rest == "off")
         ns.Print("Pin warning " .. (rest == "off" and "off." or "on: pinning an item your profession uses warns once."))
+        if ns.SettingsUI then ns.SettingsUI.RefreshIfShown() end
     elseif cmd == "friends" or cmd == "bindings" then
         ns.RoutesUI.Show()
     elseif cmd == "guild" then
@@ -167,6 +170,24 @@ function ns.HandleSlash(msg)
         ns.SettingsUI.Show()
     else
         showHelp()
+    end
+end
+
+-- Key bindings (Bindings.xml; UX pass U9, 2026-11-15): Options > Keybindings > AddOns, so a controller
+-- player can open Settings or the report away from a mailbox. Only Mailworthy's own windows.
+BINDING_NAME_MAILWORTHY_SETTINGS = "Mailworthy: settings"
+BINDING_NAME_MAILWORTHY_REPORT = "Mailworthy: bug report"
+ns.BINDINGS = { settings = true, report = true }
+
+--- A key binding pressed (Bindings.xml): "settings" toggles the Settings window, "report" opens the report.
+function MailworthyBinding(which)
+    if not ns.BINDINGS[which] then return end
+    ns.lastCommand = "binding " .. tostring(which)
+    if which == "settings" then
+        if ns.SettingsUI.Frame() and ns.SettingsUI.Frame():IsShown() then ns.SettingsUI.Frame():Hide()
+        else ns.SettingsUI.Show() end
+    else
+        ns.HandleSlash(which)
     end
 end
 

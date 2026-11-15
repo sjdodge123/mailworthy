@@ -41,21 +41,15 @@ ns.Routes = Routes
 -- they only step through gold values that wont be very helpful early game. even 50s will not be
 -- used until level 30+"; "add 1s and 50c as lowest options as well").
 Routes.CAP_STEPS = { 50, 100, 500, 1000, 2500, 5000, 10000, 20000, 50000, 100000, 250000, 500000, 1000000 }
--- 10s each for a new binding (operator, 2026-11-11: "i think 10s is a good default option to
--- start"; it was 5g, 2026-10-26). A saved binding keeps the cap it has.
-Routes.DEFAULT_CAP = 1000
+-- 10s each for a new binding (Valuation.DEFAULT_CAP). A saved binding keeps the cap it has.
+Routes.DEFAULT_CAP = ns.Valuation.DEFAULT_CAP
 Routes.MAX = 12             -- bindings per scope
 Routes.SCOPES = { account = "All my characters", character = "This character" }
 Routes.SCOPE_REPORT = { account = "all my characters", character = "this character", guild = "guild template" }
 Routes.ROUTE = "friend"     -- the verdict route of a diverted item
 
--- Verdicts a binding never overrides (AGENTS safety: never a locked item, and
--- nothing the game wouldn't let us attach).
-Routes.HARD_KEEPS = {
-    locked = true, soulbound = true, ["quest item"] = true, ["a quest needs it"] = true, ["in use"] = true,
-    ["profession tool"] = true, ["item info not loaded yet"] = true, ["conjured item"] = true,
-    ammo = true, -- the ranged weapon's (Ammo.lua)
-}
+-- Verdicts a binding never overrides (AGENTS safety: never a locked item, and nothing the game
+-- wouldn't let us attach): the kinds flagged `hard` in Valuation.KINDS (Valuation.HardKeep).
 
 -- Verdicts a class binding doesn't override either: AGENTS safety keeps anything but white items
 -- (without a price source) in the bags (Codex review, 2026-11-08), and an item with no auction
@@ -66,49 +60,24 @@ function Routes.PriceKeep(verdict)
     if type(verdict) == "table" and type(verdict.was) == "table" then return Routes.PriceKeep(verdict.was) end
     if verdict and verdict.action == "mail" and verdict.route == ns.Valuation.NO_PRICE then return true end
     if not (verdict and verdict.action == "keep") then return false end
-    local reason = tostring(verdict.reason)
-    return reason == "no price" or reason == "uncommon or better (no price data)"
-        or reason == "junk (no price data)" or reason:find("^price too old") ~= nil
+    return ns.Valuation.Flag(verdict, "priceKeep")
 end
 
 local skipped = {} -- route key -> true for this mailbox visit
 
-local function call(fn, ...)
-    if type(fn) ~= "function" then return nil end
-    local results = { pcall(fn, ...) }
-    if not results[1] then return nil end
-    return unpack(results, 2, table.maxn(results))
-end
+local Util = ns.Util
+local call = Util.Call
 
-local function realmKey()
-    local _, realm, faction = ns.Characters.Current()
-    return tostring(realm) .. "|" .. tostring(faction)
-end
+local function accountList() return Util.Store(MailworthyDB, "routes", (Util.RealmKey())) end
 
-local function accountList()
-    MailworthyDB.routes = type(MailworthyDB.routes) == "table" and MailworthyDB.routes or {}
-    local key = realmKey()
-    MailworthyDB.routes[key] = type(MailworthyDB.routes[key]) == "table" and MailworthyDB.routes[key] or {}
-    return MailworthyDB.routes[key]
-end
-
-local function charList()
-    MailworthyCharDB.routes = type(MailworthyCharDB.routes) == "table" and MailworthyCharDB.routes or {}
-    return MailworthyCharDB.routes
-end
+local function charList() return Util.Store(MailworthyCharDB, "routes") end
 
 local function listFor(scope)
     return scope == "character" and charList() or accountList()
 end
 
---- Pure: a player name as mail wants it: spaces collapsed, any "-Realm" suffix dropped
---- (guild rosters and addon messages carry one; a Forever name never has a hyphen).
-function Routes.Clean(name)
-    name = ns.Config.Clean(name)
-    if not name then return nil end
-    name = name:match("^([^%-]+)") or name
-    return ns.Config.Clean(name)
-end
+--- Pure: a player name as mail wants it (Characters.Clean: spaces collapsed, any "-Realm" dropped).
+Routes.Clean = ns.Characters.Clean
 
 -- An Enchanting binding also takes green and blue weapons and armor (operator, 2026-11-06:
 -- "the enchanter binding ... should also include green or blue items that can be used for
@@ -246,21 +215,38 @@ function Routes.Recipient(route)
     return Routes.Crafter(route, ns.Comms and ns.Comms.Peer(route.to) or nil)
 end
 
--- The guild roster's rank for a member's primary profession (C_Club member info carries
--- profession1ID / profession1Rank, as Blizzard's Communities roster sorts by them).
-local function guildSkill(name, profession)
-    if call(IsInGuild) ~= true then return nil end
+-- The guild roster's members by lower-case name (the first of a name wins), with their C_Club member
+-- info: it carries profession1ID / profession1Rank, as Blizzard's Communities roster sorts by them.
+local function guildRoster()
+    local byName = {}
+    if call(IsInGuild) ~= true then return byName end
     local club = rawget(_G, "C_Club")
     local clubId = type(club) == "table" and call(club.GetGuildClubId) or nil
     local members = clubId and call(club.GetClubMembers, clubId) or nil
     for _, memberId in ipairs(type(members) == "table" and members or {}) do
         local info = call(club.GetMemberInfo, clubId, memberId)
-        if type(info) == "table" and info.name and tostring(Routes.Clean(info.name)):lower() == name:lower() then
-            if tonumber(info.profession1ID) == profession then return tonumber(info.profession1Rank) end
-            if tonumber(info.profession2ID) == profession then return tonumber(info.profession2Rank) end
-            return nil
+        if type(info) == "table" and info.name then
+            local key = tostring(Routes.Clean(info.name)):lower()
+            if byName[key] == nil then byName[key] = info end
         end
     end
+    return byName
+end
+
+-- The guild roster's rank for a member's primary profession. `cache` (optional): a table that keeps
+-- the roster for several calls (Routes.Active: one roster walk per scan, not one per binding).
+local function guildSkill(name, profession, cache)
+    local roster
+    if cache then
+        cache.roster = cache.roster or guildRoster()
+        roster = cache.roster
+    else
+        roster = guildRoster()
+    end
+    local info = roster[name:lower()]
+    if not info then return nil end
+    if tonumber(info.profession1ID) == profession then return tonumber(info.profession1Rank) end
+    if tonumber(info.profession2ID) == profession then return tonumber(info.profession2Rank) end
     return nil
 end
 
@@ -286,14 +272,15 @@ end
 --- The skill in a binding's profession of the character that gets its mail, or nil when
 --- unknown: the highest of what their Mailworthy said (Comms "S2"), this account's own
 --- character's last login, and the guild roster (primary professions only). Skill only
---- grows, so the highest is the latest.
-function Routes.Skill(route)
+--- grows, so the highest is the latest. `cache` (optional, a table): keeps the guild roster between
+--- calls (Routes.Active passes one per scan).
+function Routes.Skill(route, cache)
     if route.class then return nil end
     local to = Routes.Recipient(route)
     local profession = tonumber(route.profession)
     local best
     for _, skill in ipairs({ ns.Comms and ns.Comms.Skill(to, profession) or false, ownSkill(to, profession) or false,
-        guildSkill(to, profession) or false }) do
+        guildSkill(to, profession, cache) or false }) do
         if skill and (not best or skill > best) then best = skill end
     end
     return best
@@ -337,19 +324,14 @@ function Routes.Divert(item, verdict, price, settings, routes)
     -- with it, whatever binding takes the material. The row's button (Routes.Pick) sends it anyway.
     if verdict and verdict.neededBy then return nil end
     local unit, capUnit = Routes.Units(item, price, settings)
-    local outgrown, route
-    for _, r in ipairs(routes or {}) do
-        local matches, past = Routes.Matches(r, item, settings and settings.tiers, settings and settings.priceOf)
-        -- A class binding needs a current auction price when there's a price source (the cap is checked
-        -- against it): an item without one goes to the bank alt, whatever its route (a disenchant
-        -- value alone isn't one; Codex review, 2026-11-08).
-        if r.class and not Routes.ClassPriced(verdict, price, unit) then matches = false end
-        -- A recipe this character already knows (item.known, Recipes.lua; operator, 2026-11-14: "already
-        -- known crafting recipes should continue down regular routing rules"): a binding naming this
-        -- character doesn't keep it here; another binding or the regular rules take it.
-        if matches and item.known and Routes.IsMe((Routes.Recipient(r))) then matches = false end
-        if past then outgrown = outgrown or r end
-        if matches and (not route or Routes.Before(r, route)) then route = r end
+    -- A recipe this character already knows (item.known, Recipes.lua; operator, 2026-11-14: "already
+    -- known crafting recipes should continue down regular routing rules"): a binding naming this
+    -- character doesn't keep it here; another binding or the regular rules take it.
+    local takers, outgrown = Routes.Takers(item, verdict, price, unit, routes, settings and settings.tiers,
+        settings and settings.priceOf, item.known)
+    local route
+    for _, r in ipairs(takers) do
+        if not route or Routes.Before(r, route) then route = r end
     end
     if not route then return nil, nil, outgrown end
     if route.cap and capUnit and capUnit >= route.cap then return nil, route end
@@ -358,11 +340,29 @@ function Routes.Divert(item, verdict, price, settings, routes)
     return Routes.Force(item, route, unit, settings)
 end
 
+--- Pure: the bindings of `routes` that take `item`, in their order (Routes.Divert's and Routes.Choices'
+--- one filter): its profession's materials or its class's items (Routes.Matches, with `tiers` and
+--- `priceOf`); a class binding only with a current auction price when there is a price source (the cap is
+--- checked against it: an item without one goes to the bank alt, whatever its route; a disenchant value
+--- alone isn't one; Codex review, 2026-11-08); with `notMe`, never a binding whose recipient is this
+--- character. Second return: the first binding whose player's skill is past the material (Tiers).
+function Routes.Takers(item, verdict, price, unit, routes, tiers, priceOf, notMe)
+    local list, outgrown = {}, nil
+    for _, r in ipairs(routes or {}) do
+        local matches, past = Routes.Matches(r, item, tiers, priceOf)
+        if matches and r.class and not Routes.ClassPriced(verdict, price, unit) then matches = false end
+        if matches and notMe and Routes.IsMe((Routes.Recipient(r))) then matches = false end
+        if past then outgrown = outgrown or r end
+        if matches then list[#list + 1] = r end
+    end
+    return list, outgrown
+end
+
 --- Pure: a binding may take an item with this verdict at all: never a hard keep, a pinned item (Pins.lua:
 --- it goes to the bank alt, the player asked for exactly that) or after a failed price call (AGENTS safety;
 --- Codex review, 2026-11-08). The row's button (Routes.Choices) is held to the same.
 function Routes.Divertible(verdict, price)
-    if verdict and verdict.action == "keep" and Routes.HARD_KEEPS[verdict.reason] then return false end
+    if ns.Valuation.HardKeep(verdict) then return false end
     if verdict and (verdict.pinned or verdict.failed) then return false end
     -- A binding naming this character keeps the item here (Routes.Force): no pick moves it (AGENTS Safety).
     if verdict and verdict.forMe then return false end
@@ -408,7 +408,7 @@ end
 function Routes.Force(item, route, unit, settings)
     local to, crafter = Routes.Recipient(route)
     if Routes.IsMe(to) then
-        return { action = "keep", reason = Routes.What(route) .. " are for this character", forMe = route.key }
+        return ns.Valuation.Keep(ns.Valuation.K.forMe, { forMe = route.key }, Routes.What(route))
     end
     local n = item.count or 1
     return {
@@ -443,13 +443,7 @@ local picks = {} -- item link -> Routes.MINE or a binding's key
 function Routes.Choices(item, verdict, price, settings, routes)
     if not Routes.Divertible(verdict, price) then return {} end
     local unit = Routes.Units(item, price, settings)
-    local list = {}
-    for _, r in ipairs(routes or {}) do
-        if Routes.Matches(r, item, false) and not Routes.IsMe(Routes.Recipient(r))
-            and (not r.class or Routes.ClassPriced(verdict, price, unit)) then
-            list[#list + 1] = r
-        end
-    end
+    local list = Routes.Takers(item, verdict, price, unit, routes, false, nil, true)
     table.sort(list, function(a, b)
         if Routes.Before(a, b) then return true end
         if Routes.Before(b, a) then return false end
@@ -471,7 +465,9 @@ function Routes.NextPick(current, choices)
 end
 
 function Routes.Pick(link, state)
-    if link then picks[link] = state end
+    if not link then return end
+    picks[link] = state
+    ns.Bags.InputsChanged("pick")
 end
 function Routes.Picked(link) return link and picks[link] or nil end
 function Routes.ClearPicks() picks = {} end
@@ -523,12 +519,13 @@ end
 function Routes.Count() return #Routes.List() end
 
 --- The bindings in force for this mailbox visit (not skipped once), each with the
---- recipient's `skill` (Routes.Skill) for the material tiers.
+--- recipient's `skill` (Routes.Skill) for the material tiers. The guild roster is walked once for
+--- all of them (every bag scan calls this).
 function Routes.Active()
-    local list = {}
+    local list, cache = {}, {}
     for _, r in ipairs(Routes.List()) do
         if not skipped[r.key] then
-            r.skill = Routes.Skill(r)
+            r.skill = Routes.Skill(r, cache)
             list[#list + 1] = r
         end
     end
@@ -575,7 +572,7 @@ function Routes.Add(name, what, opts)
         return nil, "not a crafting profession"
     end
     local route = { to = name, profession = profession, class = class,
-        cap = opts.cap == nil and Routes.DEFAULT_CAP or (opts.cap or nil), at = call(GetServerTime) or time() }
+        cap = opts.cap == nil and Routes.DEFAULT_CAP or (opts.cap or nil), at = Util.Now() }
     local key = Routes.KeyOf(route)
     if find(key) then return nil, "already bound" end
     local scope = opts.scope == "character" and "character" or "account"
@@ -583,6 +580,7 @@ function Routes.Add(name, what, opts)
     if #list >= Routes.MAX then return nil, "too many bindings" end
     list[#list + 1] = route
     ns.Log.Add("routes", "bound %s to %s (%s)", Routes.What(route), name, scope)
+    ns.Bags.InputsChanged("routes")
     return Routes.Get(key)
 end
 
@@ -592,6 +590,7 @@ function Routes.Remove(key)
     table.remove(list, i)
     skipped[key] = nil
     ns.Log.Add("routes", "unbound %s to %s", Routes.What(r), r.to)
+    ns.Bags.InputsChanged("routes")
     return true
 end
 
@@ -604,6 +603,7 @@ function Routes.SetScope(key, scope)
     table.remove(list, i)
     target[#target + 1] = r
     ns.Log.Add("routes", "%s to %s now %s", Routes.What(r), r.to, scope)
+    ns.Bags.InputsChanged("routes")
     return true
 end
 
@@ -633,6 +633,7 @@ function Routes.StepCap(key, dir)
     if not r then return end
     r.cap = Routes.NextCap(r.cap, dir)
     ns.Log.Add("routes", "%s to %s: cap %s", Routes.What(r), r.to, r.cap and ns.Valuation.Money(r.cap) or "none")
+    ns.Bags.InputsChanged("routes")
 end
 
 --- Flip an Enchanting binding's Gear switch (Routes.GEAR_DE / every piece). Returns true when
@@ -642,6 +643,7 @@ function Routes.ToggleGear(key)
     if not Routes.TakesGear(r) then return false end
     r.gear = r.gear ~= Routes.GEAR_DE and Routes.GEAR_DE or nil
     ns.Log.Add("routes", "%s to %s: %s", Routes.What(r), r.to, Routes.GearText(r))
+    ns.Bags.InputsChanged("routes")
     return true
 end
 
@@ -662,15 +664,20 @@ function Routes.SkipOnce(key)
     for _, r in ipairs(Routes.List()) do
         if r.key == key then skipped[key] = true end
     end
+    ns.Bags.InputsChanged("skip")
 end
 
-function Routes.Unskip(key) skipped[key] = nil end
+function Routes.Unskip(key)
+    skipped[key] = nil
+    ns.Bags.InputsChanged("skip")
+end
 function Routes.Skipped(key) return skipped[key] == true end
 function Routes.ClearSkips() skipped = {} end
 
 ns.On("MAIL_CLOSED", function()
     Routes.ClearSkips()
     Routes.ClearPicks()
+    ns.Bags.InputsChanged("visit over", true)
 end)
 
 -- Candidates: who can be bound ------------------------------------------------------
@@ -757,7 +764,7 @@ local function peerCandidates(list, byName)
     if not ns.Comms then return end
     for _, peer in pairs(ns.Comms.Peers()) do
         addCandidate(list, byName, { name = peer.name, source = "mailworthy", professions = peer.professions })
-        local entry = byName[tostring(Routes.Clean(peer.name) or ""):lower()]
+        local entry = byName[Util.NameKey(peer.name) or ""]
         if entry then entry.peer = peer end
     end
 end
@@ -825,12 +832,7 @@ end
 Routes.CRAFTER = { [164] = "blacksmith", [202] = "engineer", [165] = "leatherworker", [197] = "tailor",
     [171] = "alchemist", [333] = "enchanter", [185] = "cook" }
 
-local function dismissals()
-    MailworthyDB.crafterOffers = type(MailworthyDB.crafterOffers) == "table" and MailworthyDB.crafterOffers or {}
-    local key = realmKey()
-    MailworthyDB.crafterOffers[key] = type(MailworthyDB.crafterOffers[key]) == "table" and MailworthyDB.crafterOffers[key] or {}
-    return MailworthyDB.crafterOffers[key]
-end
+local function dismissals() return Util.Store(MailworthyDB, "crafterOffers", (Util.RealmKey())) end
 local function offerKey(name, profession) return tostring(name):lower() .. "|" .. tostring(tonumber(profession)) end
 
 --- "Not for <name>": never offer this character this profession's materials again.
@@ -873,7 +875,7 @@ function Routes.Offer(scan, bankAlt)
     end
     if #items == 0 then return nil end
     local me = tostring(ns.PlayerName()):lower()
-    local alt = tostring(Routes.Clean(bankAlt) or ""):lower()
+    local alt = Util.NameKey(bankAlt) or ""
     local active = Routes.Active()
     local best
     for _, entry in ipairs(ns.Characters.Mailable()) do

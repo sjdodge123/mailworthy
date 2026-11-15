@@ -19,12 +19,7 @@ ns.Quests = Quests
 local needs -- lower-case item name -> quest title; nil = read the log again
 local MAX_ENTRIES = 100
 
-local function call(fn, ...)
-    if type(fn) ~= "function" then return nil end
-    local results = { pcall(fn, ...) }
-    if not results[1] then return nil end
-    return unpack(results, 2, table.maxn(results))
-end
+local call = ns.Util.Call
 
 --- Pure: the item an objective's text names: "Crisp Spider Meat: 3/5" (Classic), "3/5 Crisp
 --- Spider Meat" (the modern client), or the text itself. nil for an empty text.
@@ -95,7 +90,7 @@ function Quests.For(link)
         local ok, quests = pcall(Quests.Read)
         needs = Quests.Index(ok and quests or {})
     end
-    local name = tostring(link or ""):match("%[(.-)%]") or link
+    local name = ns.Util.LinkName(link) or link
     return type(name) == "string" and needs[name:lower()] or nil
 end
 
@@ -116,7 +111,7 @@ function Quests.Update()
     local ok, quests = pcall(Quests.Read)
     needs = Quests.Index(ok and quests or {})
     if before == nil or Quests.Same(before, needs) then return false end
-    if ns.BankAlt then ns.BankAlt.Redraw() end
+    ns.Bags.InputsChanged("quests")
     if ns.MailWindow and not ns.Mailer.Busy() then ns.MailWindow.RefreshIfShown() end
     return true
 end

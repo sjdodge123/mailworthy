@@ -38,14 +38,10 @@ Stale.HEARD_DAYS = 14       -- and only if we heard it in the last two weeks
 Stale.KEEP_DAYS = 60
 Stale.MAX_AGE = 21          -- Auctionator returns no age past 21 days
 
-local function call(fn, ...)
-    if type(fn) ~= "function" then return nil end
-    local results = { pcall(fn, ...) }
-    if not results[1] then return nil end
-    return unpack(results, 2, table.maxn(results))
-end
+local Util = ns.Util
+local call = Util.Call
 
-local function serverTime() return call(GetServerTime) or time() end
+local serverTime = Util.Now
 
 --- Pure: the server day (days since the epoch) of a server time.
 function Stale.Day(t) return math.floor((t or serverTime()) / 86400) end
@@ -87,17 +83,7 @@ function Stale.Message()
     return day and Stale.Encode(day) or nil
 end
 
-local function realmKey()
-    local _, realm, faction = ns.Characters.Current()
-    return tostring(realm) .. "|" .. tostring(faction)
-end
-
-local function store()
-    MailworthyDB.fresh = type(MailworthyDB.fresh) == "table" and MailworthyDB.fresh or {}
-    local key = realmKey()
-    MailworthyDB.fresh[key] = type(MailworthyDB.fresh[key]) == "table" and MailworthyDB.fresh[key] or {}
-    return MailworthyDB.fresh[key]
-end
+local function store() return Util.Store(MailworthyDB, "fresh", (Util.RealmKey())) end
 
 function Stale.Peers() return store() end
 
@@ -221,6 +207,18 @@ ns.On("PLAYER_LOGIN", function()
         end)
     end
 end)
+
+-- "F2|<server day>" (Comms.Register): right after each hello, when Auctionator saw a watched good in 21 days.
+ns.Comms.Register("F", {
+    kind = "fresh",
+    module = "Stale",
+    decode = function(rest)
+        local day = rest:match("^(%d+)$")
+        return day and #day <= 7 and { day = tonumber(day) } or nil
+    end,
+    hear = function(name, msg) return ns.Stale.Hear(name, msg.day) or nil end,
+    afterHello = function() return ns.Stale.Message() end,
+})
 
 ns.On("MAIL_SHOW", function()
     local ok, nudge = pcall(Stale.Current)

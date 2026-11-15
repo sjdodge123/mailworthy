@@ -24,12 +24,7 @@ Recipes.LABEL = "Already known" -- ITEM_SPELL_KNOWN in English
 -- itemID -> true (the tooltip has the line) / false (it doesn't, and the item's data was loaded)
 local cache = {}
 
-local function call(fn, ...)
-    if type(fn) ~= "function" then return nil end
-    local results = { pcall(fn, ...) }
-    if not results[1] then return nil end
-    return unpack(results, 2, table.maxn(results))
-end
+local call = ns.Util.Call
 
 -- The text of a tooltip data line (surfaced field, or the args of an older client).
 local function lineText(line)
@@ -106,7 +101,7 @@ end
 -- Each mailbox visit asks the tooltips again, once, and the bag tags' cached verdicts with them.
 ns.On("MAIL_SHOW", function()
     Recipes.Forget()
-    if ns.BankAlt then ns.BankAlt.Invalidate() end
+    ns.Bags.InputsChanged("recipes", true)
 end)
 -- Learning a recipe uses its item up: the bag update that follows asks the "not known" ones again, so
 -- another copy left in the bags is tagged as known (Codex review, 2026-11-14). Registered before

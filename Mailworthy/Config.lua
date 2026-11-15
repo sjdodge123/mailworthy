@@ -8,29 +8,24 @@ local _, ns = ...
 local Config = {}
 ns.Config = Config
 
+local Util = ns.Util
+
 Config.MIN_GAIN_STEPS = { 0, 100, 200, 300, 500, 1000, 2000, 5000, 10000, 20000, 50000 }
 Config.PCT_STEPS = { 0, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.75, 1 }
 Config.MAX_NAMES = 10
 
 local function db()
-    MailworthyDB.settings = type(MailworthyDB.settings) == "table" and MailworthyDB.settings or {}
-    MailworthyDB.realms = type(MailworthyDB.realms) == "table" and MailworthyDB.realms or {}
-    MailworthyDB.bankAlts = type(MailworthyDB.bankAlts) == "table" and MailworthyDB.bankAlts or {}
-    MailworthyDB.names = type(MailworthyDB.names) == "table" and MailworthyDB.names or {}
+    Util.Store(MailworthyDB, "settings")
+    Util.Store(MailworthyDB, "realms")
+    Util.Store(MailworthyDB, "bankAlts")
+    Util.Store(MailworthyDB, "names")
     return MailworthyDB
 end
 
---- Collapse spaces; Forever names are "First Surname".
-function Config.Clean(name)
-    if type(name) ~= "string" then return nil end
-    name = name:gsub("%s+", " "):match("^%s*(.-)%s*$")
-    return name ~= "" and name or nil
-end
+--- Collapse spaces; Forever names are "First Surname" (Characters.CleanSpaces).
+Config.Clean = ns.Characters.CleanSpaces
 
-local function realmKey()
-    local _, realm, faction = ns.Characters.Current()
-    return tostring(realm) .. "|" .. tostring(faction), realm, faction
-end
+local realmKey = Util.RealmKey
 
 -- Settings -------------------------------------------------------------------
 
@@ -42,8 +37,7 @@ Config.CHARACTER = { keepProfessionMats = true, matsToBankAlt = true }
 
 local function charSettings()
     if type(MailworthyCharDB) ~= "table" then return {} end
-    MailworthyCharDB.settings = type(MailworthyCharDB.settings) == "table" and MailworthyCharDB.settings or {}
-    return MailworthyCharDB.settings
+    return Util.Store(MailworthyCharDB, "settings")
 end
 
 function Config.Values()
@@ -65,9 +59,7 @@ end
 --- The first server time Mailworthy saw this realm (recorded at login), for Valuation.ServerDay.
 function Config.FirstSeen()
     local _, realm = ns.Characters.Current()
-    local realms = db().realms
-    realms[tostring(realm)] = type(realms[tostring(realm)]) == "table" and realms[tostring(realm)] or {}
-    local entry = realms[tostring(realm)]
+    local entry = Util.Store(db(), "realms", tostring(realm))
     if type(entry.firstSeen) ~= "number" then entry.firstSeen = serverTime() end
     return entry.firstSeen
 end
@@ -96,10 +88,12 @@ function Config.Set(key, value)
     if Config.CHARACTER[key] then
         charSettings()[key] = value
         ns.Log.Add("config", "%s = %s (this character)", key, tostring(value))
-        return
+    else
+        db().settings[key] = value
+        ns.Log.Add("config", "%s = %s", key, tostring(value))
     end
-    db().settings[key] = value
-    ns.Log.Add("config", "%s = %s", key, tostring(value))
+    -- Lazily: the settings window redraws the tags itself when it closes (BankAlt).
+    if ns.Bags then ns.Bags.InputsChanged("settings", true) end
 end
 
 --- Pure: the next value in `steps` from `value` in direction +1 / -1 (from the
@@ -184,6 +178,7 @@ function Config.SetBankAlt(name)
     db().bankAlts[key] = name
     remember(name, realm, faction)
     ns.Log.Add("config", "bank alt for %s = %s%s", key, name, entry and "" or " (not seen by Mailworthy)")
+    if ns.Bags then ns.Bags.InputsChanged("bank alt", true) end
     return name
 end
 
@@ -198,6 +193,7 @@ function Config.SetBankAltHere()
     local key = realmKey()
     db().bankAlts[key] = name
     ns.Log.Add("config", "bank alt for %s = %s (this character)", key, name)
+    if ns.Bags then ns.Bags.InputsChanged("bank alt", true) end
     return name
 end
 
@@ -207,6 +203,13 @@ function Config.ClearBankAlt()
     if db().bankAlts[key] == nil then return end
     db().bankAlts[key] = nil
     ns.Log.Add("config", "bank alt for %s cleared", key)
+    if ns.Bags then ns.Bags.InputsChanged("bank alt", true) end
+end
+
+--- Does this character bank here what goes "to the bank" (it is the bank alt, or has none)?
+--- (BankAlt.BanksHere; Valuation.Verdict's `banksHere`.)
+function Config.BanksHere()
+    return Config.IsBankAltHere() or not Config.BankAlt()
 end
 
 --- Is this character the saved bank alt for its realm + faction?

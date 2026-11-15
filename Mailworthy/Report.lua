@@ -13,12 +13,7 @@ ns.Report = Report
 
 local reportFrame, reportBox, reportText, reportHeading
 
-local function call(fn, ...)
-    if type(fn) ~= "function" then return nil end
-    local results = { pcall(fn, ...) }
-    if not results[1] then return nil end
-    return unpack(results, 2, table.maxn(results))
-end
+local call = ns.Util.Call
 
 local function strings(...)
     local out = {}
@@ -30,12 +25,17 @@ function Report.Create()
     if reportFrame then return reportFrame end
     local W = ns.Widgets
     reportFrame = W.Window("MailworthyReportFrame", 640, 440)
+    -- Over every Mailworthy window: Settings' Report... and the ledger's Export log... open it beside theirs.
+    reportFrame:SetFrameStrata("FULLSCREEN_DIALOG")
     reportFrame:SetPoint("CENTER")
     reportHeading = W.Label(reportFrame, "GameFontNormalLarge")
     reportHeading:SetPoint("TOP", 0, -18)
     local hint = W.Label(reportFrame, "GameFontHighlightSmall")
-    hint:SetPoint("BOTTOM", 0, 18)
+    hint:SetPoint("BOTTOMLEFT", 24, 18)
     hint:SetText("Click the text, Ctrl+C, then paste it where you report the problem")
+    -- Done, like every other window: the controller's highlight never starts on the X (Nav.Candidates).
+    W.Button(reportFrame, "Done", 100, function() reportFrame:Hide() end, "MailworthyReportDone")
+        :SetPoint("BOTTOMRIGHT", -24, 12)
     local scroll = CreateFrame("ScrollFrame", "MailworthyReportScroll", reportFrame, "UIPanelScrollFrameTemplate")
     scroll:SetPoint("TOPLEFT", 20, -44)
     scroll:SetPoint("BOTTOMRIGHT", -40, 40)
@@ -74,8 +74,7 @@ function Report.Frame() return reportFrame end
 
 function Report.Build()
     local name, realm, faction = ns.Characters.Current()
-    local v = ns.Config.Values()
-    v.serverDay = ns.Config.ServerDay()
+    local v = ns.Bags.PrepareSettings(ns.Bags.Settings())
     local lines = {
         string.format("Mailworthy %s report at %s", ns.VERSION, date("%Y-%m-%d %H:%M")),
         "build: " .. strings(call(GetBuildInfo)),
@@ -84,14 +83,11 @@ function Report.Build()
         "bank alt: " .. tostring(ns.Config.BankAlt() or "none set"),
         string.format("server: launch day %s (realm first seen %s)", tostring(ns.Config.ServerDay()),
             date("%Y-%m-%d", ns.Config.FirstSeen())),
-        string.format("settings: %dh listing, min gain %s and %d%%, disenchant %s, max price age %d days, tags %s, "
-            .. "lock glow %s, item tooltips %s, bags 0-%d, profession materials %s",
-            ns.Valuation.DURATION_HOURS[v.duration], ns.Bags.MinGainText(v), math.floor(v.minGainPct * 100 + 0.5),
-            v.disenchant and "on" or "off", v.maxAgeDays,
-            ns.Config.Flag("tagsEverywhere") and "every character" or ("bank alt only, here: " .. tostring(ns.BankAlt.Mode())),
-            ns.Config.Flag("glowEverywhere") and "always" or "with the Mailworthy window open", ns.Config.Tooltips(),
-            ns.Bags.LastBag(),
-            ns.Bags.ProfessionMatsText(ns.Bags.Evaluate(v).settings)),
+        ns.Bags.SettingsLine(v, { extra = {
+            "tags " .. (ns.Config.Flag("tagsEverywhere") and "every character" or ("bank alt only, here: " .. tostring(ns.BankAlt.Mode()))),
+            "lock glow " .. (ns.Config.Flag("glowEverywhere") and "always" or "with the Mailworthy window open"),
+            "item tooltips " .. ns.Config.Tooltips(),
+            "bags 0-" .. ns.Bags.LastBag() } }),
         "send: " .. ns.Bags.SendText(v),
         "prices: " .. (ns.Prices.SourceText() or "none")
             .. (ns.Prices.DisenchantAddon() and (", " .. ns.Prices.DisenchantAddon() .. " installed") or ""),

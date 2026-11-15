@@ -41,7 +41,7 @@ local P = ns.Palette
 
 --- Does this character bank here what goes "to the bank" (it is the bank alt, or has none)?
 function BankAlt.BanksHere()
-    return ns.Config.IsBankAltHere() or not ns.Config.BankAlt()
+    return ns.Config.BanksHere()
 end
 
 --- The Palette entry (tag letters, colours, label) for a verdict (BankAlt.Verdict). "b" (bank it, not
@@ -59,12 +59,7 @@ local tags = setmetatable({}, { __mode = "k" }) -- bag button -> { bg, text }
 local cache = { dirty = true, bySlot = {}, byLink = {}, byItemID = {} }
 local frame, rows, header, legend
 
-local function call(fn, ...)
-    if type(fn) ~= "function" then return nil end
-    local results = { pcall(fn, ...) }
-    if not results[1] then return nil end
-    return unpack(results, 2, table.maxn(results))
-end
+local call = ns.Util.Call
 
 --- The character this realm + faction mails to: picked from a main on the same
 --- account, or declared here ("This character is my bank alt" in the settings
@@ -107,36 +102,9 @@ function BankAlt.AfterSend()
     BankAlt.Redraw()
 end
 
---- Pure: the tag for a valued item: "ah" / "de" when the auction house or
---- disenchanting beats the vendor by the minimum gain, "b" when it should be banked
---- for a later phase instead of listed, "craft" when this character's own profession needs
---- it (bank it until then), "v" when the vendor wins, nil when there's nothing to say
---- (locked, soulbound, tool, no price...).
+--- The tag for a valued item here (Valuation.Verdict, with where this character banks).
 function BankAlt.Verdict(item)
-    local r = item.result
-    if not r then return nil end
-    if r.pinned and r.action == "keep" and r.reason == ns.Valuation.PIN_HERE_REASON then return "here" end
-    if r.vendorPin then return "v" end -- a vendor pin (Pins.lua): V whatever the market says
-    -- A pin valued for the bank alt where pins bank here (BankAlt.BanksHere) is a bank-here pin.
-    if r.pinned and r.action == "mail" and r.route == "bank" and BankAlt.BanksHere() then return "here" end
-    if ns.Valuation.BankForCraft(r) then return "craft" end
-    -- An enchanter's cheap green or blue piece, soulbound or not: disenchant it here (Valuation.DisenchantsHere).
-    if r.deHere and r.action == "keep" then return "de" end
-    -- Soulbound, with a vendor price: V (the vendor window sells it only when vendor-pinned).
-    if r.action == "keep" and r.reason == "soulbound" and (r.vendor or 0) > 0 then return "v" end
-    if r.action == "mail" then
-        -- Where the mailbox sends it, as the window does (operator, 2026-11-13: tags that ignored
-        -- bindings and Return to sender disagreed with the window).
-        if r.route == "return" then return "return" end
-        if r.to then return "friend" end
-        if r.route == "bank" then return "b" end
-        return (r.route == "ah" or r.route == "de") and r.route or nil
-    end
-    if r.reason == "not worth it" and (r.vendor or 0) > 0 then return "v" end
-    -- Grey junk: no auction price, but a vendor buys it.
-    local unpriced = r.reason == "no price" or r.reason == "junk (no price data)"
-    if item.quality == 0 and unpriced and (item.vendor or 0) > 0 then return "v" end
-    return nil
+    return ns.Valuation.Verdict(item, BankAlt.BanksHere())
 end
 
 --- Settings for the verdicts: on the bank alt (and with "tags everywhere") no postage,
@@ -144,11 +112,7 @@ end
 --- bindings count (an item a friend's binding takes is F, not AH), and so does Return to sender
 --- while it is on at the mailbox (R): the tags say what the mailbox does (operator, 2026-11-13).
 function BankAlt.Settings()
-    local s = ns.Config.Values()
-    if BankAlt.Mode() ~= "sent" then s.postage = 0 end
-    if ns.Returns.On() then s.returns = ns.Returns.Current() end
-    s.forTags = true -- the send switches don't change a tag (Bags.ApplySendSwitches)
-    return s
+    return ns.Bags.Settings({ forTags = true, noPostage = BankAlt.Mode() ~= "sent" })
 end
 
 function BankAlt.Invalidate()
@@ -287,9 +251,8 @@ local function ageText(age)
 end
 
 -- Kept for a reason the tooltip doesn't repeat: the game's own lines (soulbound, quest item,
--- conjured item), the lock glow's line (Border), or nothing to say yet.
-BankAlt.QUIET_KEEPS = { soulbound = true, ["quest item"] = true, ["conjured item"] = true, locked = true,
-    ["in use"] = true, ["item info not loaded yet"] = true }
+-- conjured item), the lock glow's line (Border), or nothing to say yet: the kinds flagged `quiet`
+-- in Valuation.KINDS.
 
 --- Pure: the label and the line for an item with no verdict tag: where the Mailworthy window
 --- mails it, or why it stays in the bags. nil when there's nothing to add. `noBankAlt`: the bank
@@ -309,7 +272,7 @@ function BankAlt.OtherLine(item, noBankAlt)
         end
         return "Mail", "Goes to your bank alt at the mailbox: " .. tostring(r.reason) .. "."
     end
-    if r.action ~= "keep" or BankAlt.QUIET_KEEPS[r.reason] then return nil end
+    if r.action ~= "keep" or ns.Valuation.Flag(r, "quiet") then return nil end
     return "Keep", "Stays in your bags: " .. ns.MailWindow.StayReason(r) .. "."
 end
 
@@ -335,13 +298,13 @@ local function tagText(verdict, item, settings)
             money(unit), basis, ageText(p.age), math.floor(settings.cut * 100 + 0.5),
             ns.Valuation.DURATION_HOURS[settings.duration], money(r.gain))
     elseif verdict == "v" and r.vendorPin then
-        return string.format("Vendor it (%s): you pinned it for the vendor (/mw pins lists pins).%s", money(r.vendor),
+        return string.format("Vendor it (%s): you pinned it for the vendor (Settings > Pinned items lists them).%s", money(r.vendor),
             r.bound and " Soulbound, so it can't be mailed, but a vendor buys it." or "") .. unpin
     elseif verdict == "here" then
         return "Bank it here: you pinned it, and " .. (HERE_BECAUSE[ns.Pins.HereBecause()] or HERE_BECAUSE.setting) .. "."
             .. unpin
     elseif verdict == "b" and r.pinned then
-        return "Bank it on your bank alt: you pinned it, so Send mails it there (/mw pins lists pins)." .. unpin
+        return "Bank it on your bank alt: you pinned it, so Send mails it there (Settings > Pinned items lists them)." .. unpin
     elseif verdict == "b" then
         local why = tostring(r.reason):gsub("^bank: ", "")
         return (BankAlt.BanksHere() and "Bank it here, don't list it yet: " or "Bank it on your bank alt, don't list it yet: ")
@@ -518,14 +481,16 @@ local ROW_TEXT = {
     end,
 }
 
+local summaryWin
+local SUMMARY_BOTTOM = -74 - 5 * 28 - 12 -- the row of buttons under the five rows
+
 function BankAlt.CreateWindow()
     if frame then return frame end
     local W = ns.Widgets
-    frame = W.Window("MailworthySummaryFrame", 440, 286)
-    frame:SetPoint("CENTER")
-    local title = W.Label(frame, "GameFontNormalLarge")
-    title:SetPoint("TOPLEFT", 22, -18)
-    title:SetText("Mailworthy: what to sell")
+    -- One name for it everywhere: "Bank alt summary" (UX review U6; it was "Mailworthy: what to sell").
+    summaryWin = W.Shell({ name = "MailworthySummaryFrame", width = 440, height = 286, title = "Bank alt summary",
+        strata = "DIALOG" })
+    frame = summaryWin.frame
     header = W.Label(frame, "GameFontNormal")
     header:SetPoint("TOPLEFT", 24, -50)
     rows = {}
@@ -543,10 +508,9 @@ function BankAlt.CreateWindow()
         row.value:SetPoint("TOPRIGHT", -26, y - 1)
         rows[key] = row
     end
-    W.Button(frame, "Close", 100, function() frame:Hide() end, "MailworthySummaryClose"):SetPoint("BOTTOMRIGHT", -20, 40)
-    W.Button(frame, "Scan details", 120, function() ns.Bags.Scan() end, "MailworthySummaryScan")
-        :SetPoint("BOTTOMLEFT", 20, 40)
-    ns.Nav.Attach(frame)
+    summaryWin.at(summaryWin.Done("MailworthySummaryDone"), -24, SUMMARY_BOTTOM, "TOPRIGHT") -- "Done", like every window
+    summaryWin.at(W.Button(frame, "Scan details", 120, function() ns.Bags.Scan() end, "MailworthySummaryScan"),
+        24, SUMMARY_BOTTOM)
     return frame
 end
 
@@ -565,6 +529,7 @@ function BankAlt.RefreshWindow()
         row.text:SetText(text)
         row.value:SetText(value)
     end
+    summaryWin.Finish(SUMMARY_BOTTOM, false)
 end
 
 --- `opener`: the Mailworthy window whose button opened it (placed beside that), or nil (centred).
@@ -591,8 +556,10 @@ ns.On("PLAYER_LOGIN", function()
         legend = bags:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         legend:SetPoint("TOPRIGHT", bags, "BOTTOMRIGHT", -10, -4)
     end
-    ns.Locks.OnChanged(redraw)
-    ns.Pins.OnChanged(redraw)
+    -- Anything a scan reads (Bags.OnInputsChanged: locks, pins, bindings, picks, returns, quests...).
+    ns.Bags.OnInputsChanged(function(_, lazy)
+        if lazy then BankAlt.Invalidate() else BankAlt.Redraw() end
+    end)
     ns.Mailer.OnSent(function() BankAlt.AfterSend() end)
     local settings = ns.SettingsUI.Frame()
     if settings then settings:HookScript("OnHide", redraw) end
@@ -611,7 +578,7 @@ function BankAlt.Waiting()
     for _, list in ipairs({ result.mail or {}, result.keep or {}, result.unmailable or {} }) do
         for _, item in ipairs(list) do
             local r = item.result
-            if item.vendor == nil or (type(r) == "table" and (r.reason == "item info not loaded yet" or r.failed)) then
+            if item.vendor == nil or (type(r) == "table" and (ns.Valuation.Is(r, ns.Valuation.K.notLoaded) or r.failed)) then
                 return true
             end
         end

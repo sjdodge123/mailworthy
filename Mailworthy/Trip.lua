@@ -118,10 +118,10 @@ function Trip.Check()
         return
     end
     if inCombat() then return end -- PLAYER_REGEN_ENABLED checks again
-    local settings = ns.Bags.CurrentSettings()
+    local settings = ns.Bags.Settings()
     local key = scanKey(settings)
     if last and last.key == key then return end
-    local summary = Trip.Summary(ns.Bags.Evaluate())
+    local summary = Trip.Summary(ns.Bags.Evaluate(settings))
     last = { key = key, hold = settings.hold, summary = summary }
     ns.Log.Add("trip", "%d free slot(s): %s", free, summary and (summary.items .. " item(s) to mail, gain "
         .. ns.Valuation.Money(summary.gain)) or "nothing to mail")
@@ -130,6 +130,12 @@ function Trip.Check()
         ns.Print(Trip.ChatText(free, summary))
     end
 end
+
+-- Something the scan key doesn't hold changed (a lock, a pin, a pick, a quest...: Bags.OnInputsChanged):
+-- the next check scans again, whatever the key says. The tooltip line stays until then.
+ns.Bags.OnInputsChanged(function()
+    if last then last.key = nil end
+end)
 
 ns.On("BAG_UPDATE_DELAYED", function() Trip.Check() end)
 ns.On("PLAYER_REGEN_ENABLED", function() Trip.Check() end)

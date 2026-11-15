@@ -1,0 +1,12 @@
+<!-- Key bindings (UX pass U9, 2026-11-15): Game Menu > Options > Keybindings > AddOns lists these, so a
+     controller player can open Mailworthy away from a mailbox (the minimap button needs a mouse, /mw needs
+     typing). The client loads Bindings.xml from the addon folder by itself (no .toc line); each one calls
+     MailworthyBinding (Core.lua), which only shows Mailworthy's own windows. -->
+<Bindings>
+  <Binding name="MAILWORTHY_SETTINGS" category="ADDONS">
+    MailworthyBinding("settings")
+  </Binding>
+  <Binding name="MAILWORTHY_REPORT" category="ADDONS">
+    MailworthyBinding("report")
+  </Binding>
+</Bindings>

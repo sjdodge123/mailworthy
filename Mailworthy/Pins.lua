@@ -34,7 +34,7 @@
 --     dress-up case may also run for a piece of gear (it opens the dressing room; harmless).
 --   * controller: R3 while the bags have focus (PadKey: our own binding; the selected slot is
 --     read from SmartNavigation, read-only).
--- /mw pins lists them. Switches: /mw feature pinClick off, /mw feature padPin off.
+-- /mw pins (or Settings > Pinned items) lists them (PinsUI.lua). Switches: /mw feature pinClick off, /mw feature padPin off.
 local _, ns = ...
 
 local Pins = {}
@@ -48,14 +48,13 @@ Pins.NEXT = { [Pins.BANK] = Pins.VENDOR } -- the cycle: none -> bank -> vendor -
 -- colour comes from Palette.lua: a BH pin glows in BH's.
 Pins.COLOR = ns.Palette.BA.fg
 
-local listeners = {}
+local changed = ns.Util.Signal("pins")
 
 local function pins()
-    MailworthyDB.pins = type(MailworthyDB.pins) == "table" and MailworthyDB.pins or {}
-    return MailworthyDB.pins
+    return ns.Util.Store(MailworthyDB, "pins")
 end
 
-function Pins.OnChanged(fn) table.insert(listeners, fn) end
+Pins.OnChanged = changed.Add
 
 --- This character's setting: Pins.BANK (mail pinned items to the bank alt) or Pins.HERE.
 function Pins.Mode()
@@ -99,7 +98,7 @@ function Pins.SetMode(mode, how)
     mode = mode == Pins.HERE and Pins.HERE or Pins.BANK
     MailworthyCharDB.pinMode = mode == Pins.HERE and Pins.HERE or nil
     ns.Log.Add("pin", "pin mode %s by %s", mode, tostring(how))
-    for _, fn in ipairs(listeners) do pcall(fn, nil, nil) end
+    changed.Fire(nil, nil)
     return mode
 end
 
@@ -147,7 +146,7 @@ function Pins.Set(itemID, link, kind, how)
     elseif kind == nil then
         ns.Print(string.format("Pin removed from %s.", tostring(link)))
     end
-    for _, fn in ipairs(listeners) do pcall(fn, itemID, kind) end
+    changed.Fire(itemID, kind)
     return kind
 end
 
@@ -192,23 +191,6 @@ function Pins.List()
     return list
 end
 
-function Pins.PrintList()
-    local list = Pins.List()
-    if #list == 0 then
-        ns.Print(ns.Gamepad.Fill("No pinned items. Ctrl+Alt+click an item in your bags (controller: {PADRSTICK}): once to"
-            .. " always bank it, twice to always vendor it, a third time to unpin."))
-        return
-    end
-    for _, kind in ipairs({ { Pins.BANK, "Bank pins (on this character " .. Pins.ModeText() .. "): " },
-        { Pins.VENDOR, "Vendor pins (never mailed, tagged V): " } }) do
-        local names = {}
-        for _, entry in ipairs(list) do
-            if entry.kind == kind[1] then names[#names + 1] = tostring(entry.link or entry.name) end
-        end
-        if #names > 0 then ns.Print(kind[2] .. table.concat(names, ", ")) end
-    end
-end
-
 --- For /mw report.
 function Pins.Describe()
     local list = {}
@@ -216,47 +198,11 @@ function Pins.Describe()
     return #list > 0 and table.concat(list, ", ") or "none"
 end
 
---- Post-hook of HandleModifiedItemClick(link, itemLocation): Ctrl+Alt (no Shift) + click on a bag item.
-function Pins.OnModifiedItemClick(_, itemLocation)
-    if not (IsAltKeyDown() and IsControlKeyDown()) or IsShiftKeyDown() then return end
-    if type(itemLocation) ~= "table" or type(itemLocation.IsBagAndSlot) ~= "function" then return end
-    local okIs, isBag = pcall(itemLocation.IsBagAndSlot, itemLocation)
-    if not okIs or not isBag then return end
-    local ok, bag, slot = pcall(itemLocation.GetBagAndSlot, itemLocation)
-    if ok and ns.Bags.IsBag(bag) and type(slot) == "number" then Pins.Toggle(bag, slot, "Ctrl+Alt+click") end
-end
-
---- Controller (R3 in the bags): the bag slot smart navigation has selected (read-only).
-function Pins.ToggleSelectedBagSlot()
-    local nav = rawget(_G, "SmartNavigation")
-    if type(nav) ~= "table" or type(nav.GetCurrentButton) ~= "function" then return nil end
-    local ok, button = pcall(nav.GetCurrentButton, nav)
-    if not ok or type(button) ~= "table" or button.buttonContext ~= ns.Locks.BAG_BUTTON_CONTEXT
-        or type(button.GetBagID) ~= "function" then
-        ns.Log.Add("pin", "R3: no bag item selected")
-        return nil
-    end
-    local okBag, bag = pcall(button.GetBagID, button)
-    local okSlot, slot = pcall(button.GetID, button)
-    if okBag and okSlot and ns.Bags.IsBag(bag) then return Pins.Toggle(bag, slot, "R3") end
-    return nil
-end
-
-function Pins.Install()
-    if not ns.Features.On("pinClick") then
-        ns.Log.Add("pin", "Ctrl+Alt+click pin off (/mw feature pinClick on, then /reload)")
-        return false
-    end
-    if type(HandleModifiedItemClick) ~= "function" then
-        ns.Log.Add("pin", "HandleModifiedItemClick missing: no Ctrl+Alt+click pin")
-        return false
-    end
-    local ok, err = pcall(hooksecurefunc, "HandleModifiedItemClick", function(link, itemLocation)
-        local okHook, errHook = pcall(Pins.OnModifiedItemClick, link, itemLocation)
-        if not okHook then ns.Log.Add("pin", "Ctrl+Alt+click hook error: %s", tostring(errHook)) end
-    end)
-    ns.Log.Add("pin", "Ctrl+Alt+click pin hook %s", ok and "installed" or ("failed: " .. tostring(err)))
-    return ok
-end
+-- Ctrl+Alt (no Shift) + click, or R3 in the bags (Locks.BagClick: the lock's code, Ctrl held).
+local pinClick = ns.Locks.BagClick({ module = Pins, ctrl = true, toggle = function(...) return Pins.Toggle(...) end,
+    area = "pin", click = "Ctrl+Alt+click", pad = "R3", noun = "pin", feature = "pinClick" })
+Pins.OnModifiedItemClick = pinClick.OnModifiedItemClick
+Pins.ToggleSelectedBagSlot = pinClick.ToggleSelectedBagSlot
+Pins.Install = pinClick.Install
 
 ns.On("PLAYER_LOGIN", function() Pins.Install() end)

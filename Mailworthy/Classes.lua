@@ -26,12 +26,7 @@ Classes.ORDER = { "DRUID", "HUNTER", "MAGE", "PALADIN", "PRIEST", "ROGUE", "SHAM
 
 local cache = {} -- itemID -> set of tokens (only a class line found is kept: see Classes.Of)
 
-local function call(fn, ...)
-    if type(fn) ~= "function" then return nil end
-    local results = { pcall(fn, ...) }
-    if not results[1] then return nil end
-    return unpack(results, 2, table.maxn(results))
-end
+local call = ns.Util.Call
 
 --- The class name the player sees ("Mage") for a token, or nil.
 function Classes.Name(token)

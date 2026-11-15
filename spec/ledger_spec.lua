@@ -416,6 +416,24 @@ describe("mail ledger", function()
         assert.is_true(ns.LedgerUI.Frame():IsShown())
     end)
 
+    it("a page turn cancels an armed Mark paid (Codex review, 2026-11-15: it stayed armed across pages)", function()
+        local debts = {}
+        for i = 1, 7 do debts[i] = { name = "Player " .. i, net = 100 * i, items = "", gold = 0 } end
+        local paid = {}
+        ns.Ledger.Debts = function() return debts end
+        ns.Ledger.MarkPaid = function(name) paid[#paid + 1] = name return true end
+        ns.LedgerUI.Show()
+        _G.MailworthyLedgerPaid1:Click()
+        assert.equal("Sure?", _G.MailworthyLedgerPaid1:GetText())
+        _G.MailworthyLedgerPage:Click()
+        _G.MailworthyLedgerPageBack:Click()
+        assert.equal("Mark paid", _G.MailworthyLedgerPaid1:GetText(), "back on page 1: no longer armed")
+        _G.MailworthyLedgerPaid1:Click()
+        assert.same({}, paid, "one press after a page turn pays nothing")
+        _G.MailworthyLedgerPaid1:Click()
+        assert.same({ "Player 1" }, paid)
+    end)
+
     local function hello(from, others)
         local list = {}
         for _, name in ipairs(others) do list[#list + 1] = { name = name, professions = { { skillLine = 197 } } } end

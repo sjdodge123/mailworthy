@@ -98,6 +98,17 @@ describe("return to sender", function()
             assert.equal(0, owed[1].count, "used up, for the item's next bag group")
         end)
 
+        it("a scan uses up a copy: the settings' owed list is the same after it (Bags.Evaluate)", function()
+            WowStub.setBag(0, 1, WowStub.item(2589, "Linen Cloth", { count = 20, sell = 10, class = 7, subclass = 5 }))
+            local owed = { [2589] = { { to = BOB, count = 25, at = 1 } } }
+            local settings = ns.Bags.CurrentSettings()
+            settings.returns = owed
+            local result = ns.Bags.Evaluate(settings)
+            assert.equal(1, #result.mail)
+            assert.equal(BOB, result.mail[1].result.to, "the stack goes back")
+            assert.same({ [2589] = { { to = BOB, count = 25, at = 1 } } }, owed)
+        end)
+
         it("a stack bigger than what is owed stays (the mailer never splits a stack)", function()
             local parts, left = ns.Returns.Split({ slot(0, 1, 20) }, { { to = BOB, count = 5 } })
             assert.same({}, parts)
@@ -217,6 +228,26 @@ describe("return to sender", function()
             assert.is_false(ns.Returns.On())
             ns.MailWindow.Show("send")
             assert.is_false(ns.Widgets.IsToggled(_G.MailworthyMailReturn))
+        end)
+
+        it("no button until something in the bags was mailed here by another player (UX pass, 2026-11-15)", function()
+            ns.MailWindow.Show("send")
+            assert.is_false(_G.MailworthyMailReturn:IsShown(), "nothing owed: a solo player never sees it")
+            take(BOB, { 2770, "Copper Ore" }, 5) -- owed, but not in the bags
+            ns.MailWindow.Refresh()
+            assert.is_false(_G.MailworthyMailReturn:IsShown(), "what is owed isn't in the bags")
+            take(BOB, WOOL, 20)
+            ns.MailWindow.Refresh()
+            assert.is_true(_G.MailworthyMailReturn:IsShown())
+        end)
+
+        it("Returns.Due: an owed item ID in the mail or keep list", function()
+            local owed = { [WOOL[1]] = { { to = BOB, count = 20 } } }
+            assert.is_true(ns.Returns.Due(owed, { mail = {}, keep = { { itemID = WOOL[1] } } }))
+            assert.is_true(ns.Returns.Due(owed, { mail = { { itemID = WOOL[1] } }, keep = {} }))
+            assert.is_false(ns.Returns.Due(owed, { mail = { { itemID = 2770 } }, keep = {} }))
+            assert.is_false(ns.Returns.Due({}, { mail = { { itemID = WOOL[1] } } }))
+            assert.is_false(ns.Returns.Due(nil, nil))
         end)
 
         it("no button with /mw feature returnToSender off, or without the mail ledger", function()

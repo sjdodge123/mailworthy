@@ -114,13 +114,13 @@ describe("ammo", function()
         it("beats a bank pin, a bank-here pin and a vendor pin", function()
             for _, pin in ipairs({ ns.Valuation.PIN_BANK, ns.Valuation.PIN_HERE, ns.Valuation.PIN_VENDOR }) do
                 local r = ns.Valuation.Evaluate(arrows({ pin = pin, vendor = 1 }), { ah = 25, age = 0 }, ns.Valuation.DEFAULTS)
-                assert.same({ action = "keep", reason = "ammo" }, r, pin)
+                assert.same({ action = "keep", kind = "ammo", reason = "ammo" }, r, pin)
             end
         end)
 
         it("is one no binding, pick or Return to sender overrides, and the window says why", function()
-            assert.is_true(ns.Routes.HARD_KEEPS.ammo)
-            assert.equal("ammo for your ranged weapon", ns.MailWindow.StayReason({ action = "keep", reason = "ammo" }))
+            assert.is_true(ns.Valuation.KINDS.ammo.hard)
+            assert.equal("ammo for your ranged weapon", ns.MailWindow.StayReason({ action = "keep", kind = "ammo", reason = "ammo" }))
         end)
 
         it("is checked again right before attaching: a bow equipped since the preview keeps its arrows", function()

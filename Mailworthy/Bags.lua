@@ -8,14 +8,7 @@ local _, ns = ...
 local Bags = {}
 ns.Bags = Bags
 
-Bags.ATTACHMENTS = 12 -- per mail (ATTACHMENTS_MAX_SEND, measured)
-
-local function call(fn, ...)
-    if type(fn) ~= "function" then return nil end
-    local results = { pcall(fn, ...) }
-    if not results[1] then return nil end
-    return unpack(results, 2, table.maxn(results))
-end
+local call = ns.Util.Call
 
 --- The last equipped bag ID: the reagent bag (Enum.BagIndex.ReagentBag = 5 on
 --- Forever, Blizzard_FrameXMLBase/Constants.lua: NUM_TOTAL_EQUIPPED_BAG_SLOTS =
@@ -50,6 +43,51 @@ function Bags.Slots()
         end
     end
     return slots
+end
+
+-- The last-moment re-check -------------------------------------------------------
+-- AGENTS Safety: "Re-check each slot right before attaching it; skip anything that changed." The
+-- mailer (Mailer.StillThere, before each attach) and the vendor window (Vendor.StillThere, before each
+-- sale) run the same checks, in this order, each with its own words; a check that only one of them
+-- needs is switched on by that caller, never off by the other.
+Bags.RECHECKS = { "gone", "different", "count", "inUse", "bound", "noValue", "conjured", "ammo", "locked", "quest",
+    "owed" }
+
+--- Is this bag stack ({ bag, slot, itemID, link, count }) still exactly what was listed, and may it
+--- still go? Returns true, or false and the caller's words for the first check that failed.
+--- `how`:
+---   read(bag, slot): the slot's GetContainerItemInfo table or nil (default Locks.ItemAt);
+---   words: check -> text (Bags.RECHECKS; a check without words says its own name);
+---   looseLink: the link is compared only when both are known (the item ID always is);
+---   bound: refuse a soulbound item (mail: never; a vendor buys a vendor-pinned one);
+---   noValue: refuse what no vendor buys;
+---   owed(itemID): true when another player mailed it here and it may go back to them.
+--- Always: gone, a different item, a changed count, in use, conjured, the equipped ranged weapon's
+--- ammo, locked, an active quest's need.
+function Bags.StillThere(stack, how)
+    how = how or {}
+    local words = how.words or {}
+    local function no(check) return false, words[check] or check end
+    local info = (how.read or ns.Locks.ItemAt)(stack.bag, stack.slot)
+    if type(info) ~= "table" or info.itemID == nil then return no("gone") end
+    if info.itemID ~= stack.itemID then return no("different") end
+    -- The whole link: a random-suffix variant has the item ID but not the item listed (Codex review).
+    if info.hyperlink ~= stack.link and not (how.looseLink and (info.hyperlink == nil or stack.link == nil)) then
+        return no("different")
+    end
+    if (tonumber(info.stackCount) or 1) ~= stack.count then return no("count") end
+    if info.isLocked then return no("inUse") end
+    if how.bound and info.isBound then return no("bound") end
+    if how.noValue and info.hasNoValue then return no("noValue") end
+    local link = info.hyperlink or stack.link
+    if ns.Conjured.Is(info.itemID) then return no("conjured") end
+    -- A bow, crossbow or gun equipped since the list was made: its ammo stays (Ammo.lua).
+    if ns.Ammo.Is(link) then return no("ammo") end
+    if ns.Locks.IsItemLocked(info.itemID) then return no("locked") end
+    -- A quest accepted since the list was made (Codex review, 2026-11-08): what it asks for stays.
+    if ns.Quests.For(link) then return no("quest") end
+    if how.owed and how.owed(info.itemID) then return no("owed") end
+    return true
 end
 
 Bags.PROJECTILE = 6 -- item class of arrows and bullets (Enum.ItemClass.Projectile)
@@ -116,6 +154,31 @@ function Bags.Group(slots)
     return items
 end
 
+-- Scan inputs ---------------------------------------------------------------------------
+-- One signal for "what a scan reads changed" (A9): a lock, a pin or the pin mode, a binding added,
+-- removed or changed, a row pick or a Skip once, the bank alt skipped, Return to sender, an active
+-- quest's needs, the recipes asked again, a setting or the bank alt. Whatever caches a scan listens
+-- (the bag tags, BankAlt; Trip), so no input can leave one stale until the next bag update. Not the
+-- Mailworthy window: it refreshes itself (MailWindow). Fired from the module that owns each input;
+-- Comms (a peer's skills) and SettingsUI still push to BankAlt directly.
+local inputsChanged = ns.Util.Signal("scan inputs")
+
+--- Listen: fn(why, lazy). `why`: what changed ("lock", "routes", ...); `lazy`: only mark a cached
+--- scan stale (read again at its next use), don't redraw now.
+Bags.OnInputsChanged = inputsChanged.Add
+
+--- Say that a scan's inputs changed (see above). `lazy`: see Bags.OnInputsChanged.
+function Bags.InputsChanged(why, lazy)
+    inputsChanged.Fire(why, lazy == true)
+end
+
+-- Locks and pins (and the pin mode) load before this file and have their own lists: passed on. At
+-- PLAYER_LOGIN, after the lock glow's own listener (Border), as BankAlt listened before.
+ns.On("PLAYER_LOGIN", function()
+    ns.Locks.OnChanged(function() Bags.InputsChanged("lock") end)
+    ns.Pins.OnChanged(function() Bags.InputsChanged("pin") end)
+end)
+
 -- The bank alt is optional (operator, 2026-11-08: "dont require a bank alt to use mailworthy"),
 -- and the player can skip it for one mailbox visit ("Skip once for their bank alt sends too"):
 -- then what would have gone to the bank alt stays in the bags, listed under Staying with the
@@ -125,6 +188,7 @@ local bankAltSkipped = false
 function Bags.SkipBankAlt(on)
     bankAltSkipped = on == true
     ns.Log.Add("scan", "bank alt %s this visit", bankAltSkipped and "skipped" or "back")
+    Bags.InputsChanged("bank alt skip")
 end
 function Bags.BankAltSkipped() return bankAltSkipped end
 
@@ -137,26 +201,51 @@ function Bags.HoldReason()
     return nil
 end
 
+--- Fill in what a scan reads that the saved settings don't hold, each only when it isn't set yet (a
+--- caller may pass its own): the launch day, this character's professions (with what the profession
+--- window last showed still in use past the tier table: TierCheck), the tier switch, and, with an
+--- auction price source (Auctionator, else TradeSkillMaster: Prices.Source), the materials' auction unit
+--- prices (the leather conversions: Tiers.WorthConverting). Returns `settings`. The first step of
+--- Bags.Evaluate; /mw report and Bags.ProfessionKeep need only this.
+function Bags.PrepareSettings(settings)
+    if settings.serverDay == nil then settings.serverDay = ns.Config.ServerDay() end
+    if settings.professions == nil then settings.professions = ns.Characters.Professions() end
+    if settings.tiers == nil then settings.tiers = ns.Tiers.On() end
+    -- What the profession window last showed still in use past the table (TierCheck): kept.
+    if settings.tiers then ns.TierCheck.Annotate(settings.professions) end
+    if settings.priceOf == nil and ns.Prices.Source() then settings.priceOf = ns.Prices.MaterialPrice end
+    return settings
+end
+
 --- The crafting profession of this character that "Keep my professions' materials" keeps this item
 --- for, or nil (PinWarning: a pin to the bank alt beats it).
 function Bags.ProfessionKeep(link, itemID)
-    local s = ns.Config.Values()
-    s.professions = ns.Characters.Professions()
-    s.tiers = ns.Tiers.On()
-    if s.tiers then ns.TierCheck.Annotate(s.professions) end
-    if ns.Prices.Source() then s.priceOf = ns.Prices.MaterialPrice end
+    local s = Bags.PrepareSettings(ns.Config.Values())
     local item = { link = link, itemID = itemID }
     item.classID, item.subclassID = ns.Prices.ClassID(link)
     return (ns.Valuation.ProfessionKeep(item, s))
 end
 
---- The window's settings (and /mw scan's): the saved ones, whether the bank alt's share is held,
---- and, while Return to sender is on (Returns.lua), what goes back to whom.
-function Bags.CurrentSettings()
+--- The one settings builder for a scan (Bags.Evaluate), and for what reads the same settings (the
+--- window, /mw scan, /mw report, the bag tags, Trip): the saved ones (Config.Values) and, while Return
+--- to sender is on (Returns.lua), what goes back to whom. `opts` (optional):
+---   forTags: the bag tags' scan (BankAlt.Settings): the send switches don't change a tag
+---     (Bags.ApplySendSwitches), and the bank alt's share isn't held: a tag says what the item is for;
+---   noPostage: nothing is mailed from here (the bank alt's tags): postage 0.
+--- Without forTags, `hold` says why the bank alt's share stays in the bags (Bags.HoldReason), or nil.
+function Bags.Settings(opts)
+    opts = opts or {}
     local s = ns.Config.Values()
-    s.hold = Bags.HoldReason()
+    if opts.noPostage then s.postage = 0 end
+    if not opts.forTags then s.hold = Bags.HoldReason() end
     if ns.Returns.On() then s.returns = ns.Returns.Current() end
+    if opts.forTags then s.forTags = true end
     return s
+end
+
+--- The window's settings (and /mw scan's): Bags.Settings().
+function Bags.CurrentSettings()
+    return Bags.Settings()
 end
 
 --- A copy of a bag item with only `slots` of it (Return to sender sends some stacks back and
@@ -173,7 +262,7 @@ function Bags.Part(item, slots, result)
 end
 
 --- The send switches (settings: Send Auction / Disenchant / Bank / Vendor; Valuation.SEND): what
---- Send takes of the bank alt's share, by the item's verdict (BankAlt.Verdict). A switch that is
+--- Send takes of the bank alt's share, by the item's verdict (Valuation.Verdict). A switch that is
 --- off keeps its items in the bags (result.held says why, result.route what it would have been,
 --- like a skipped bank alt); the Vendor switch, off by default, mails what a vendor pays more for
 --- too (route Valuation.VENDOR), so the bank alt can sell it.
@@ -189,13 +278,13 @@ end
 function Bags.ApplySendSwitches(item, settings, priced)
     local r = item.result
     if settings.forTags or settings.hold or type(r) ~= "table" or r.to or r.held or r.pinned then return end
-    local tag = ns.BankAlt.Verdict(item)
+    local tag = ns.Valuation.Verdict(item, ns.Config.BanksHere())
     local key = tag and ns.Valuation.SEND[tag]
     if not key then return end
     if r.action == "mail" and settings[key] == false then
         r.action, r.held = "keep", "sending " .. ns.Valuation.SEND_LABEL[tag] .. " items is off"
     elseif tag == "v" and r.action == "keep" and settings.sendVendor == true and priced and not item.bound
-        and r.reason == "not worth it" and (item.quality or 0) >= 1 and not r.failed then
+        and ns.Valuation.Is(r, ns.Valuation.K.notWorth) and (item.quality or 0) >= 1 and not r.failed then
         r.action, r.route, r.keptFor = "mail", ns.Valuation.VENDOR, r.reason
         r.reason = "vendor item (sending Vendor items is on)"
         r.postage = r.postage or (settings.postage or 0) * (item.stacks or 1)
@@ -211,30 +300,25 @@ function Bags.SendText(settings)
     return table.concat(parts, ", ")
 end
 
---- Scan and value the bags. `settings.hold` (Bags.HoldReason): the bank alt's share is kept, with
---- result.held saying why and result.route what it would have been. `settings.returns`
---- (Returns.Owed, Return to sender on): stacks another character mailed this one go back to them
---- (route "return"), whatever the rule says, except hard keeps. Returns { settings, priced,
---- mail = {items}, keep = {items},
---- unmailable = {items} (soulbound / quest / conjured: never listed in the window), totals }.
-function Bags.Evaluate(settings)
-    settings = settings or Bags.CurrentSettings()
-    if settings.serverDay == nil then settings.serverDay = ns.Config.ServerDay() end
-    if settings.professions == nil then settings.professions = ns.Characters.Professions() end
-    if settings.tiers == nil then settings.tiers = ns.Tiers.On() end
-    -- What the profession window last showed still in use past the table (TierCheck): kept.
-    if settings.tiers then ns.TierCheck.Annotate(settings.professions) end
-    -- Auction unit prices by item ID, for the leather conversions (Tiers.WorthConverting).
-    -- Priced = an auction price source (Auctionator, else TradeSkillMaster: Prices.Source); without
-    -- one only white items go (AGENTS.md Safety "without Auctionator").
+-- The scan, step by step ------------------------------------------------------------
+-- Bags.Evaluate: prepare the settings (Bags.PrepareSettings), read once what every item needs
+-- (scanContext), then per item group: its facts (gatherFacts), where it goes (decide, then holdShare and
+-- Bags.ApplySendSwitches), Return to sender's share (splitReturns); each part filed and counted
+-- (tally); then the mail counts (countMails) and the lists' order (sortLists).
+
+local function copy(t)
+    local out = {}
+    for k, v in pairs(t) do out[k] = v end
+    return out
+end
+
+--- What a scan reads once, not per item: the price source (priced: without one only white items and
+--- staples go, AGENTS.md Safety "without Auctionator"), the bindings in force, an enchanter's
+--- disenchant-here cap, whether a binding is a class's (each item's class line is read then) or has its
+--- Gear switch on (each unpriced piece's disenchant value is read then), and the ranged weapon's ammo.
+local function scanContext(settings)
     local source = ns.Prices.Source()
-    if settings.priceOf == nil and source then settings.priceOf = ns.Prices.MaterialPrice end
-    local priced = source ~= nil
     local routes = settings.routes or ns.Routes.Active()
-    local result = { settings = settings, priced = priced, source = source, routes = routes, mail = {}, keep = {}, unmailable = {},
-        totals = { items = 0, stacks = 0, mails = 0, gain = 0, postage = 0, routed = 0, unpriced = 0, recipients = {},
-            byRecipient = {} } }
-    local stacksTo = {}
     -- An enchanter's disenchant-here cap (Valuation.DisenchantsHere): an Enchanting binding of the player's
     -- own that names this character sets it, else the bindings' default.
     if settings.deHereCap == nil then
@@ -244,127 +328,185 @@ function Bags.Evaluate(settings)
             end
         end
     end
-    -- Class bindings (Routes, Classes.lua) need each item's class line: read only when there's one.
-    local classRoutes = false
-    for _, r in ipairs(routes) do classRoutes = classRoutes or r.class ~= nil end
-    local mine = classRoutes and ns.Classes.Mine() or nil
-    -- An Enchanting binding with its Gear switch on asks each piece's disenchant value. Without a
-    -- price source there is no price table to carry it, but a disenchant addon may still have one
-    -- (Siz DisenchantValue): read it then, for gear only (Codex review, 2026-11-11).
-    local gearRoutes = false
-    for _, r in ipairs(routes) do gearRoutes = gearRoutes or r.gear == ns.Routes.GEAR_DE end
+    local ctx = { settings = settings, source = source, priced = source ~= nil, routes = routes,
+        classRoutes = false, gearRoutes = false }
+    for _, r in ipairs(routes) do
+        -- Class bindings (Routes, Classes.lua) need each item's class line: read only when there's one.
+        ctx.classRoutes = ctx.classRoutes or r.class ~= nil
+        -- An Enchanting binding with its Gear switch on asks each piece's disenchant value. Without a
+        -- price source there is no price table to carry it, but a disenchant addon may still have one
+        -- (Siz DisenchantValue): read it then, for gear only (Codex review, 2026-11-11).
+        ctx.gearRoutes = ctx.gearRoutes or r.gear == ns.Routes.GEAR_DE
+    end
+    ctx.mine = ctx.classRoutes and ns.Classes.Mine() or nil
     -- The ammo the equipped ranged weapon fires stays (Ammo.lua): the slot is read once per scan.
-    local fires = ns.Ammo.Equipped()
-    local function value(item)
-        item.locked = ns.Locks.IsItemLocked(item.itemID)
-        item.pin = ns.Pins.Effective(item.itemID)
-        if classRoutes then item.classes, item.myClass = ns.Classes.Of(item.itemID), mine end
-        item.questFor = ns.Quests.For(item.link)
-        item.conjured = ns.Conjured.Is(item.itemID)
-        item.classID, item.subclassID = ns.Prices.ClassID(item.link)
-        item.ammo = ns.Ammo.Matches(item.classID, item.subclassID, fires)
-        -- A recipe this character already knows (Recipes.lua): no binding naming this character takes it.
-        item.known = ns.Valuation.RecipeProfession(item) and ns.Recipes.Known(item.itemID) or nil
-        item.vendor = item.noValue and 0 or ns.Prices.Vendor(item.link)
-        item.price = priced and ns.Prices.Lookup(item.link) or nil
-        item.result = ns.Valuation.Evaluate(item, item.price, settings)
-        item.de = nil
-        if gearRoutes and item.price == nil and ns.Routes.IsGear(item) then
-            item.de = ns.Prices.DisenchantValueFor(item.link)
-        end
-        local own = item.result -- the item's own verdict, before any binding (a row's "Me")
-        local diverted, capped, past, beaten = ns.Routes.Divert(item, own, item.price, settings, routes)
-        if diverted then item.result = diverted elseif capped then item.result.capped = capped end
-        if not diverted and past then item.result.pastFor = past end
-        if not diverted and beaten then item.result.gearBeaten = beaten end
-        -- A binding naming this character keeps it here: that is its own verdict now, and no pick moves
-        -- it (Routes.Divertible; Codex review, 2026-11-14: "Me" mailed it to the bank alt).
-        if diverted and diverted.forMe then own = diverted end
-        -- The row's button (Routes.Pick, this mailbox visit): where the player sent it instead.
-        item.choices = ns.Routes.Choices(item, own, item.price, settings, routes)
-        item.pickState = item.result.key or ns.Routes.MINE
-        local pick = #item.choices > 0 and ns.Routes.Picked(item.link) or nil
-        if pick == ns.Routes.MINE and item.result ~= own then
-            item.result, item.pickState = own, pick
-            own.picked = true
-        elseif pick and pick ~= ns.Routes.MINE and pick ~= item.result.key then
-            for _, r in ipairs(item.choices) do
-                if r.key == pick then
-                    item.result = ns.Routes.Force(item, r, (ns.Routes.Units(item, item.price, settings)), settings)
-                    item.result.picked, item.pickState = true, pick
-                end
-            end
-        end
-        -- No bank alt, or skipped this visit: its share stays (bindings still go).
-        if settings.hold and item.result.action == "mail" and not item.result.to then
-            item.result.action, item.result.held = "keep", settings.hold
-        end
-        Bags.ApplySendSwitches(item, settings, priced)
+    ctx.fires = ns.Ammo.Equipped()
+    return ctx
+end
+
+--- An item's facts, each from its own module, for Valuation and the bindings: lock, pin, class line
+--- (class bindings only), an active quest's need, conjured, item class, the equipped weapon's ammo, a
+--- recipe this character knows, vendor and auction price, and an unpriced piece's disenchant value (a
+--- Gear switch only).
+local function gatherFacts(item, ctx)
+    item.locked = ns.Locks.IsItemLocked(item.itemID)
+    item.pin = ns.Pins.Effective(item.itemID)
+    if ctx.classRoutes then item.classes, item.myClass = ns.Classes.Of(item.itemID), ctx.mine end
+    item.questFor = ns.Quests.For(item.link)
+    item.conjured = ns.Conjured.Is(item.itemID)
+    item.classID, item.subclassID = ns.Prices.ClassID(item.link)
+    item.ammo = ns.Ammo.Matches(item.classID, item.subclassID, ctx.fires)
+    -- A recipe this character already knows (Recipes.lua): no binding naming this character takes it.
+    item.known = ns.Valuation.RecipeProfession(item) and ns.Recipes.Known(item.itemID) or nil
+    item.vendor = item.noValue and 0 or ns.Prices.Vendor(item.link)
+    item.price = ctx.priced and ns.Prices.Lookup(item.link) or nil
+    item.de = nil
+    if ctx.gearRoutes and item.price == nil and ns.Routes.IsGear(item) then
+        item.de = ns.Prices.DisenchantValueFor(item.link)
     end
-    local function file(item)
-        if item.result.action == "mail" then
-            table.insert(result.mail, item)
-            local t = result.totals
-            t.items, t.stacks = t.items + item.count, t.stacks + item.stacks
-            t.postage = t.postage + item.result.postage
-            local to = item.result.to or "" -- "" = the bank alt
-            if item.result.to then t.routed = t.routed + item.stacks else t.gain = t.gain + (item.result.gain or 0) end
-            -- To the bank alt with no gain known (no auction price yet): the total says so (Codex review).
-            if priced and not item.result.to and item.result.gain == nil then t.unpriced = t.unpriced + 1 end
-            if not stacksTo[to] then
-                stacksTo[to] = {}
-                t.recipients[#t.recipients + 1] = to
-                t.byRecipient[to] = { items = 0, stacks = 0, mails = 0, what = {}, crafter = item.result.crafter }
-            end
-            -- Mails per recipient as Mailer.Plan makes them: one run per binding (or return) to them.
-            local group = item.result.to and tostring(item.result.what) or ""
-            stacksTo[to][group] = (stacksTo[to][group] or 0) + item.stacks
-            local each = t.byRecipient[to]
-            each.items, each.stacks = each.items + item.count, each.stacks + item.stacks
-            if item.result.what and not each.what[item.result.what] then
-                each.what[item.result.what] = true
-                each.what[#each.what + 1] = item.result.what
-            end
-        elseif ns.Valuation.Unmailable(item.result) then
-            table.insert(result.unmailable, item)
-        else
-            table.insert(result.keep, item)
-        end
+end
+
+--- Where an item goes, from its facts: its own verdict (Valuation.Evaluate, a row's "Me"), a binding's
+--- (Routes.Divert: me first, then friends, then the guild), then the row's pick for this mailbox visit
+--- (Routes.Pick). Returns { own, result, choices, pickState }. `own` is never written to: what a binding
+--- that didn't take the item says (capped, pastFor, gearBeaten) and a pick go on `result`, a table of
+--- its own, which the later steps (holdShare, Bags.ApplySendSwitches) may change.
+local function decide(item, ctx)
+    local settings, routes, price = ctx.settings, ctx.routes, item.price
+    local own = ns.Valuation.Evaluate(item, price, settings)
+    local diverted, capped, past, beaten = ns.Routes.Divert(item, own, price, settings, routes)
+    local result = diverted
+    if not diverted then
+        result = copy(own)
+        result.capped, result.pastFor, result.gearBeaten = capped, past, beaten
     end
-    local owed = settings.returns
-    for _, item in ipairs(Bags.Group(Bags.Slots())) do
-        value(item)
-        local list = owed and owed[item.itemID]
-        local r = item.result
-        -- A soulbound item never goes back to anyone, vendor-pinned or not (its keep reason is the pin's).
-        local hard = ns.Valuation.Unmailable(r) or (r.action == "keep" and ns.Routes.HARD_KEEPS[r.reason]) or item.bound
-        local parts, rest = {}, nil
-        -- Return to sender beats a bank pin: what another player mailed goes back to them, shown as
-        -- any return; the rest of a pinned item goes to the bank alt (operator, 2026-11-13:
-        -- "return to sender should win").
-        if list and not hard then parts, rest = ns.Returns.Split(item.slots, list) end
-        if #parts == 0 then
-            file(item)
-        else
-            for _, p in ipairs(parts) do
-                local back = Bags.Part(item, p.slots, ns.Returns.Result(p.to, #p.slots, settings))
-                back.choices, back.pickState = {}, nil -- Return to sender wins: no row pick changes it
-                file(back)
-            end
-            if #rest > 0 then -- what wasn't mailed to this character (or won't split): the usual rule
-                local left = Bags.Part(item, rest)
-                value(left)
-                file(left)
+    -- A binding naming this character keeps it here: that is its own verdict now, and no pick moves
+    -- it (Routes.Divertible; Codex review, 2026-11-14: "Me" mailed it to the bank alt).
+    local moved = diverted ~= nil and not diverted.forMe
+    if diverted and diverted.forMe then own = diverted end
+    -- The row's button (Routes.Pick, this mailbox visit): where the player sent it instead.
+    local choices = ns.Routes.Choices(item, own, price, settings, routes)
+    local pickState = result.key or ns.Routes.MINE
+    local pick = #choices > 0 and ns.Routes.Picked(item.link) or nil
+    if pick == ns.Routes.MINE and moved then
+        result, pickState = copy(own), pick
+        result.picked = true
+    elseif pick and pick ~= ns.Routes.MINE and pick ~= result.key then
+        for _, r in ipairs(choices) do
+            if r.key == pick then
+                result = ns.Routes.Force(item, r, (ns.Routes.Units(item, price, settings)), settings)
+                result.picked, pickState = true, pick
             end
         end
     end
+    return { own = own, result = result, choices = choices, pickState = pickState }
+end
+
+--- No bank alt, or skipped this visit (settings.hold): its share stays (bindings and returns still go).
+local function holdShare(item, settings)
+    local r = item.result
+    if settings.hold and r.action == "mail" and not r.to then r.action, r.held = "keep", settings.hold end
+end
+
+--- Value one item: its facts, its verdict, the bank alt's share held, the send switches.
+local function value(item, ctx)
+    gatherFacts(item, ctx)
+    local d = decide(item, ctx)
+    item.result, item.choices, item.pickState = d.result, d.choices, d.pickState
+    holdShare(item, ctx.settings)
+    Bags.ApplySendSwitches(item, ctx.settings, ctx.priced)
+end
+
+--- Return to sender: what another player mailed this character goes back to them (Returns.Split over
+--- `owed`, this item's list, used up across its bag groups), shown as any return; the rest of a pinned
+--- item goes to the bank alt (operator, 2026-11-13: "return to sender should win"). Never a hard keep, an
+--- unmailable item or a soulbound one (vendor-pinned or not: its keep reason is the pin's). Returns the
+--- parts going back (Bags.Part, each with its return verdict and no row pick: Return to sender wins)
+--- and the slots left, or nil when nothing goes back.
+local function splitReturns(item, owed, settings)
+    local r = item.result
+    if not owed or ns.Valuation.Unmailable(r) or ns.Valuation.HardKeep(r) or item.bound then return nil end
+    local split, rest = ns.Returns.Split(item.slots, owed)
+    if #split == 0 then return nil end
+    local parts = {}
+    for i, p in ipairs(split) do
+        parts[i] = Bags.Part(item, p.slots, ns.Returns.Result(p.to, #p.slots, settings))
+        parts[i].choices, parts[i].pickState = {}, nil
+    end
+    return parts, rest
+end
+
+--- What is owed back, per item ID: a copy of `returns`' list (Returns.Owed) made once per scan, which
+--- Returns.Split uses up across the item's bag groups (the settings' own list stays as it was).
+local function owedReader(returns)
+    local left = {}
+    return function(itemID)
+        local list = returns and returns[itemID]
+        if not list then return nil end
+        if not left[itemID] then
+            local mine = {}
+            for i, o in ipairs(list) do mine[i] = { to = o.to, count = o.count, at = o.at } end
+            left[itemID] = mine
+        end
+        return left[itemID]
+    end
+end
+
+local function newResult(ctx)
+    return { settings = ctx.settings, priced = ctx.priced, source = ctx.source, routes = ctx.routes, mail = {}, keep = {},
+        unmailable = {}, totals = { items = 0, stacks = 0, mails = 0, gain = 0, postage = 0, routed = 0, unpriced = 0,
+            recipients = {}, byRecipient = {} } }
+end
+
+--- File a valued item under Mailing, Staying or Not mailable; count a mailed one in the totals (items,
+--- stacks, postage, the bank alt's gain, stacks to bindings and returns, unpriced) and per recipient
+--- (`stacksTo`: stacks per mail run, for countMails).
+local function tally(result, item, stacksTo)
+    if item.result.action == "mail" then
+        table.insert(result.mail, item)
+        local t = result.totals
+        t.items, t.stacks = t.items + item.count, t.stacks + item.stacks
+        t.postage = t.postage + item.result.postage
+        local to = item.result.to or "" -- "" = the bank alt
+        if item.result.to then t.routed = t.routed + item.stacks else t.gain = t.gain + (item.result.gain or 0) end
+        -- To the bank alt with no gain known (no auction price yet): the total says so (Codex review).
+        if result.priced and not item.result.to and item.result.gain == nil then t.unpriced = t.unpriced + 1 end
+        if not stacksTo[to] then
+            stacksTo[to] = {}
+            t.recipients[#t.recipients + 1] = to
+            t.byRecipient[to] = { items = 0, stacks = 0, mails = 0, what = {}, crafter = item.result.crafter }
+        end
+        -- Mails per recipient as Mailer.Plan makes them: one run per binding (or return) to them.
+        local group = item.result.to and tostring(item.result.what) or ""
+        stacksTo[to][group] = (stacksTo[to][group] or 0) + item.stacks
+        local each = t.byRecipient[to]
+        each.items, each.stacks = each.items + item.count, each.stacks + item.stacks
+        if item.result.what and not each.what[item.result.what] then
+            each.what[item.result.what] = true
+            each.what[#each.what + 1] = item.result.what
+        end
+    elseif ns.Valuation.Unmailable(item.result) then
+        table.insert(result.unmailable, item)
+    else
+        table.insert(result.keep, item)
+    end
+end
+
+--- The mails each recipient gets: each run's stacks in mails of Mailer.PER_MAIL (Mailer.Plan's split).
+local function countMails(result, stacksTo)
     for to, groups in pairs(stacksTo) do
         for _, n in pairs(groups) do
-            local mails = math.ceil(n / Bags.ATTACHMENTS)
+            local mails = math.ceil(n / ns.Mailer.PER_MAIL)
             result.totals.mails = result.totals.mails + mails
             result.totals.byRecipient[to].mails = result.totals.byRecipient[to].mails + mails
         end
     end
+end
+
+--- The bank alt first among the recipients; the Mailing list in recipient groups, then by gain; the
+--- Staying list locked first (operator, 2026-11-07: "I click them, they disappear off the menu and then
+--- there's not a quick way to see what's been locked": one press on the row unlocks), then by gain.
+local function sortLists(result)
     for i, to in ipairs(result.totals.recipients) do -- the bank alt first
         if to == "" and i > 1 then
             table.remove(result.totals.recipients, i)
@@ -376,7 +518,6 @@ function Bags.Evaluate(settings)
         if ga ~= gb then return ga > gb end
         return a.link < b.link
     end
-    -- The Mailing list in recipient groups (the bank alt's first), so who gets what is plain.
     local order = {}
     for i, to in ipairs(result.totals.recipients) do order[to] = i end
     table.sort(result.mail, function(a, b)
@@ -384,17 +525,45 @@ function Bags.Evaluate(settings)
         if oa ~= ob then return oa < ob end
         return byGain(a, b)
     end)
-    -- Locked items first (operator, 2026-11-07: "I click them, they disappear off the menu and
-    -- then there's not a quick way to see what's been locked"): one press on the row unlocks.
+    local locked = ns.Valuation.K.locked
     table.sort(result.keep, function(a, b)
-        local la, lb = a.result.reason == "locked", b.result.reason == "locked"
+        local la, lb = ns.Valuation.Is(a.result, locked), ns.Valuation.Is(b.result, locked)
         if la ~= lb then return la end
         return byGain(a, b)
     end)
     result.locked = 0
     for _, item in ipairs(result.keep) do
-        if item.result.reason == "locked" then result.locked = result.locked + 1 end
+        if ns.Valuation.Is(item.result, locked) then result.locked = result.locked + 1 end
     end
+end
+
+--- Scan and value the bags. `settings` (default Bags.CurrentSettings; filled in by
+--- Bags.PrepareSettings): `hold` (Bags.HoldReason): the bank alt's share is kept, with result.held saying
+--- why and result.route what it would have been; `returns` (Returns.Owed, Return to sender on): stacks
+--- another character mailed this one go back to them (route "return"), whatever the rule says, except
+--- hard keeps. Returns { settings, priced, source, routes, mail = {items}, keep = {items},
+--- unmailable = {items} (soulbound / quest / conjured: never listed in the window), totals, locked }.
+function Bags.Evaluate(settings)
+    settings = Bags.PrepareSettings(settings or Bags.CurrentSettings())
+    local ctx = scanContext(settings)
+    local result, stacksTo = newResult(ctx), {}
+    local owedFor = owedReader(settings.returns)
+    for _, item in ipairs(Bags.Group(Bags.Slots())) do
+        value(item, ctx)
+        local parts, rest = splitReturns(item, owedFor(item.itemID), settings)
+        if not parts then
+            tally(result, item, stacksTo)
+        else
+            for _, back in ipairs(parts) do tally(result, back, stacksTo) end
+            if #rest > 0 then -- what wasn't mailed to this character (or won't split): the usual rule
+                local left = Bags.Part(item, rest)
+                value(left, ctx)
+                tally(result, left, stacksTo)
+            end
+        end
+    end
+    countMails(result, stacksTo)
+    sortLists(result)
     return result
 end
 
@@ -526,6 +695,27 @@ function Bags.ProfessionMatsText(settings)
     return text
 end
 
+--- The report's "settings:" line, for /mw scan (`mailing`: the deposit, the cut, postage and the
+--- launch day a scan's verdicts used) and /mw report (`extra`: its own switches, before the profession
+--- materials). `s`: a scan's settings (professions read: Bags.Evaluate fills them).
+function Bags.SettingsLine(s, opts)
+    opts = opts or {}
+    local hours = ns.Valuation.DURATION_HOURS[s.duration]
+    local parts = { opts.mailing and string.format("%dh listing (deposit x%d)", hours, ns.Valuation.DEPOSIT_MULTIPLIER[s.duration])
+        or string.format("%dh listing", hours) }
+    if opts.mailing then
+        parts[#parts + 1] = string.format("AH cut %d%%", math.floor(s.cut * 100 + 0.5))
+        parts[#parts + 1] = "postage " .. money(s.postage) .. " per stack"
+    end
+    parts[#parts + 1] = string.format("min gain %s and %d%%", Bags.MinGainText(s), math.floor(s.minGainPct * 100 + 0.5))
+    parts[#parts + 1] = "disenchant " .. (s.disenchant and "on" or "off")
+    parts[#parts + 1] = string.format("max price age %d days", s.maxAgeDays)
+    if opts.mailing then parts[#parts + 1] = "launch day " .. tostring(s.serverDay) end
+    for _, e in ipairs(opts.extra or {}) do parts[#parts + 1] = e end
+    parts[#parts + 1] = "profession materials " .. Bags.ProfessionMatsText(s)
+    return "settings: " .. table.concat(parts, ", ")
+end
+
 function Bags.Report(result)
     local s, t = result.settings, result.totals
     local lines = {
@@ -536,11 +726,7 @@ function Bags.Report(result)
         "prices: " .. (result.priced and (ns.Prices.SOURCE_NAME[result.source] or "Auctionator")
             or "none (no Auctionator or TradeSkillMaster: mailing common items)")
             .. (result.priced and " (no auction price yet: to the bank alt)" or ""),
-        string.format("settings: %dh listing (deposit x%d), AH cut %d%%, postage %s per stack, "
-            .. "min gain %s and %d%%, disenchant %s, max price age %d days, launch day %s, profession materials %s",
-            ns.Valuation.DURATION_HOURS[s.duration], ns.Valuation.DEPOSIT_MULTIPLIER[s.duration],
-            math.floor(s.cut * 100 + 0.5), money(s.postage), Bags.MinGainText(s), math.floor(s.minGainPct * 100 + 0.5),
-            s.disenchant and "on" or "off", s.maxAgeDays, tostring(s.serverDay), Bags.ProfessionMatsText(s)),
+        Bags.SettingsLine(s, { mailing = true }),
         "send: " .. Bags.SendText(s),
         string.format("total: %d items (%d stacks) in %d mail(s), %s more than vendoring, postage %s%s",
             t.items, t.stacks, t.mails, money(t.gain), money(t.postage),

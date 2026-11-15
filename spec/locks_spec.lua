@@ -55,6 +55,31 @@ describe("item locks", function()
         assert.same({}, MailworthyCharDB.lockedItems)
     end)
 
+    it("one shared click for locks and pins (Locks.BagClick): Alt locks, Ctrl+Alt pins, Shift does neither", function()
+        WowStub.state.mods = { alt = true, ctrl = true }
+        HandleModifiedItemClick("link", WowStub.itemLocation(0, 3))
+        assert.is_false(ns.Locks.IsItemLocked(2770), "Ctrl+Alt is the pin's")
+        assert.equal("bank", ns.Pins.Kind(2770))
+        WowStub.state.mods = { alt = true, ctrl = true, shift = true }
+        HandleModifiedItemClick("link", WowStub.itemLocation(0, 3))
+        assert.equal("bank", ns.Pins.Kind(2770), "Shift: no pin change")
+        WowStub.state.mods = { alt = true }
+        HandleModifiedItemClick("link", WowStub.itemLocation(0, 3))
+        assert.is_true(ns.Locks.IsItemLocked(2770))
+        assert.equal("bank", ns.Pins.Kind(2770), "Alt alone is the lock's")
+        local log = table.concat(ns.Log.Lines(), "\n")
+        assert.truthy(log:find("Alt+click lock hook installed", 1, true), log)
+        assert.truthy(log:find("Ctrl+Alt+click pin hook installed", 1, true), log)
+        assert.truthy(log:find("by Alt+click", 1, true), log)
+        assert.truthy(log:find("by Ctrl+Alt+click", 1, true), log)
+        WowStub.state.navButton = { buttonContext = "ButtonContext_PaperDollItemSlotButton" }
+        ns.Locks.ToggleSelectedBagSlot()
+        ns.Pins.ToggleSelectedBagSlot()
+        log = table.concat(ns.Log.Lines(), "\n")
+        assert.truthy(log:find("L3: no bag item selected", 1, true), log)
+        assert.truthy(log:find("R3: no bag item selected", 1, true), log)
+    end)
+
     it("L3: locks the bag item smart navigation has selected, and nothing else", function()
         WowStub.state.navButton = WowStub.itemButton(0, 3)
         ns.Locks.ToggleSelectedBagSlot()

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Asserts a packaged zip unpacks to Mailworthy/Mailworthy.toc at its top level and
-# holds nothing but the .toc, the files it loads, LICENSE, the packager's
+# holds nothing but the .toc, the files it loads, Bindings.xml (the client loads it itself), LICENSE, the packager's
 # generated CHANGELOG.md and textures under Textures/: no nested
 # Mailworthy/Mailworthy/, no spec, tools, docs, README or CI files.
 # Usage: tools/check-package-layout.sh Mailworthy-<version>.zip
@@ -15,7 +15,7 @@ if ! grep -qx 'Mailworthy/Mailworthy.toc' <<<"$entries"; then
   exit 1
 fi
 
-allowed=$(printf '%s\n' Mailworthy/Mailworthy.toc Mailworthy/LICENSE Mailworthy/CHANGELOG.md
+allowed=$(printf '%s\n' Mailworthy/Mailworthy.toc Mailworthy/LICENSE Mailworthy/CHANGELOG.md Mailworthy/Bindings.xml
   unzip -p "$zip" Mailworthy/Mailworthy.toc | tr -d '\r' | grep -Ev '^(#|[[:space:]]*$)' | sed -e 's#\\#/#g' -e 's#^#Mailworthy/#')
 fail=0
 

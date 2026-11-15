@@ -55,6 +55,21 @@ describe("D-pad reach in every view", function()
         assert.truthy(distinct > #candidates / 2, view .. ": the layout wasn't solved")
         assert.same({}, unreachable, view .. ": the D-pad never gets to " .. table.concat(unreachable, ", "))
         assert.same({}, stuck, view .. ": no way back from " .. table.concat(stuck, ", "))
+        -- No two buttons of the view overlap (Codex review, 2026-11-15: the friends window's Guild... ran
+        -- 26 px into Mail ledger..., so a click on one could press the other).
+        local overlaps = {}
+        for i, a in ipairs(candidates) do
+            for j = i + 1, #candidates do
+                local b = candidates[j]
+                local aw, ah = a.button:GetWidth() or 0, a.button:GetHeight() or 0
+                local bw, bh = b.button:GetWidth() or 0, b.button:GetHeight() or 0
+                if math.abs(a.x - b.x) * 2 < aw + bw - 0.5 and math.abs(a.y - b.y) * 2 < ah + bh - 0.5 then
+                    overlaps[#overlaps + 1] = (a.button:GetName() or "?") .. " / " .. (b.button:GetName() or "?")
+                end
+            end
+        end
+        table.sort(overlaps)
+        assert.same({}, overlaps, view .. ": buttons overlap: " .. table.concat(overlaps, ", "))
     end
 
     before_each(function()
@@ -106,6 +121,12 @@ describe("D-pad reach in every view", function()
         assert.truthy(ns.MailWindow.PickFor(10940), "a Mailing row's pick button")
         assert.truthy(ns.MailWindow.PickFor(4338), "a Staying row's pick button")
         assertNavigable("mailbox window, pick buttons on both lists", 10)
+        -- One D-pad stop per row (UX review U4): Square picks on the row, the button is for the mouse.
+        for _, c in ipairs(ns.Nav.Candidates()) do
+            local name = tostring(c.button:GetName())
+            assert.is_nil(name:find("Pick%d"), "a pick button is a D-pad stop: " .. name)
+        end
+        assert.truthy(ns.MailWindow.RowFor(10940) and ns.MailWindow.RowFor(4338))
         WowStub.state.professions = professions
         WowStub.setBag(0, 8, nil)
         WowStub.setBag(0, 9, nil)
@@ -207,11 +228,20 @@ describe("D-pad reach in every view", function()
         assertNavigable("report box", 1)
     end)
 
-    it("settings: the main view and the bank alt picker", function()
+    it("settings: Mailing, Bags and more (solo and with a binding) and the bank alt picker", function()
         ns.SettingsUI.Show()
         tick()
-        assertNavigable("settings", 15)
-        assert.is_true(_G.MailworthySettingsLocks:IsVisible(), "More: Locked items...")
+        assert.equal("mailing", ns.SettingsUI.Tab())
+        assertNavigable("settings, Mailing", 15)
+        _G.MailworthySettingsTabMore:Click()
+        tick()
+        assert.is_true(_G.MailworthySettingsLocks:IsVisible(), "Bags and more: Locked items...")
+        assert.is_true(_G.MailworthySettingsFriendsGuild:IsVisible(), "solo: Friends and guild...")
+        assertNavigable("settings, Bags and more (solo)", 13)
+        ns.Routes.Add(BOB, ENCHANTING)
+        ns.SettingsUI.Refresh()
+        assert.is_true(_G.MailworthySettingsGuild:IsVisible(), "with a binding: Guild... is back")
+        assertNavigable("settings, Bags and more", 15)
         _G.MailworthySettingsChange:Click()
         tick()
         assertNavigable("settings picker", 3)
@@ -249,6 +279,22 @@ describe("D-pad reach in every view", function()
         local draftGear
         for _, c in ipairs(ns.Nav.Candidates()) do draftGear = draftGear or (c.button == _G.MailworthyFriendsGear1 and c) end
         assert.truthy(draftGear, "the Enchanting rule's Gear switch is a D-pad target in the editor")
+    end)
+
+    it("friends for a solo player (Settings' Friends and guild...): the empty list, its Guild... and Back", function()
+        ns.RoutesUI.Show(nil, "list")
+        tick()
+        assert.equal("list", ns.RoutesUI.View())
+        assert.is_true(_G.MailworthyFriendsGuild:IsVisible())
+        assert.is_true(_G.MailworthyFriendsLedger:IsVisible())
+        assertNavigable("friends list, no bindings", 4)
+        _G.MailworthyFriendsGuild:Click()
+        tick()
+        assert.equal("guild", ns.RoutesUI.View())
+        assert.is_true(_G.MailworthyFriendsBack:IsVisible(), "from the list: Back returns there")
+        assertNavigable("guild view from the list", 2)
+        _G.MailworthyFriendsBack:Click()
+        assert.equal("list", ns.RoutesUI.View())
     end)
 
     it("the ledger and the bank alt summary", function()
@@ -312,6 +358,27 @@ describe("D-pad reach in every view", function()
         _G.MailworthySettingsLocks:Click()
         tick()
         assertNavigable("locked items, opened from Settings", 7)
+    end)
+
+    it("pinned items: empty, a few, and several pages", function()
+        ns.PinsUI.Show()
+        tick()
+        assertNavigable("pinned items, none", 1)
+        local function pin(id, name, kind) MailworthyDB.pins[id] = { kind = kind or "bank", link = WowStub.link(id, name), at = 1 } end
+        pin(2770, "Copper Ore")
+        pin(4338, "Mageweave Cloth", "vendor") -- not in the bags
+        ns.PinsUI.Refresh()
+        assertNavigable("pinned items", 3)
+        for i = 1, 8 do pin(5000 + i, "Thing " .. i) end
+        ns.PinsUI.Refresh()
+        assert.is_true(_G.MailworthyPinsPage:IsVisible(), "the pager")
+        assert.is_true(_G.MailworthyPinsPageBack:IsVisible(), "and its way back")
+        assertNavigable("pinned items, several pages", 9)
+        ns.PinsUI.Frame():Hide()
+        ns.SettingsUI.Show(nil, "more")
+        _G.MailworthySettingsPinned:Click()
+        tick()
+        assertNavigable("pinned items, opened from Settings", 7)
     end)
 
     it("the pin warning: keep, unpin, bank here, don't show again", function()
