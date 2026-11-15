@@ -53,6 +53,14 @@ LocksUI.lua
 PinWarning.lua
 MinimapButton.lua
 MailWindow.lua
+MailTooltip.lua
+MailRows.lua
+MailRecipients.lua
+MailBanners.lua
+MailBindings.lua
+MailTotals.lua
+MailSend.lua
+MailTabs.lua
 BankAlt.lua
 Vendor.lua
 BagAddons.lua
