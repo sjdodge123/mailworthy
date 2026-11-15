@@ -296,7 +296,8 @@ end
 --- first row's y), makeRow(win, i) -> row (row.widgets: what the row shows), fillRow(row, entry, y),
 --- list() -> entries, emptyText, pagerName, doneName, below(win, y) -> y of the bottom row (lines
 --- under the list; default y - 10), left (buttons on the bottom row from the left), marked() ->
---- whether a name on screen carries the Mailworthy mark. The pager sits on the bottom row, left of
+--- whether a name on screen carries the Mailworthy mark, onPage(win) (a page turn, before the redraw).
+--- The pager sits on the bottom row, left of
 --- Done (the list's last row, never the heading line: UX review U5).
 --- Returns the Shell's `win` with win.rows, win.pager, win.empty, win.entries.
 function Widgets.ListWindow(o)
@@ -350,7 +351,10 @@ function Widgets.ListWindow(o)
     win.empty:SetJustifyH("LEFT")
     win.empty:SetText(o.emptyText or "")
     win.empty:Hide()
-    win.pager = Widgets.Pager(win.frame, o.pagerName, function() win.Refresh() end)
+    win.pager = Widgets.Pager(win.frame, o.pagerName, function()
+        if o.onPage then o.onPage(win) end -- what a page turn resets (the ledger's armed Mark paid)
+        win.Refresh()
+    end)
     win.pager.next:Hide()
     win.Done(o.doneName)
     return win

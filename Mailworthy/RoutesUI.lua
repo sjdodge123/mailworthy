@@ -297,7 +297,7 @@ function UI.Create()
     doneButton = win.Done("MailworthyFriendsDone")
     ledgerButton = W.Button(frame, "Mail ledger...", 120, function() ns.LedgerUI.Show(frame) end, "MailworthyFriendsLedger")
     -- The guild view from the list (UX review U1: Settings' "Friends and guild..." opens this window).
-    guildButton = W.Button(frame, "Guild...", 160, function() UI.OpenGuild(true) end, "MailworthyFriendsGuild")
+    guildButton = W.Button(frame, "Guild...", 126, function() UI.OpenGuild(true) end, "MailworthyFriendsGuild")
     local pooled = { emptyBindings, bindPager.next, candPager.next, refreshButton, guildToggle, publishButton,
         addButton, backButton }
     for _, row in ipairs(bindingRows) do

@@ -55,6 +55,21 @@ describe("D-pad reach in every view", function()
         assert.truthy(distinct > #candidates / 2, view .. ": the layout wasn't solved")
         assert.same({}, unreachable, view .. ": the D-pad never gets to " .. table.concat(unreachable, ", "))
         assert.same({}, stuck, view .. ": no way back from " .. table.concat(stuck, ", "))
+        -- No two buttons of the view overlap (Codex review, 2026-11-15: the friends window's Guild... ran
+        -- 26 px into Mail ledger..., so a click on one could press the other).
+        local overlaps = {}
+        for i, a in ipairs(candidates) do
+            for j = i + 1, #candidates do
+                local b = candidates[j]
+                local aw, ah = a.button:GetWidth() or 0, a.button:GetHeight() or 0
+                local bw, bh = b.button:GetWidth() or 0, b.button:GetHeight() or 0
+                if math.abs(a.x - b.x) * 2 < aw + bw - 0.5 and math.abs(a.y - b.y) * 2 < ah + bh - 0.5 then
+                    overlaps[#overlaps + 1] = (a.button:GetName() or "?") .. " / " .. (b.button:GetName() or "?")
+                end
+            end
+        end
+        table.sort(overlaps)
+        assert.same({}, overlaps, view .. ": buttons overlap: " .. table.concat(overlaps, ", "))
     end
 
     before_each(function()

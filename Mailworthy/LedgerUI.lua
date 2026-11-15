@@ -75,6 +75,12 @@ function UI.Create()
             return row
         end,
         before = function() marked = false end,
+        -- A page turn cancels an armed Mark paid, as before the shared pager (Codex review, 2026-11-15:
+        -- it stayed armed, and one press an hour later cleared the balance).
+        onPage = function()
+            armed = nil
+            setHint("")
+        end,
         list = function() return ns.Ledger.Debts() end,
         fillRow = function(row, d, y)
             local nameText, m = ns.Comms.Mark(d.name)
