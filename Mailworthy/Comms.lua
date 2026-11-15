@@ -160,80 +160,108 @@ local function decodeSkills(text)
     return skills, any
 end
 
---- Pure: a message from another Mailworthy, or nil. { kind = "hello", version, professions =
---- { ids }, characters = { { name, professions = { ids } }, ... } }, { kind = "ask", version }
---- or { kind = "fresh", version, day } (a scan day: Stale.lua), or { kind = "skills", version,
---- skills = { [id] = rank }, characters = { { name, skills } } } (the material tiers), or
---- { kind = "release", version, release = "v0.31.0" } (Version.lua).
-function Comms.Decode(text)
+-- Message kinds ---------------------------------------------------------------------------------
+-- Each module registers the kinds it owns (Comms.Register): the hello, ask and skills here, the
+-- guild template in Guild.lua, the scan day in Stale.lua, the release in Version.lua, the ledger's
+-- values in LedgerWire.lua, the guild giving in Contributions.lua. Comms keeps the transport, the
+-- checks every message gets (length, sender, this character's own, the channel, copies), the
+-- throttles and the peers. What a kind's message looks like on the wire is its module's alone, and
+-- never changes for one already sent: older Mailworthys in the wild read it (spec/comms_wire_spec.lua).
+local registry, kindOrder = {}, {}
+
+--- Register the message kind `letter` ("H", "M", ...). `def`:
+---   kind       the decoded message's kind ("hello", "values", ...);
+---   module     (optional) the ns field that owns it: while that is missing (an older build without
+---              the file) the kind decodes to nil, like any kind this build doesn't know;
+---   decode     fn(rest, text) -> the message's fields (a table; Comms adds kind and version) or nil.
+---              `rest` is what follows "<letter><version>|", `text` the whole message;
+---   hear       fn(name, msg, channel) -> what Comms.Hear returns (the sender's name is cleaned);
+---   channels   (optional) { GUILD = true, ... }: the only channels it is taken on (anything else is
+---              dropped before the copy check) and, for an afterHello message, the ones it goes on;
+---   afterHello (optional) fn() -> a message, a list of them, or nil: sent right after each hello.
+--- Kinds sent after a hello go in the order they were registered (the .toc order).
+function Comms.Register(letter, def)
+    assert(type(letter) == "string" and letter:match("^%a$"), "Comms.Register: one letter")
+    assert(type(def) == "table" and type(def.kind) == "string" and type(def.decode) == "function"
+        and type(def.hear) == "function", "Comms.Register: kind, decode and hear")
+    if not registry[letter] then kindOrder[#kindOrder + 1] = letter end
+    registry[letter] = def
+end
+
+--- The kinds registered, as { letter = def }; `order` lists the letters in registration order.
+function Comms.Kinds()
+    local copy, order = {}, {}
+    for i, letter in ipairs(kindOrder) do copy[letter], order[i] = registry[letter], letter end
+    return copy, order
+end
+
+local function present(def) return def.module == nil or ns[def.module] ~= nil end
+
+-- The message and the definition of its kind, or nil.
+local function decode(text)
     if type(text) ~= "string" or #text > Comms.MAX_MESSAGE then return nil end
-    local kind, version, rest = text:match("^(%a)(%d+)|?(.*)$")
-    if kind == "A" then return { kind = "ask", version = tonumber(version) } end
-    if kind == "Q" then
-        local rev = rest:match("^(%d*)$")
-        return rev and #rev <= 10 and { kind = "templateAsk", version = tonumber(version), rev = tonumber(rev) or 0 } or nil
+    local letter, version, rest = text:match("^(%a)(%d+)|?(.*)$")
+    local def = letter and registry[letter]
+    if not def or not present(def) then return nil end
+    local msg = def.decode(rest, text)
+    if type(msg) ~= "table" then return nil end
+    msg.kind, msg.version = def.kind, tonumber(version)
+    return msg, def
+end
+
+--- Pure: a message from another Mailworthy, or nil: { kind, version, ... } with the fields its
+--- kind's decoder gives: { kind = "hello", version, professions = { ids }, characters = { { name,
+--- professions = { ids } }, ... } }, { kind = "ask", version }, { kind = "skills", version, skills =
+--- { [id] = rank }, characters = { { name, skills } } } (the material tiers); the other kinds are
+--- their modules' (Comms.Register).
+function Comms.Decode(text)
+    return (decode(text))
+end
+
+local function knownIds(list)
+    local ids = {}
+    for id in tostring(list):gmatch("%d+") do
+        if ns.Routes.ProfessionName(tonumber(id)) then ids[#ids + 1] = tonumber(id) end
     end
-    if kind == "T" then
-        local part = ns.Guild.DecodePart(rest)
-        return part and { kind = "template", version = tonumber(version), part = part } or nil
-    end
-    if kind == "S" then
-        local own, chars = rest:match("^([%d:,]*)|?([^|]*)$")
-        if own == nil then return nil end
-        local characters = {}
-        for part in tostring(chars):gmatch("[^;]+") do
-            local name, list = part:match("^([^=]+)=([%d:,]*)$")
-            name = name and goodName(name)
-            local skills, any = decodeSkills(list)
-            if name and any then characters[#characters + 1] = { name = name, skills = skills } end
-        end
-        return { kind = "skills", version = tonumber(version), skills = (decodeSkills(own)), characters = characters }
-    end
-    if kind == "V" or kind == "M" then
-        local values = ns.Ledger and ns.Ledger.DecodeValues(rest, kind)
-        return values and { kind = "values", version = tonumber(version), values = values } or nil
-    end
-    if kind == "R" then
-        local answers = ns.Ledger and ns.Ledger.DecodeAnswers(rest)
-        return answers and { kind = "answers", version = tonumber(version), answers = answers } or nil
-    end
-    if kind == "U" then
-        local release = text:match("^U%d+|([^|]*)") -- the separator is required: "U2v0.31.0" is junk
-        return ns.Version and ns.Version.Parse(release) and { kind = "release", version = tonumber(version), release = release }
-            or nil
-    end
-    if kind == "G" then
-        local part = ns.Contributions and ns.Contributions.DecodePart(rest)
-        return part and { kind = "giving", version = tonumber(version), part = part } or nil
-    end
-    if kind == "F" then
-        local day = rest:match("^(%d+)$")
-        return day and #day <= 7 and { kind = "fresh", version = tonumber(version), day = tonumber(day) } or nil
-    end
-    if kind ~= "H" then return nil end
+    return ids
+end
+
+local function decodeHello(rest)
     local profs, chars = rest:match("^([%d,]*)|?([^|]*)$")
     if profs == nil then return nil end
-    local function known(list)
-        local ids = {}
-        for id in tostring(list):gmatch("%d+") do
-            if ns.Routes.ProfessionName(tonumber(id)) then ids[#ids + 1] = tonumber(id) end
-        end
-        return ids
-    end
     local characters = {}
     for part in tostring(chars):gmatch("[^;]+") do
         local name, ids = part:match("^([^=]+)=([%d,]*)$")
         name = name and goodName(name)
-        if name and #known(ids) > 0 then characters[#characters + 1] = { name = name, professions = known(ids) } end
+        if name and #knownIds(ids) > 0 then characters[#characters + 1] = { name = name, professions = knownIds(ids) } end
     end
-    return { kind = "hello", version = tonumber(version), professions = known(profs), characters = characters }
+    return { professions = knownIds(profs), characters = characters }
 end
 
-local function channels()
+local function decodeSkillsMessage(rest)
+    local own, chars = rest:match("^([%d:,]*)|?([^|]*)$")
+    if own == nil then return nil end
+    local characters = {}
+    for part in tostring(chars):gmatch("[^;]+") do
+        local name, list = part:match("^([^=]+)=([%d:,]*)$")
+        name = name and goodName(name)
+        local skills, any = decodeSkills(list)
+        if name and any then characters[#characters + 1] = { name = name, skills = skills } end
+    end
+    return { skills = (decodeSkills(own)), characters = characters }
+end
+
+-- The guild and group channels this character is in; with `only` ({ GUILD = true }), just those.
+local function channels(only)
     local list = {}
     if call(IsInGuild) == true then list[#list + 1] = "GUILD" end
     local n = tonumber((call(GetNumGroupMembers))) or 0
     if n > 0 then list[#list + 1] = call(IsInRaid) == true and "RAID" or "PARTY" end
+    if only then
+        for i = #list, 1, -1 do
+            if not only[list[i]] then table.remove(list, i) end
+        end
+    end
     return list
 end
 
@@ -243,13 +271,14 @@ local function sentOk(ok, result)
     return ok and (result == nil or result == true or result == 0)
 end
 
--- Send `message` on the guild and group channels. Returns whether any channel took it and the
--- channels with their result ("GUILD, PARTY", or "GUILD, PARTY error 3" for one that failed).
-local function send(message)
+-- Send `message` on the guild and group channels (or on `list`, from channels()). Returns whether
+-- any channel took it and the channels with their result ("GUILD, PARTY", or "GUILD, PARTY error 3"
+-- for one that failed).
+local function send(message, list)
     local chat = rawget(_G, "C_ChatInfo")
     if type(chat) ~= "table" then return false, "no C_ChatInfo" end
     local sent, parts = false, {}
-    for _, channel in ipairs(channels()) do
+    for _, channel in ipairs(list or channels()) do
         local ok, result = pcall(chat.SendAddonMessage, Comms.PREFIX, message, channel)
         sent = sent or sentOk(ok, result) -- a rejected send (error code, no throw) didn't go out
         parts[#parts + 1] = sentOk(ok, result) and channel or (channel .. " error " .. tostring(result))
@@ -296,25 +325,25 @@ function Comms.Announce(reason)
         announcedSteps = Comms.Steps(professions)
         Comms.stats.hellos = Comms.stats.hellos + 1
     end
-    local fresh = ns.Stale and ns.Stale.Message()
-    if sent and fresh then
-        local _, freshWhere = send(fresh)
-        results[#results + 1] = { fresh:sub(1, 2), freshWhere }
-    end
-    local release = ns.Version and ns.Version.Message() -- nil on a dev build
-    if sent and release then
-        local _, releaseWhere = send(release)
-        results[#results + 1] = { release:sub(1, 2), releaseWhere }
-    end
-    -- This character's guild-rule giving (Contributions.lua), to the guild only.
-    local giving = sent and ns.Contributions and ns.Contributions.Messages() or {}
-    if #giving > 0 and call(IsInGuild) == true then
-        local chat, givingWhere = rawget(_G, "C_ChatInfo"), "GUILD"
-        for _, message in ipairs(giving) do
-            local ok, result = pcall(chat.SendAddonMessage, Comms.PREFIX, message, "GUILD")
-            if not sentOk(ok, result) then givingWhere = "GUILD error " .. tostring(result) end
+    -- Then each kind sent after a hello, in registration order: the scan day (Stale.lua), the
+    -- release (Version.lua; nil on a dev build), this character's guild-rule giving (Contributions.lua,
+    -- to the guild only). One result per kind: a failed send's channels when one failed.
+    for _, letter in ipairs(sent and kindOrder or {}) do
+        local def = registry[letter]
+        if def.afterHello and present(def) then
+            local out = def.afterHello()
+            local messages = type(out) == "string" and { out } or (type(out) == "table" and out or {})
+            local list = channels(def.channels)
+            if #messages > 0 and #list > 0 then
+                local all = table.concat(list, ", ")
+                local went = all
+                for _, message in ipairs(messages) do
+                    local _, w = send(message, list)
+                    if w ~= all then went = w end
+                end
+                results[#results + 1] = { messages[1]:sub(1, 2), went }
+            end
         end
-        results[#results + 1] = { "G2", givingWhere }
     end
     ns.Log.Add("comms", "hello (%s): %s", tostring(reason), Comms.ResultText(results))
     return sent
@@ -435,11 +464,46 @@ local function markNames(peer)
     return table.concat(names, ";")
 end
 
-local function marksChanged(old, new)
-    if markNames(old) == markNames(new) or markPending then return end
+local function marksChanged(before, after)
+    if before == after or markPending then return end
     markPending = true
     Util.After(Comms.MARK_DELAY, notifyMarks)
 end
+
+-- Who a peer is (its name, characters and professions) changed: at once, for whoever keeps an index
+-- built from the peers (Ledger.Owner's groups). The marks redraw later, once per burst.
+local peersChanged = Util.Signal("peers")
+
+--- Call `fn` (no arguments) at once when a peer's name, characters or professions were written, or a
+--- peer was dropped (Ledger.lua's owner index).
+Comms.OnPeersChanged = peersChanged.Add
+
+--- Write `fields` into the record kept for peer `name`, in place: the fields not named stay as they
+--- were (a hello keeps the skills and the release heard before it). Without a record, one is made
+--- only when `create` (a hello or a skills message); else nothing is written. Returns the record or nil.
+function Comms.UpdatePeer(name, fields, create)
+    local key = Util.NameKey(name)
+    if not key or type(fields) ~= "table" then return nil end
+    local peers = store()
+    local peer = peers[key]
+    if type(peer) ~= "table" then
+        if not create then return nil end
+        peer = {}
+    end
+    local before = markNames(peers[key])
+    for field, value in pairs(fields) do peer[field] = value end
+    peers[key] = peer
+    if fields.name ~= nil or fields.characters ~= nil or fields.professions ~= nil then peersChanged.Fire() end
+    marksChanged(before, markNames(peer))
+    return peer
+end
+
+-- Another Mailworthy spoke (any kind, once past the checks): it is online.
+local heardFrom = Util.Signal("heard")
+
+--- Call `fn(name)` when any message from another Mailworthy is taken (`name` cleaned): they are
+--- online now (Ledger.lua sends what waits for them).
+Comms.OnHeard = heardFrom.Add
 
 --- `text` (default: the name) with the Mailworthy mark after it when `name` runs Mailworthy, and
 --- whether it was marked (the window then shows MARK_KEY in its footer).
@@ -449,90 +513,75 @@ function Comms.Mark(name, text)
     return text .. " " .. Comms.MARK, true
 end
 
---- Record a hello from `sender` (a name, possibly with a realm suffix) on `channel`.
+--- A message from `sender` (a name, possibly with a realm suffix) on `channel`: checked, then
+--- handed to its kind's `hear` (Comms.Register). Returns what that gives, or nil when dropped.
 function Comms.Hear(sender, text, channel)
-    local msg = Comms.Decode(text)
+    local msg, def = decode(text)
     local name = ns.Routes.Clean(sender)
     if not msg or not name or #name > Comms.MAX_NAME or name:find("%c") then return nil end
     if name:lower() == tostring(ns.PlayerName()):lower() then return nil end
-    -- G2 counts only on GUILD: a copy on another channel is dropped before it could make the guild's copy a
-    -- "duplicate" (Codex review).
-    if msg.kind == "giving" and channel ~= "GUILD" then return nil end
+    -- A kind taken on some channels only (G2 on GUILD, M2 / R2 whispered) is dropped elsewhere before
+    -- the copy check, so a copy on another channel can't make the real one a "duplicate" (Codex review).
+    if def.channels and not def.channels[channel] then return nil end
     if Comms.Duplicate(name, text, channel, now()) then
         Comms.stats.copies = Comms.stats.copies + 1
         return nil
     end
     Comms.stats.heard = Comms.stats.heard + 1
-    if msg.kind == "values" then
-        if channel ~= "WHISPER" or not ns.Ledger then return nil end
-        local values = ns.Ledger.HearValues(name, msg.values)
-        ns.Ledger.Heard(name)
-        return values
-    end
-    if msg.kind == "answers" then
-        if channel ~= "WHISPER" or not ns.Ledger then return nil end
-        local changed = ns.Ledger.HearAnswers(name, msg.answers)
-        ns.Ledger.Heard(name)
-        return changed
-    end
-    if ns.Ledger then pcall(ns.Ledger.Heard, name) end -- online: values waiting for them go now
-    if msg.kind == "ask" then
-        Comms.Announce("asked by " .. name)
-        return msg
-    end
-    if msg.kind == "fresh" then
-        return ns.Stale and ns.Stale.Hear(name, msg.day) or nil
-    end
-    if msg.kind == "release" then
-        return ns.Version and ns.Version.Hear(name, msg.release) or nil
-    end
-    if msg.kind == "template" or msg.kind == "templateAsk" then
-        return ns.Guild and ns.Guild.Hear(name, msg, channel) or nil
-    end
-    if msg.kind == "giving" then
-        return ns.Contributions and ns.Contributions.Hear(name, msg.part, channel) or nil
-    end
-    local old = store()[name:lower()]
-    if msg.kind == "skills" then
-        local skills = { [name:lower()] = msg.skills }
-        for _, c in ipairs(msg.characters) do
-            if c.name:lower() ~= name:lower() then skills[c.name:lower()] = c.skills end
-        end
-        local peer = old
-        if type(peer) ~= "table" then -- the hello got lost: the skills say the same and more
-            local ids, characters = {}, {}
-            for id in pairs(msg.skills) do ids[#ids + 1] = id end
-            table.sort(ids)
-            for _, c in ipairs(msg.characters) do
-                local cids = {}
-                for id in pairs(c.skills) do cids[#cids + 1] = id end
-                table.sort(cids)
-                if c.name:lower() ~= name:lower() then characters[#characters + 1] = { name = c.name, professions = cids } end
-            end
-            peer = { name = name, professions = ids, characters = characters, version = msg.version }
-            store()[name:lower()] = peer
-            marksChanged(old, peer)
-        end
-        peer.skills, peer.at = skills, serverTime()
-        -- A binding's crafter can change with a skill: the bag tags read again at their next draw
-        -- (before, the next bag update redrew them; Codex review, 2026-11-14).
-        if ns.BankAlt then ns.BankAlt.Invalidate() end
-        ns.Log.Add("comms", "skills from %s: %s", name, Comms.SkillText(msg.skills))
-        return peer
-    end
+    heardFrom.Fire(name) -- online: values waiting for them go now (Ledger)
+    return def.hear(name, msg, channel)
+end
+
+-- The hello: who this player is and which of their characters craft what.
+local function hearHello(name, msg)
     local characters = {}
     for _, c in ipairs(msg.characters) do
         if c.name:lower() ~= name:lower() then characters[#characters + 1] = c end
     end
-    local peer = { name = name, professions = msg.professions, characters = characters, version = msg.version, at = serverTime(),
-        skills = type(old) == "table" and old.skills or nil, release = type(old) == "table" and old.release or nil }
-    store()[name:lower()] = peer
-    marksChanged(old, peer)
+    local peer = Comms.UpdatePeer(name, { name = name, professions = msg.professions, characters = characters,
+        version = msg.version, at = serverTime() }, true)
     if ns.BankAlt then ns.BankAlt.Invalidate() end
     ns.Log.Add("comms", "hello from %s: professions %s, %d other character(s)", name,
         #peer.professions > 0 and table.concat(peer.professions, ",") or "none", #characters)
     return peer
 end
+
+-- The skills (material tiers); a peer whose hello got lost is made from them (they say the same and more).
+local function hearSkills(name, msg)
+    local skills = { [name:lower()] = msg.skills }
+    for _, c in ipairs(msg.characters) do
+        if c.name:lower() ~= name:lower() then skills[c.name:lower()] = c.skills end
+    end
+    if type(Comms.Peer(name)) ~= "table" then
+        local ids, characters = {}, {}
+        for id in pairs(msg.skills) do ids[#ids + 1] = id end
+        table.sort(ids)
+        for _, c in ipairs(msg.characters) do
+            local cids = {}
+            for id in pairs(c.skills) do cids[#cids + 1] = id end
+            table.sort(cids)
+            if c.name:lower() ~= name:lower() then characters[#characters + 1] = { name = c.name, professions = cids } end
+        end
+        Comms.UpdatePeer(name, { name = name, professions = ids, characters = characters, version = msg.version }, true)
+    end
+    local peer = Comms.UpdatePeer(name, { skills = skills, at = serverTime() })
+    -- A binding's crafter can change with a skill: the bag tags read again at their next draw
+    -- (before, the next bag update redrew them; Codex review, 2026-11-14).
+    if ns.BankAlt then ns.BankAlt.Invalidate() end
+    ns.Log.Add("comms", "skills from %s: %s", name, Comms.SkillText(msg.skills))
+    return peer
+end
+
+Comms.Register("H", { kind = "hello", decode = decodeHello, hear = hearHello })
+Comms.Register("A", {
+    kind = "ask",
+    decode = function() return {} end,
+    hear = function(name, msg)
+        Comms.Announce("asked by " .. name)
+        return msg
+    end,
+})
+Comms.Register("S", { kind = "skills", decode = decodeSkillsMessage, hear = hearSkills })
 
 --- The skill in `profession` of a character some Mailworthy told us about (the sender or
 --- one of their characters), or nil.
@@ -561,9 +610,13 @@ end
 --- Drop peers not heard from in PEER_DAYS.
 function Comms.Prune(at)
     at = at or serverTime()
+    local dropped = false
     for key, peer in pairs(store()) do
-        if type(peer) ~= "table" or (tonumber(peer.at) or 0) < at - Comms.PEER_DAYS * 86400 then store()[key] = nil end
+        if type(peer) ~= "table" or (tonumber(peer.at) or 0) < at - Comms.PEER_DAYS * 86400 then
+            store()[key], dropped = nil, true
+        end
     end
+    if dropped then peersChanged.Fire() end
 end
 
 --- Pure: "Enchanting, Tailoring" / "no crafting profession".
@@ -595,7 +648,7 @@ function Comms.ReportLines()
     return lines
 end
 
-function Comms.Register()
+function Comms.RegisterPrefix()
     if not Comms.On() then return end
     local chat = rawget(_G, "C_ChatInfo")
     if type(chat) ~= "table" then return end
@@ -609,7 +662,7 @@ ns.On("CHAT_MSG_ADDON", function(prefix, text, channel, sender)
 end)
 
 ns.On("PLAYER_LOGIN", function()
-    Comms.Register()
+    Comms.RegisterPrefix()
     Comms.Prune()
     if not Comms.On() then return end
     if C_Timer and type(C_Timer.After) == "function" then

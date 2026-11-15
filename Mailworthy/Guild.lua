@@ -445,6 +445,27 @@ function Guild.Hear(sender, msg, channel)
     return Guild.Offer(sender, p.author, p.rev, rules)
 end
 
+-- The kinds (Comms.Register). GUILD only, checked in Guild.Hear (a copy on another channel still
+-- tells the ledger the sender is online, as before the registry).
+ns.Comms.Register("T", {
+    kind = "template",
+    module = "Guild",
+    decode = function(rest)
+        local part = ns.Guild.DecodePart(rest)
+        return part and { part = part } or nil
+    end,
+    hear = function(name, msg, channel) return ns.Guild.Hear(name, msg, channel) or nil end,
+})
+ns.Comms.Register("Q", {
+    kind = "templateAsk",
+    module = "Guild",
+    decode = function(rest)
+        local rev = rest:match("^(%d*)$")
+        return rev and #rev <= 10 and { rev = tonumber(rev) or 0 } or nil
+    end,
+    hear = function(name, msg, channel) return ns.Guild.Hear(name, msg, channel) or nil end,
+})
+
 -- Editing (guild master / officers) -----------------------------------------------------------
 
 --- The rules being edited: a copy of the template until published. Nil outside a guild.

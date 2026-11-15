@@ -893,9 +893,42 @@ function Ledger.Install()
     ns.Log.Add("ledger", "mail hooks installed")
 end
 
-ns.On("CHAT_MSG_ADDON", function(prefix)
-    if ns.Comms and prefix == ns.Comms.PREFIX then ownerIndex = nil end -- a hello may change the groups
-end)
+ns.Comms.OnPeersChanged(function() ownerIndex = nil end) -- a hello may change the groups
+ns.Comms.OnHeard(function(name) Ledger.Heard(name) end) -- online: values waiting for them go now
+
+-- The kinds (Comms.Register): whispered only, to and from the character a mail names.
+ns.Comms.Register("M", {
+    kind = "values",
+    module = "Ledger",
+    channels = { WHISPER = true },
+    decode = function(rest)
+        local values = ns.Ledger.DecodeValues(rest, "M")
+        return values and { values = values } or nil
+    end,
+    hear = function(name, msg) return ns.Ledger.HearValues(name, msg.values) end,
+})
+-- v0.25.0's values (no mail id): no longer sent, still read.
+ns.Comms.Register("V", {
+    kind = "values",
+    module = "Ledger",
+    channels = { WHISPER = true },
+    decode = function(rest)
+        local values = ns.Ledger.DecodeValues(rest, "V")
+        return values and { values = values } or nil
+    end,
+    hear = function(name, msg) return ns.Ledger.HearValues(name, msg.values) end,
+})
+ns.Comms.Register("R", {
+    kind = "answers",
+    module = "Ledger",
+    channels = { WHISPER = true },
+    decode = function(rest)
+        local answers = ns.Ledger.DecodeAnswers(rest)
+        return answers and { answers = answers } or nil
+    end,
+    hear = function(name, msg) return ns.Ledger.HearAnswers(name, msg.answers) end,
+})
+
 ns.On("PLAYER_LOGIN", function()
     ownerIndex = nil
     if not Ledger.On() then return end

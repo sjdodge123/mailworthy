@@ -551,6 +551,20 @@ function Contributions.Share(reason)
     return sent
 end
 
+-- "G2|..." (Comms.Register): GUILD only, both ways: taken only on GUILD, and sent there right after
+-- each hello (and by Share after a mailbox visit that counted some).
+ns.Comms.Register("G", {
+    kind = "giving",
+    module = "Contributions",
+    channels = { GUILD = true },
+    decode = function(rest)
+        local part = ns.Contributions.DecodePart(rest)
+        return part and { part = part } or nil
+    end,
+    hear = function(name, msg, channel) return ns.Contributions.Hear(name, msg.part, channel) or nil end,
+    afterHello = function() return ns.Contributions.Messages() end,
+})
+
 ns.On("PLAYER_LOGIN", function() Contributions.Migrate() end)
 ns.On("MAIL_CLOSED", function()
     if Contributions.changed then
