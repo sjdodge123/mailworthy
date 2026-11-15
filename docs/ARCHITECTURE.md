@@ -55,7 +55,7 @@ the order, but anything run at file load (constants built from other modules,
 | 1 | Foundation | `Core`, `Log`, `Util`, `Blocked`, `Characters`, `Gamepad`, `Locks`, `Palette`, `Pins`, `Border` |
 | 2 | Pricing and rules | `Prices`, `Disenchant`, `Tiers`, `TierData` (fills `ns.Tiers`), `TierCheck`, `Quests`, `Conjured`, `Recipes`, `Ammo`, `Valuation`, `Config`, `Classes` |
 | 3 | Bindings and peers | `Routes`, `Comms`, `Guild`, `Stale`, `Version` |
-| 4 | Scan, send, records | `Bags`, `Mailer`, `Ledger`, `Contributions`, `Returns`, `Trip` |
+| 4 | Scan, send, records | `Bags`, `Mailer`, `Ledger`, `LedgerWire`, `LedgerHooks`, `LedgerExport`, `Contributions`, `Returns`, `Trip` |
 | 5 | Windows and input | `Widgets`, `MailButton`, `Nav`, `PadKey`, `SettingsUI`, `RoutesUI`, `LedgerUI`, `LocksUI`, `PinWarning`, `MinimapButton`, `MailWindow`, `BankAlt`, `Vendor` |
 | 6 | Integrations, report | `BagAddons`, `AuctionatorTags`, `Report` |
 
@@ -89,13 +89,16 @@ function. Specs: the module's own spec first; `critical_path` = `spec/critical_p
 | `Config.lua` | Saved settings over `Valuation.DEFAULTS`; bank alt per realm/faction; flags | `Config.Values/Get/Set/Step/Flag`, `Tooltips` / `CycleTooltips` (item tooltips: full / short / off), `BankAlt`, `SetBankAlt`, `SetBankAltHere`, `IsBankAltHere`, `Choices` | config |
 | `Classes.lua` | Class-only items from the tooltip "Classes:" line | `Classes.Of`, `Mine`, `ForOther` (pure), `Token`, `Name` | classes |
 | `Routes.lua` | **Bindings**: a profession's materials (or a class's items) to a player; skip once; row picks | `Routes.Divert`, `Divertible`, `Matches`, `Before`, `Force`, `Choices`, `Pick/Picked/ClearPicks`, `Active`, `List`, `Add/Remove`, `Crafter`, `Recipient`, `ClassPriced`, `PriceKeep`, `GearBeaten` | routes |
-| `Comms.lua` | Addon messages between Mailworthys (prefix `Mailworthy`); peers; the name mark | `Comms.Announce`, `Ask`, `Hear` (a skills or hello message marks the bag tags stale: `BankAlt.Invalidate`), `SendGuild`, `Whisper`, `Peers/Peer`, `Skill`, `Mark`, `OnMarksChanged` | peer_mark, routes |
+| `Comms.lua` | Addon messages between Mailworthys (prefix `Mailworthy`); peers; the name mark | `Comms.Register(letter, def)` (each module registers and owns its message kinds: decode, hear, channels, afterHello), `Kinds`, `RegisterPrefix`, `Announce` (the hello, then each kind's `afterHello` in registration order), `Ask`, `Hear` (dispatches through the registry; a skills or hello message marks the bag tags stale: `BankAlt.Invalidate`), `UpdatePeer(name, fields, create)`, `OnPeersChanged` (synchronous), `OnHeard`, `Assembler()` (multipart messages, per guild key + sender), `SendGuild`, `Whisper`, `Peers/Peer`, `Skill`, `Mark`, `OnMarksChanged` | peer_mark, routes, comms_wire |
 | `Guild.lua` | **Guild template**: GM/officer rules, shared on GUILD, opted into per player | `Guild.Rules`, `Offer`, `Hear`, `Broadcast`, `Ask`, `CanPublish`, `InUse/SetUse/ToggleUse`, `Draft*`, `Publish` | guild |
 | `Stale.lua` | Stale-price nudge; peers' scan days (display only) | `Stale.OwnAge`, `Nudge` (pure), `Hear`, `Message`, `Current` | stale |
 | `Version.lua` | "Your Mailworthy is out of date" from peers' release versions | `Version.Parse/Newer` (pure), `Hear`, `Message`, `Outdated`, `OnChanged` | version |
 | `Bags.lua` | **The scan**: bag slots into items, each valued; the preview list | `Bags.Evaluate`, `Slots`, `Fingerprint` / `FingerprintOf` (pure; bag contents without ammo stack sizes), `Group`, `CurrentSettings`, `ApplySendSwitches`, `SkipBankAlt/BankAltSkipped`, `HoldReason`, `ProfessionKeep`, `Scan` | bags, send_switches |
 | `Mailer.lua` | **The send**: plan 12 stacks per mail, re-check, attach, send, chain | `Mailer.Start`, `Plan` (pure), `Blocker`, `Short` (the list's postage + `RESERVE` against `GetMoney`), `Affords` (pure: postage + the 5s `RESERVE`), `ReserveText`, `StillThere` (ammo of a weapon equipped since the preview stays; so does a stack already attached), `Stop`, `RequestStop`, `Busy`, `Status`, `OnChanged`, `OnSent` | mailer |
-| `Ledger.lua` | Mail ledger: every mail sent and taken, values, balances; M2/R2 value exchange | `Ledger.RecordSent`, `Add`, `Debts`, `Net`, `MarkPaid`, `Store`, `Install`, `Hear*`, `ExportText` | ledger |
+| `Ledger.lua` | Mail ledger: the log and balances (shared internals for its other files on `Ledger.internal`) | `Ledger.Add`, `Debts`, `Net`, `MarkPaid`, `Store`, `IsOwn`, `OnChanged` | ledger |
+| `LedgerWire.lua` | The ledger's M2 / R2 (and old V2) value exchange; outbox and expect queues; registers those kinds with Comms | `Ledger.Hear*`, `EncodeAnswers`, `DecodeValues`, `DecodeAnswers`, `Flush` | ledger, comms_wire |
+| `LedgerHooks.lua` | What the ledger sees of mail: `RecordSent` (Mailer's own mails), the `SendMail` / take post-hooks, the mail events | `Ledger.RecordSent`, `Install` | ledger |
+| `LedgerExport.lua` | The Export log text | `Ledger.ExportText` | ledger |
 | `Contributions.lua` | What this account mailed because of guild rules; `MailworthyAPI.v1.GetGuildExport` | `Contributions.Tag`, `Count`, `Hear`, `Share`, `Export`, `Build` | contributions |
 | `Returns.lua` | Return to sender: per-visit toggle (its button shows only while on or when `Due`); what each sender is owed from the ledger | `Returns.On/Toggle/Available`, `Owed` (pure), `Split` (pure), `Due` (pure), `Result`, `Current` | returns |
 | `Trip.lua` | "Worth a mailbox trip" nudge away from a mailbox | `Trip.Check`, `Summary`, `TooltipText` | trip |
@@ -242,7 +245,9 @@ naming this character, or Return to sender.
 
 ### 4.5 Peers: Comms, Guild, Ledger
 
-`Comms.Hear` validates every `CHAT_MSG_ADDON` with prefix `Mailworthy` and dispatches by kind:
+`Comms.Hear` validates every `CHAT_MSG_ADDON` with prefix `Mailworthy` and dispatches by kind through the
+registry (`Comms.Register`: the owning module's decode and hear, the channels it is taken on). Every wire
+format below is pinned byte for byte by `spec/comms_wire_spec.lua` (older Mailworthys still talk to this one):
 
 | Kind | Sent by | Channel | Meaning |
 |---|---|---|---|
@@ -254,9 +259,9 @@ naming this character, or Return to sender.
 | `G2` | `Contributions.Messages` | GUILD | Guild-rule giving totals |
 | `T2` | `Guild.Broadcast` | GUILD | One guild template rule part |
 | `Q2` | `Guild.Ask` | GUILD | Ask for a newer template |
-| `M2` | `Ledger` outbox via `Comms.Whisper` | WHISPER | A sent mail's per-item values, to the recipient |
-| `R2` | `Ledger.EncodeAnswers` | WHISPER | The recipient's settled value when it differs |
-| `V2` | (no longer sent) | WHISPER | Old value format, still decoded by `Ledger.DecodeValues` |
+| `M2` | `LedgerWire` outbox via `Comms.Whisper` | WHISPER | A sent mail's per-item values, to the recipient |
+| `R2` | `LedgerWire` (`Ledger.EncodeAnswers`) | WHISPER | The recipient's settled value when it differs |
+| `V2` | (no longer sent) | WHISPER | Old value format, still decoded by `Ledger.DecodeValues` (`LedgerWire`) |
 
 Peers are stored in `MailworthyDB.peers` and read by `Routes.Crafter` (which character of a
 bound player has the profession), `Routes.Skill`, `Comms.Mark` (the name mark) and
@@ -281,20 +286,20 @@ Every `ns.On` handler, by event. `Blocked.lua` registers `ADDON_ACTION_FORBIDDEN
 | Event | Modules |
 |---|---|
 | `ADDON_LOADED` | Core (`ns.Init`), BagAddons, MailButton (`Blizzard_MailFrame`) |
-| `PLAYER_LOGIN` | Core (first), Characters, Locks, Pins, Border, Config, Quests, Comms, Guild, Stale, Mailer, Ledger, Contributions, PadKey, MailButton, SettingsUI, RoutesUI, LedgerUI, LocksUI, PinWarning, MinimapButton, MailWindow, BankAlt, Vendor, BagAddons, AuctionatorTags, Report |
+| `PLAYER_LOGIN` | Core (first), Characters, Locks, Pins, Border, Config, Quests, Comms, Guild, Stale, Mailer, Ledger (owner index), LedgerHooks (prune, install), Contributions, PadKey, MailButton, SettingsUI, RoutesUI, LedgerUI, LocksUI, PinWarning, MinimapButton, MailWindow, BankAlt, Vendor, BagAddons, AuctionatorTags, Report |
 | `MAIL_SHOW` | Conjured, Recipes, Comms, Stale, Mailer, Trip, MailButton, Report |
-| `MAIL_CLOSED` | Border, Routes, Bags, Mailer, Ledger, Contributions, Returns, Trip, MailWindow |
-| `MAIL_SEND_SUCCESS` | Mailer, Ledger |
-| `MAIL_FAILED` | Mailer, Ledger |
-| `MAIL_SUCCESS` | Ledger |
+| `MAIL_CLOSED` | Border, Routes, Bags, Mailer, LedgerHooks, Contributions, Returns, Trip, MailWindow |
+| `MAIL_SEND_SUCCESS` | Mailer, LedgerHooks |
+| `MAIL_FAILED` | Mailer, LedgerHooks |
+| `MAIL_SUCCESS` | LedgerHooks |
 | `MAIL_INBOX_UPDATE` | Report (AH invoice cut) |
-| `MAIL_SEND_INFO_UPDATE`, `SEND_MAIL_MONEY_CHANGED`, `SEND_MAIL_COD_CHANGED` | Ledger (send-tab snapshot) |
+| `MAIL_SEND_INFO_UPDATE`, `SEND_MAIL_MONEY_CHANGED`, `SEND_MAIL_COD_CHANGED` | LedgerHooks (send-tab snapshot) |
 | `UI_ERROR_MESSAGE` | Mailer (log) |
 | `BAG_UPDATE_DELAYED` | Recipes (before BankAlt: forgets "not known"), BankAlt, MailWindow, LocksUI, Trip, Vendor |
 | `PLAYER_MONEY` | MailWindow |
 | `PLAYER_REGEN_DISABLED` | PadKey (clear bindings), Mailer (stop) |
 | `PLAYER_REGEN_ENABLED` | Trip |
-| `CHAT_MSG_ADDON` | Comms, Ledger, RoutesUI |
+| `CHAT_MSG_ADDON` | Comms (the ledger hears through `Comms.OnHeard` / `OnPeersChanged`), RoutesUI |
 | `GROUP_ROSTER_UPDATE` | Comms, RoutesUI |
 | `GUILD_ROSTER_UPDATE` | Guild, Contributions, RoutesUI |
 | `QUEST_LOG_UPDATE` | Quests |
@@ -310,7 +315,7 @@ FOREVER-UI-NOTES.md; `spec/no_gamepad_taint_spec.lua` guards them.
 | Target | Kind | Module (switch) |
 |---|---|---|
 | `HandleModifiedItemClick` | `hooksecurefunc` | Locks (`altClickLock`), Pins (`pinClick`) |
-| `SendMail`, `TakeInboxItem`, `TakeInboxMoney`, `AutoLootMailItem` | `hooksecurefunc` | Ledger (`ledger`) |
+| `SendMail`, `TakeInboxItem`, `TakeInboxMoney`, `AutoLootMailItem` | `hooksecurefunc` | LedgerHooks (`ledger`) |
 | `ContainerFrameCombinedBags` / `ContainerFrameContainer.ContainerFrames[i]` `:UpdateItems` | `hooksecurefunc` on the frame | Border (`slotBorder` or `bankAltTags`) |
 | `TooltipDataProcessor.AddTooltipPostCall(Item)` | tooltip post-call | Border (`slotBorder`), BankAlt (`tooltipLines`), MailWindow (`tooltipLines`) |
 | `AuctionatorGroupsViewItemMixin.SetItemInfo` | `hooksecurefunc` on the mixin | AuctionatorTags (`auctionatorTags`) |
