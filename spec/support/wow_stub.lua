@@ -33,6 +33,7 @@ local function defaultState()
         quests = {}, -- the quest log: { { title, header = true?, objectives = { { text, type } } } }
         itemClasses = {}, -- itemID -> "Mage" / "Mage, Warlock": the tooltip's "Classes: ..." line
         conjured = {}, -- itemID -> true: the tooltip's "Conjured Item" line
+        known = {}, -- itemID -> true: the tooltip's "Already known" line (a recipe this character learned)
         uncached = {}, -- itemID -> true: its data hasn't loaded (a name line alone, IsItemDataCachedByID false)
         tooltipReads = 0, -- C_TooltipInfo.GetItemByID calls
         mods = {}, bindings = {}, bindingOwners = {}, activeFrame = nil, now = 1000, gamepadUI = false,
@@ -556,16 +557,19 @@ _G.SendMail = function(name, subject, body)
 end
 _G.C_Mail = { IsCommandPending = function() return false end }
 -- Item tooltip data (TooltipInfoDocumentation.lua): a name line, a "Conjured Item" line (no line
--- type of its own: None = 0) for a conjured item, and a "Classes: ..." line
+-- type of its own: None = 0) for a conjured item, an "Already known" line (red, no type either) for a
+-- learned recipe, and a "Classes: ..." line
 -- (TooltipDataLineType.UsageRequirement = 43) for a class-only item.
 _G.ITEM_CLASSES_ALLOWED = "Classes: %s"
 _G.ITEM_CONJURED = "Conjured Item"
+_G.ITEM_SPELL_KNOWN = "Already known"
 _G.C_TooltipInfo = {
     GetItemByID = function(id)
         s().tooltipReads = s().tooltipReads + 1
         local lines = { { type = 22, leftText = "Item " .. tostring(id) } }
         if s().uncached[id] then return { id = id, lines = lines } end
         if s().conjured[id] then lines[#lines + 1] = { type = 0, leftText = "Conjured Item" } end
+        if s().known[id] then lines[#lines + 1] = { type = 0, leftText = "|cffff2020Already known|r" } end
         local classes = s().itemClasses[id]
         if classes then lines[#lines + 1] = { type = 43, leftText = "Classes: " .. classes } end
         return { id = id, lines = lines }
