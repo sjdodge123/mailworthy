@@ -47,6 +47,51 @@ function Bags.Slots()
     return slots
 end
 
+-- The last-moment re-check -------------------------------------------------------
+-- AGENTS Safety: "Re-check each slot right before attaching it; skip anything that changed." The
+-- mailer (Mailer.StillThere, before each attach) and the vendor window (Vendor.StillThere, before each
+-- sale) run the same checks, in this order, each with its own words; a check that only one of them
+-- needs is switched on by that caller, never off by the other.
+Bags.RECHECKS = { "gone", "different", "count", "inUse", "bound", "noValue", "conjured", "ammo", "locked", "quest",
+    "owed" }
+
+--- Is this bag stack ({ bag, slot, itemID, link, count }) still exactly what was listed, and may it
+--- still go? Returns true, or false and the caller's words for the first check that failed.
+--- `how`:
+---   read(bag, slot): the slot's GetContainerItemInfo table or nil (default Locks.ItemAt);
+---   words: check -> text (Bags.RECHECKS; a check without words says its own name);
+---   looseLink: the link is compared only when both are known (the item ID always is);
+---   bound: refuse a soulbound item (mail: never; a vendor buys a vendor-pinned one);
+---   noValue: refuse what no vendor buys;
+---   owed(itemID): true when another player mailed it here and it may go back to them.
+--- Always: gone, a different item, a changed count, in use, conjured, the equipped ranged weapon's
+--- ammo, locked, an active quest's need.
+function Bags.StillThere(stack, how)
+    how = how or {}
+    local words = how.words or {}
+    local function no(check) return false, words[check] or check end
+    local info = (how.read or ns.Locks.ItemAt)(stack.bag, stack.slot)
+    if type(info) ~= "table" or info.itemID == nil then return no("gone") end
+    if info.itemID ~= stack.itemID then return no("different") end
+    -- The whole link: a random-suffix variant has the item ID but not the item listed (Codex review).
+    if info.hyperlink ~= stack.link and not (how.looseLink and (info.hyperlink == nil or stack.link == nil)) then
+        return no("different")
+    end
+    if (tonumber(info.stackCount) or 1) ~= stack.count then return no("count") end
+    if info.isLocked then return no("inUse") end
+    if how.bound and info.isBound then return no("bound") end
+    if how.noValue and info.hasNoValue then return no("noValue") end
+    local link = info.hyperlink or stack.link
+    if ns.Conjured.Is(info.itemID) then return no("conjured") end
+    -- A bow, crossbow or gun equipped since the list was made: its ammo stays (Ammo.lua).
+    if ns.Ammo.Is(link) then return no("ammo") end
+    if ns.Locks.IsItemLocked(info.itemID) then return no("locked") end
+    -- A quest accepted since the list was made (Codex review, 2026-11-08): what it asks for stays.
+    if ns.Quests.For(link) then return no("quest") end
+    if how.owed and how.owed(info.itemID) then return no("owed") end
+    return true
+end
+
 Bags.PROJECTILE = 6 -- item class of arrows and bullets (Enum.ItemClass.Projectile)
 local classByID = {} -- itemID -> item class, read once (GetItemInfoInstant needs no cache)
 
@@ -145,13 +190,26 @@ function Bags.ProfessionKeep(link, itemID)
     return (ns.Valuation.ProfessionKeep(item, s))
 end
 
---- The window's settings (and /mw scan's): the saved ones, whether the bank alt's share is held,
---- and, while Return to sender is on (Returns.lua), what goes back to whom.
-function Bags.CurrentSettings()
+--- The one settings builder for a scan (Bags.Evaluate), and for what reads the same settings (the
+--- window, /mw scan, /mw report, the bag tags, Trip): the saved ones (Config.Values) and, while Return
+--- to sender is on (Returns.lua), what goes back to whom. `opts` (optional):
+---   forTags: the bag tags' scan (BankAlt.Settings): the send switches don't change a tag
+---     (Bags.ApplySendSwitches), and the bank alt's share isn't held: a tag says what the item is for;
+---   noPostage: nothing is mailed from here (the bank alt's tags): postage 0.
+--- Without forTags, `hold` says why the bank alt's share stays in the bags (Bags.HoldReason), or nil.
+function Bags.Settings(opts)
+    opts = opts or {}
     local s = ns.Config.Values()
-    s.hold = Bags.HoldReason()
+    if opts.noPostage then s.postage = 0 end
+    if not opts.forTags then s.hold = Bags.HoldReason() end
     if ns.Returns.On() then s.returns = ns.Returns.Current() end
+    if opts.forTags then s.forTags = true end
     return s
+end
+
+--- The window's settings (and /mw scan's): Bags.Settings().
+function Bags.CurrentSettings()
+    return Bags.Settings()
 end
 
 --- A copy of a bag item with only `slots` of it (Return to sender sends some stacks back and
@@ -533,6 +591,27 @@ function Bags.ProfessionMatsText(settings)
     return text
 end
 
+--- The report's "settings:" line, for /mw scan (`mailing`: the deposit, the cut, postage and the
+--- launch day a scan's verdicts used) and /mw report (`extra`: its own switches, before the profession
+--- materials). `s`: a scan's settings (professions read: Bags.Evaluate fills them).
+function Bags.SettingsLine(s, opts)
+    opts = opts or {}
+    local hours = ns.Valuation.DURATION_HOURS[s.duration]
+    local parts = { opts.mailing and string.format("%dh listing (deposit x%d)", hours, ns.Valuation.DEPOSIT_MULTIPLIER[s.duration])
+        or string.format("%dh listing", hours) }
+    if opts.mailing then
+        parts[#parts + 1] = string.format("AH cut %d%%", math.floor(s.cut * 100 + 0.5))
+        parts[#parts + 1] = "postage " .. money(s.postage) .. " per stack"
+    end
+    parts[#parts + 1] = string.format("min gain %s and %d%%", Bags.MinGainText(s), math.floor(s.minGainPct * 100 + 0.5))
+    parts[#parts + 1] = "disenchant " .. (s.disenchant and "on" or "off")
+    parts[#parts + 1] = string.format("max price age %d days", s.maxAgeDays)
+    if opts.mailing then parts[#parts + 1] = "launch day " .. tostring(s.serverDay) end
+    for _, e in ipairs(opts.extra or {}) do parts[#parts + 1] = e end
+    parts[#parts + 1] = "profession materials " .. Bags.ProfessionMatsText(s)
+    return "settings: " .. table.concat(parts, ", ")
+end
+
 function Bags.Report(result)
     local s, t = result.settings, result.totals
     local lines = {
@@ -543,11 +622,7 @@ function Bags.Report(result)
         "prices: " .. (result.priced and (ns.Prices.SOURCE_NAME[result.source] or "Auctionator")
             or "none (no Auctionator or TradeSkillMaster: mailing common items)")
             .. (result.priced and " (no auction price yet: to the bank alt)" or ""),
-        string.format("settings: %dh listing (deposit x%d), AH cut %d%%, postage %s per stack, "
-            .. "min gain %s and %d%%, disenchant %s, max price age %d days, launch day %s, profession materials %s",
-            ns.Valuation.DURATION_HOURS[s.duration], ns.Valuation.DEPOSIT_MULTIPLIER[s.duration],
-            math.floor(s.cut * 100 + 0.5), money(s.postage), Bags.MinGainText(s), math.floor(s.minGainPct * 100 + 0.5),
-            s.disenchant and "on" or "off", s.maxAgeDays, tostring(s.serverDay), Bags.ProfessionMatsText(s)),
+        Bags.SettingsLine(s, { mailing = true }),
         "send: " .. Bags.SendText(s),
         string.format("total: %d items (%d stacks) in %d mail(s), %s more than vendoring, postage %s%s",
             t.items, t.stacks, t.mails, money(t.gain), money(t.postage),

@@ -112,11 +112,7 @@ end
 --- bindings count (an item a friend's binding takes is F, not AH), and so does Return to sender
 --- while it is on at the mailbox (R): the tags say what the mailbox does (operator, 2026-11-13).
 function BankAlt.Settings()
-    local s = ns.Config.Values()
-    if BankAlt.Mode() ~= "sent" then s.postage = 0 end
-    if ns.Returns.On() then s.returns = ns.Returns.Current() end
-    s.forTags = true -- the send switches don't change a tag (Bags.ApplySendSwitches)
-    return s
+    return ns.Bags.Settings({ forTags = true, noPostage = BankAlt.Mode() ~= "sent" })
 end
 
 function BankAlt.Invalidate()

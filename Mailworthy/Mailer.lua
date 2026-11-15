@@ -176,21 +176,17 @@ function Mailer.Blocker(bankAlt, mails)
     return nil
 end
 
---- Is this bag slot still exactly what the preview showed?
+-- The mailer's words for Bags.StillThere's checks (the stayed list and the log show them).
+local RECHECK = {
+    read = function(bag, slot) return call(C_Container and C_Container.GetContainerItemInfo, bag, slot) end,
+    bound = true,
+    words = { gone = "gone", different = "a different item", count = "count changed", inUse = "in use",
+        bound = "soulbound", conjured = "conjured", ammo = "ammo", locked = "locked", quest = "an active quest needs it" },
+}
+
+--- Is this bag slot still exactly what the preview showed? (Bags.StillThere: the shared re-check.)
 function Mailer.StillThere(stack)
-    local info = call(C_Container and C_Container.GetContainerItemInfo, stack.bag, stack.slot)
-    if type(info) ~= "table" then return false, "gone" end
-    if info.itemID ~= stack.itemID or info.hyperlink ~= stack.link then return false, "a different item" end
-    if (tonumber(info.stackCount) or 1) ~= stack.count then return false, "count changed" end
-    if info.isLocked then return false, "in use" end
-    if info.isBound then return false, "soulbound" end
-    if ns.Conjured.Is(info.itemID) then return false, "conjured" end
-    -- A bow, crossbow or gun equipped since the preview: its ammo stays (Ammo.lua).
-    if ns.Ammo.Is(info.hyperlink) then return false, "ammo" end
-    if ns.Locks.IsItemLocked(info.itemID) then return false, "locked" end
-    -- A quest accepted mid-run (Codex review, 2026-11-08): what it asks for stays.
-    if ns.Quests.For(info.hyperlink) then return false, "an active quest needs it" end
-    return true
+    return ns.Bags.StillThere(stack, RECHECK)
 end
 
 local function attachedCount()

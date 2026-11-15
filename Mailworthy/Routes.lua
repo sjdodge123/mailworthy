@@ -324,25 +324,38 @@ function Routes.Divert(item, verdict, price, settings, routes)
     -- with it, whatever binding takes the material. The row's button (Routes.Pick) sends it anyway.
     if verdict and verdict.neededBy then return nil end
     local unit, capUnit = Routes.Units(item, price, settings)
-    local outgrown, route
-    for _, r in ipairs(routes or {}) do
-        local matches, past = Routes.Matches(r, item, settings and settings.tiers, settings and settings.priceOf)
-        -- A class binding needs a current auction price when there's a price source (the cap is checked
-        -- against it): an item without one goes to the bank alt, whatever its route (a disenchant
-        -- value alone isn't one; Codex review, 2026-11-08).
-        if r.class and not Routes.ClassPriced(verdict, price, unit) then matches = false end
-        -- A recipe this character already knows (item.known, Recipes.lua; operator, 2026-11-14: "already
-        -- known crafting recipes should continue down regular routing rules"): a binding naming this
-        -- character doesn't keep it here; another binding or the regular rules take it.
-        if matches and item.known and Routes.IsMe((Routes.Recipient(r))) then matches = false end
-        if past then outgrown = outgrown or r end
-        if matches and (not route or Routes.Before(r, route)) then route = r end
+    -- A recipe this character already knows (item.known, Recipes.lua; operator, 2026-11-14: "already
+    -- known crafting recipes should continue down regular routing rules"): a binding naming this
+    -- character doesn't keep it here; another binding or the regular rules take it.
+    local takers, outgrown = Routes.Takers(item, verdict, price, unit, routes, settings and settings.tiers,
+        settings and settings.priceOf, item.known)
+    local route
+    for _, r in ipairs(takers) do
+        if not route or Routes.Before(r, route) then route = r end
     end
     if not route then return nil, nil, outgrown end
     if route.cap and capUnit and capUnit >= route.cap then return nil, route end
     local beaten = Routes.GearBeaten(route, item, verdict, price, settings)
     if beaten then return nil, nil, outgrown, beaten end
     return Routes.Force(item, route, unit, settings)
+end
+
+--- Pure: the bindings of `routes` that take `item`, in their order (Routes.Divert's and Routes.Choices'
+--- one filter): its profession's materials or its class's items (Routes.Matches, with `tiers` and
+--- `priceOf`); a class binding only with a current auction price when there is a price source (the cap is
+--- checked against it: an item without one goes to the bank alt, whatever its route; a disenchant value
+--- alone isn't one; Codex review, 2026-11-08); with `notMe`, never a binding whose recipient is this
+--- character. Second return: the first binding whose player's skill is past the material (Tiers).
+function Routes.Takers(item, verdict, price, unit, routes, tiers, priceOf, notMe)
+    local list, outgrown = {}, nil
+    for _, r in ipairs(routes or {}) do
+        local matches, past = Routes.Matches(r, item, tiers, priceOf)
+        if matches and r.class and not Routes.ClassPriced(verdict, price, unit) then matches = false end
+        if matches and notMe and Routes.IsMe((Routes.Recipient(r))) then matches = false end
+        if past then outgrown = outgrown or r end
+        if matches then list[#list + 1] = r end
+    end
+    return list, outgrown
 end
 
 --- Pure: a binding may take an item with this verdict at all: never a hard keep, a pinned item (Pins.lua:
@@ -430,13 +443,7 @@ local picks = {} -- item link -> Routes.MINE or a binding's key
 function Routes.Choices(item, verdict, price, settings, routes)
     if not Routes.Divertible(verdict, price) then return {} end
     local unit = Routes.Units(item, price, settings)
-    local list = {}
-    for _, r in ipairs(routes or {}) do
-        if Routes.Matches(r, item, false) and not Routes.IsMe(Routes.Recipient(r))
-            and (not r.class or Routes.ClassPriced(verdict, price, unit)) then
-            list[#list + 1] = r
-        end
-    end
+    local list = Routes.Takers(item, verdict, price, unit, routes, false, nil, true)
     table.sort(list, function(a, b)
         if Routes.Before(a, b) then return true end
         if Routes.Before(b, a) then return false end

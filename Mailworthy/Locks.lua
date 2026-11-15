@@ -146,52 +146,75 @@ function Locks.MigrateSlotLocks()
     return n
 end
 
-local function isBagSlot(bag)
-    return ns.Bags.IsBag(bag) -- backpack, bags 1-4 and the reagent bag; not the bank
-end
+--- The two ways to toggle a per-item mark on a bag item, shared by locks and pins (one implementation,
+--- so the twins can't drift): a post-hook of the global HandleModifiedItemClick for the mouse, and the
+--- bag slot smart navigation has selected for the controller (read-only). `o`:
+---   module: the table whose OnModifiedItemClick the hook calls (looked up at each click);
+---   ctrl: Ctrl held with Alt (a pin) or not (a lock); Shift never;
+---   toggle(bag, slot, how): the mark's own toggle;
+---   area: the log tag; click / pad: the inputs' names ("Alt+click", "L3"); noun: "lock" / "pin";
+---   feature: the /mw feature switch of the click.
+--- Returns { OnModifiedItemClick, ToggleSelectedBagSlot, Install }.
+function Locks.BagClick(o)
+    local label = o.click .. " " .. o.noun
+    local click = {}
 
---- Post-hook of HandleModifiedItemClick(link, itemLocation): Alt (alone) + click on a bag item.
-function Locks.OnModifiedItemClick(_, itemLocation)
-    if not IsAltKeyDown() or IsShiftKeyDown() or IsControlKeyDown() then return end
-    if type(itemLocation) ~= "table" or type(itemLocation.IsBagAndSlot) ~= "function" then return end
-    local okIs, isBag = pcall(itemLocation.IsBagAndSlot, itemLocation)
-    if not okIs or not isBag then return end
-    local ok, bag, slot = pcall(itemLocation.GetBagAndSlot, itemLocation)
-    if ok and isBagSlot(bag) and type(slot) == "number" then Locks.Toggle(bag, slot, "Alt+click") end
-end
+    --- Post-hook of HandleModifiedItemClick(link, itemLocation): Alt (with Ctrl or not, per `o.ctrl`; no
+    --- Shift) + click on a bag item.
+    function click.OnModifiedItemClick(_, itemLocation)
+        if not IsAltKeyDown() or IsShiftKeyDown() or (IsControlKeyDown() and true or false) ~= (o.ctrl == true) then
+            return
+        end
+        if type(itemLocation) ~= "table" or type(itemLocation.IsBagAndSlot) ~= "function" then return end
+        local okIs, isBag = pcall(itemLocation.IsBagAndSlot, itemLocation)
+        if not okIs or not isBag then return end
+        local ok, bag, slot = pcall(itemLocation.GetBagAndSlot, itemLocation)
+        if ok and ns.Bags.IsBag(bag) and type(slot) == "number" then o.toggle(bag, slot, o.click) end
+    end
 
---- Controller (L3 in the bags): the bag slot smart navigation has selected (read-only).
-function Locks.ToggleSelectedBagSlot()
-    local nav = rawget(_G, "SmartNavigation")
-    if type(nav) ~= "table" or type(nav.GetCurrentButton) ~= "function" then return nil end
-    local ok, button = pcall(nav.GetCurrentButton, nav)
-    if not ok or type(button) ~= "table" or button.buttonContext ~= Locks.BAG_BUTTON_CONTEXT
-        or type(button.GetBagID) ~= "function" then
-        ns.Log.Add("lock", "L3: no bag item selected")
+    --- Controller: the bag slot smart navigation has selected (read-only).
+    function click.ToggleSelectedBagSlot()
+        local nav = rawget(_G, "SmartNavigation")
+        if type(nav) ~= "table" or type(nav.GetCurrentButton) ~= "function" then return nil end
+        local ok, button = pcall(nav.GetCurrentButton, nav)
+        if not ok or type(button) ~= "table" or button.buttonContext ~= Locks.BAG_BUTTON_CONTEXT
+            or type(button.GetBagID) ~= "function" then
+            ns.Log.Add(o.area, "%s: no bag item selected", o.pad)
+            return nil
+        end
+        local okBag, bag = pcall(button.GetBagID, button)
+        local okSlot, slot = pcall(button.GetID, button)
+        -- backpack, bags 1-4 and the reagent bag; not the bank
+        if okBag and okSlot and ns.Bags.IsBag(bag) then return o.toggle(bag, slot, o.pad) end
         return nil
     end
-    local okBag, bag = pcall(button.GetBagID, button)
-    local okSlot, slot = pcall(button.GetID, button)
-    if okBag and okSlot and isBagSlot(bag) then return Locks.Toggle(bag, slot, "L3") end
-    return nil
+
+    function click.Install()
+        if not ns.Features.On(o.feature) then
+            ns.Log.Add(o.area, "%s off (/mw feature %s on, then /reload)", label, o.feature)
+            return false
+        end
+        if type(HandleModifiedItemClick) ~= "function" then
+            ns.Log.Add(o.area, "HandleModifiedItemClick missing: no %s", label)
+            return false
+        end
+        local ok, err = pcall(hooksecurefunc, "HandleModifiedItemClick", function(link, itemLocation)
+            local okHook, errHook = pcall(o.module.OnModifiedItemClick, link, itemLocation)
+            if not okHook then ns.Log.Add(o.area, "%s hook error: %s", o.click, tostring(errHook)) end
+        end)
+        ns.Log.Add(o.area, "%s hook %s", label, ok and "installed" or ("failed: " .. tostring(err)))
+        return ok
+    end
+
+    return click
 end
 
-function Locks.Install()
-    if not ns.Features.On("altClickLock") then
-        ns.Log.Add("lock", "Alt+click lock off (/mw feature altClickLock on, then /reload)")
-        return false
-    end
-    if type(HandleModifiedItemClick) ~= "function" then
-        ns.Log.Add("lock", "HandleModifiedItemClick missing: no Alt+click lock")
-        return false
-    end
-    local ok, err = pcall(hooksecurefunc, "HandleModifiedItemClick", function(link, itemLocation)
-        local okHook, errHook = pcall(Locks.OnModifiedItemClick, link, itemLocation)
-        if not okHook then ns.Log.Add("lock", "Alt+click hook error: %s", tostring(errHook)) end
-    end)
-    ns.Log.Add("lock", "Alt+click lock hook %s", ok and "installed" or ("failed: " .. tostring(err)))
-    return ok
-end
+-- Alt (alone) + click, or L3 in the bags.
+local lockClick = Locks.BagClick({ module = Locks, ctrl = false, toggle = function(...) return Locks.Toggle(...) end,
+    area = "lock", click = "Alt+click", pad = "L3", noun = "lock", feature = "altClickLock" })
+Locks.OnModifiedItemClick = lockClick.OnModifiedItemClick
+Locks.ToggleSelectedBagSlot = lockClick.ToggleSelectedBagSlot
+Locks.Install = lockClick.Install
 
 ns.On("PLAYER_LOGIN", function()
     Locks.MigrateSlotLocks()

@@ -265,6 +265,32 @@ describe("bag scan", function()
         assert.truthy(ns.Bags.Report(result):find("profession materials mailed", 1, true))
     end)
 
+    it("one settings builder: the window's holds the bank alt's share, the tags' don't, and pay no postage", function()
+        local window = ns.Bags.Settings()
+        assert.is_nil(window.hold, "a bank alt is set")
+        assert.is_nil(window.forTags)
+        assert.equal(30, window.postage)
+        ns.Bags.SkipBankAlt(true)
+        assert.equal("bank alt skipped", ns.Bags.Settings().hold)
+        assert.equal("bank alt skipped", ns.Bags.CurrentSettings().hold)
+        local tags = ns.Bags.Settings({ forTags = true, noPostage = true })
+        assert.is_true(tags.forTags)
+        assert.is_nil(tags.hold, "a tag says what the item is for")
+        assert.equal(0, tags.postage)
+        assert.same(tags, ns.BankAlt.Settings(), "the bank alt's tags (no send yet) are the same")
+        ns.Bags.SkipBankAlt(false)
+        assert.is_nil(ns.Bags.Settings().returns, "Return to sender off")
+    end)
+
+    it("one settings line: the scan's has the mailing numbers, the report's its own switches", function()
+        local s = ns.Bags.Evaluate().settings
+        assert.equal("settings: 24h listing (deposit x12), AH cut 5%, postage 30c per stack, min gain 5s and 25%, "
+            .. "disenchant off, max price age 7 days, launch day 20, profession materials kept (no crafting profession here)",
+            ns.Bags.SettingsLine(s, { mailing = true }))
+        assert.equal("settings: 24h listing, min gain 5s and 25%, disenchant off, max price age 7 days, a, b, "
+            .. "profession materials kept (no crafting profession here)", ns.Bags.SettingsLine(s, { extra = { "a", "b" } }))
+    end)
+
     it("keeps profession tools whatever they'd sell for (v0.2.0 listed a Fishing Pole)", function()
         WowStub.setBag(2, 2, WowStub.item(2901, "Mining Pick", { sell = 2 }))
         WowStub.setBag(2, 3, WowStub.item(6365, "Strong Fishing Pole", { sell = 50, class = 2 }))
