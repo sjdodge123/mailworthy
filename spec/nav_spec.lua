@@ -42,6 +42,27 @@ describe("navigation search", function()
         end
     end)
 
+    it("Down from the bottom row wraps to the top-left in every window (UX review U5)", function()
+        WowStub.state.layout = true
+        WowStub.state.gamepadUI = true
+        ns.Fire("PLAYER_LOGIN")
+        MailworthyCharDB.lockedItems[2770] = { link = WowStub.link(2770, "Copper Ore"), at = 1 }
+        MailworthyCharDB.lockedItems[4338] = { link = WowStub.link(4338, "Mageweave Cloth"), at = 1 }
+        ns.LocksUI.Show()
+        ns.Nav.Reset()
+        local start = ns.Nav.Current()
+        assert.equal(_G.MailworthyLocksUnlock1, start)
+        ns.Nav.Select(_G.MailworthyLocksDone)
+        ns.Nav.Move("down")
+        assert.equal(start, ns.Nav.Current(), "Down from Done: back to the top")
+        ns.Nav.Move("up")
+        assert.equal(start, ns.Nav.Current(), "Up from the top row stays (no wrap that way)")
+        ns.Nav.Select(_G.MailworthyLocksUnlock1)
+        ns.Nav.Move("down")
+        assert.equal(_G.MailworthyLocksUnlock2, ns.Nav.Current(), "a row in the middle moves as before")
+        assert.equal(nil, ns.Nav.DefaultWrap("left"))
+    end)
+
     it("PadKey's free-standing windows are every Nav window but the mailbox one", function()
         ns.Fire("PLAYER_LOGIN")
         assert.is_false(ns.Nav.AnyShown(ns.MailWindow.Frame()))
