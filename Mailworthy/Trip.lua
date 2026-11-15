@@ -131,6 +131,12 @@ function Trip.Check()
     end
 end
 
+-- Something the scan key doesn't hold changed (a lock, a pin, a pick, a quest...: Bags.OnInputsChanged):
+-- the next check scans again, whatever the key says. The tooltip line stays until then.
+ns.Bags.OnInputsChanged(function()
+    if last then last.key = nil end
+end)
+
 ns.On("BAG_UPDATE_DELAYED", function() Trip.Check() end)
 ns.On("PLAYER_REGEN_ENABLED", function() Trip.Check() end)
 -- At a mailbox the Mailworthy window shows the list itself; after the visit the bags have changed.

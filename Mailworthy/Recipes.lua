@@ -101,7 +101,7 @@ end
 -- Each mailbox visit asks the tooltips again, once, and the bag tags' cached verdicts with them.
 ns.On("MAIL_SHOW", function()
     Recipes.Forget()
-    if ns.BankAlt then ns.BankAlt.Invalidate() end
+    ns.Bags.InputsChanged("recipes", true)
 end)
 -- Learning a recipe uses its item up: the bag update that follows asks the "not known" ones again, so
 -- another copy left in the bags is tagged as known (Codex review, 2026-11-14). Registered before

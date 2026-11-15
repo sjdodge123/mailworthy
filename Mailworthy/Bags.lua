@@ -154,6 +154,31 @@ function Bags.Group(slots)
     return items
 end
 
+-- Scan inputs ---------------------------------------------------------------------------
+-- One signal for "what a scan reads changed" (A9): a lock, a pin or the pin mode, a binding added,
+-- removed or changed, a row pick or a Skip once, the bank alt skipped, Return to sender, an active
+-- quest's needs, the recipes asked again, a setting or the bank alt. Whatever caches a scan listens
+-- (the bag tags, BankAlt; Trip), so no input can leave one stale until the next bag update. Not the
+-- Mailworthy window: it refreshes itself (MailWindow). Fired from the module that owns each input;
+-- Comms (a peer's skills) and SettingsUI still push to BankAlt directly.
+local inputsChanged = ns.Util.Signal("scan inputs")
+
+--- Listen: fn(why, lazy). `why`: what changed ("lock", "routes", ...); `lazy`: only mark a cached
+--- scan stale (read again at its next use), don't redraw now.
+Bags.OnInputsChanged = inputsChanged.Add
+
+--- Say that a scan's inputs changed (see above). `lazy`: see Bags.OnInputsChanged.
+function Bags.InputsChanged(why, lazy)
+    inputsChanged.Fire(why, lazy == true)
+end
+
+-- Locks and pins (and the pin mode) load before this file and have their own lists: passed on. At
+-- PLAYER_LOGIN, after the lock glow's own listener (Border), as BankAlt listened before.
+ns.On("PLAYER_LOGIN", function()
+    ns.Locks.OnChanged(function() Bags.InputsChanged("lock") end)
+    ns.Pins.OnChanged(function() Bags.InputsChanged("pin") end)
+end)
+
 -- The bank alt is optional (operator, 2026-11-08: "dont require a bank alt to use mailworthy"),
 -- and the player can skip it for one mailbox visit ("Skip once for their bank alt sends too"):
 -- then what would have gone to the bank alt stays in the bags, listed under Staying with the
@@ -163,6 +188,7 @@ local bankAltSkipped = false
 function Bags.SkipBankAlt(on)
     bankAltSkipped = on == true
     ns.Log.Add("scan", "bank alt %s this visit", bankAltSkipped and "skipped" or "back")
+    Bags.InputsChanged("bank alt skip")
 end
 function Bags.BankAltSkipped() return bankAltSkipped end
 

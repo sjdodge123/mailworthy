@@ -465,7 +465,9 @@ function Routes.NextPick(current, choices)
 end
 
 function Routes.Pick(link, state)
-    if link then picks[link] = state end
+    if not link then return end
+    picks[link] = state
+    ns.Bags.InputsChanged("pick")
 end
 function Routes.Picked(link) return link and picks[link] or nil end
 function Routes.ClearPicks() picks = {} end
@@ -578,6 +580,7 @@ function Routes.Add(name, what, opts)
     if #list >= Routes.MAX then return nil, "too many bindings" end
     list[#list + 1] = route
     ns.Log.Add("routes", "bound %s to %s (%s)", Routes.What(route), name, scope)
+    ns.Bags.InputsChanged("routes")
     return Routes.Get(key)
 end
 
@@ -587,6 +590,7 @@ function Routes.Remove(key)
     table.remove(list, i)
     skipped[key] = nil
     ns.Log.Add("routes", "unbound %s to %s", Routes.What(r), r.to)
+    ns.Bags.InputsChanged("routes")
     return true
 end
 
@@ -599,6 +603,7 @@ function Routes.SetScope(key, scope)
     table.remove(list, i)
     target[#target + 1] = r
     ns.Log.Add("routes", "%s to %s now %s", Routes.What(r), r.to, scope)
+    ns.Bags.InputsChanged("routes")
     return true
 end
 
@@ -628,6 +633,7 @@ function Routes.StepCap(key, dir)
     if not r then return end
     r.cap = Routes.NextCap(r.cap, dir)
     ns.Log.Add("routes", "%s to %s: cap %s", Routes.What(r), r.to, r.cap and ns.Valuation.Money(r.cap) or "none")
+    ns.Bags.InputsChanged("routes")
 end
 
 --- Flip an Enchanting binding's Gear switch (Routes.GEAR_DE / every piece). Returns true when
@@ -637,6 +643,7 @@ function Routes.ToggleGear(key)
     if not Routes.TakesGear(r) then return false end
     r.gear = r.gear ~= Routes.GEAR_DE and Routes.GEAR_DE or nil
     ns.Log.Add("routes", "%s to %s: %s", Routes.What(r), r.to, Routes.GearText(r))
+    ns.Bags.InputsChanged("routes")
     return true
 end
 
@@ -657,15 +664,20 @@ function Routes.SkipOnce(key)
     for _, r in ipairs(Routes.List()) do
         if r.key == key then skipped[key] = true end
     end
+    ns.Bags.InputsChanged("skip")
 end
 
-function Routes.Unskip(key) skipped[key] = nil end
+function Routes.Unskip(key)
+    skipped[key] = nil
+    ns.Bags.InputsChanged("skip")
+end
 function Routes.Skipped(key) return skipped[key] == true end
 function Routes.ClearSkips() skipped = {} end
 
 ns.On("MAIL_CLOSED", function()
     Routes.ClearSkips()
     Routes.ClearPicks()
+    ns.Bags.InputsChanged("visit over", true)
 end)
 
 -- Candidates: who can be bound ------------------------------------------------------

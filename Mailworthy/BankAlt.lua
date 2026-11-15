@@ -554,8 +554,10 @@ ns.On("PLAYER_LOGIN", function()
         legend = bags:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         legend:SetPoint("TOPRIGHT", bags, "BOTTOMRIGHT", -10, -4)
     end
-    ns.Locks.OnChanged(redraw)
-    ns.Pins.OnChanged(redraw)
+    -- Anything a scan reads (Bags.OnInputsChanged: locks, pins, bindings, picks, returns, quests...).
+    ns.Bags.OnInputsChanged(function(_, lazy)
+        if lazy then BankAlt.Invalidate() else BankAlt.Redraw() end
+    end)
     ns.Mailer.OnSent(function() BankAlt.AfterSend() end)
     local settings = ns.SettingsUI.Frame()
     if settings then settings:HookScript("OnHide", redraw) end

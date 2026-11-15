@@ -88,10 +88,12 @@ function Config.Set(key, value)
     if Config.CHARACTER[key] then
         charSettings()[key] = value
         ns.Log.Add("config", "%s = %s (this character)", key, tostring(value))
-        return
+    else
+        db().settings[key] = value
+        ns.Log.Add("config", "%s = %s", key, tostring(value))
     end
-    db().settings[key] = value
-    ns.Log.Add("config", "%s = %s", key, tostring(value))
+    -- Lazily: the settings window redraws the tags itself when it closes (BankAlt).
+    if ns.Bags then ns.Bags.InputsChanged("settings", true) end
 end
 
 --- Pure: the next value in `steps` from `value` in direction +1 / -1 (from the
@@ -176,6 +178,7 @@ function Config.SetBankAlt(name)
     db().bankAlts[key] = name
     remember(name, realm, faction)
     ns.Log.Add("config", "bank alt for %s = %s%s", key, name, entry and "" or " (not seen by Mailworthy)")
+    if ns.Bags then ns.Bags.InputsChanged("bank alt", true) end
     return name
 end
 
@@ -190,6 +193,7 @@ function Config.SetBankAltHere()
     local key = realmKey()
     db().bankAlts[key] = name
     ns.Log.Add("config", "bank alt for %s = %s (this character)", key, name)
+    if ns.Bags then ns.Bags.InputsChanged("bank alt", true) end
     return name
 end
 
@@ -199,6 +203,7 @@ function Config.ClearBankAlt()
     if db().bankAlts[key] == nil then return end
     db().bankAlts[key] = nil
     ns.Log.Add("config", "bank alt for %s cleared", key)
+    if ns.Bags then ns.Bags.InputsChanged("bank alt", true) end
 end
 
 --- Does this character bank here what goes "to the bank" (it is the bank alt, or has none)?
