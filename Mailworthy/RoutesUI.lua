@@ -146,6 +146,7 @@ local function createBindingRows()
                 setHint("Binding removed.")
                 UI.Refresh()
                 ns.MailWindow.RefreshIfShown()
+                ns.SettingsUI.RefreshIfShown() -- Friends / Guild / Mail ledger may fold again (UX review U1)
             end
         end, "MailworthyFriendsRemove" .. i, function()
             setHint(row.kind == "draft" and "Press Remove again to take this rule out of the draft."
@@ -634,6 +635,7 @@ function UI.Bind(i)
     picked, view = nil, "list"
     UI.Refresh()
     ns.MailWindow.RefreshIfShown()
+    ns.SettingsUI.RefreshIfShown() -- the first binding: Friends, Guild and Mail ledger unfold (UX review U1)
 end
 
 --- `opener`: the Mailworthy window whose button opened it (placed beside that), or nil (centred).

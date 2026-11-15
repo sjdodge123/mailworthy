@@ -523,6 +523,11 @@ describe("guild template", function()
             WowStub.state.gamepadUI = true
             ns.Guild.DraftAdd(BOB, ENCHANTING)
             ns.SettingsUI.Show()
+            _G.MailworthyPadWatcher.scripts.OnUpdate(_G.MailworthyPadWatcher, 0.2)
+            ns.Nav.Select(_G.MailworthySettingsTabMore)
+            WowStub.state.now = WowStub.state.now + 1
+            _G.MailworthyPadCross:Click() -- Bags and more (UX review U2: the windows are on that tab)
+            assert.equal("more", ns.SettingsUI.Tab())
             local function reachable(button)
                 for _, c in ipairs(ns.Nav.Candidates()) do if c.button == button then return true end end
                 return false

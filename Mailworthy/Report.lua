@@ -25,6 +25,8 @@ function Report.Create()
     if reportFrame then return reportFrame end
     local W = ns.Widgets
     reportFrame = W.Window("MailworthyReportFrame", 640, 440)
+    -- Over every Mailworthy window: Settings' Report... and the ledger's Export log... open it beside theirs.
+    reportFrame:SetFrameStrata("FULLSCREEN_DIALOG")
     reportFrame:SetPoint("CENTER")
     reportHeading = W.Label(reportFrame, "GameFontNormalLarge")
     reportHeading:SetPoint("TOP", 0, -18)

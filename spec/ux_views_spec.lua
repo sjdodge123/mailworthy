@@ -64,14 +64,42 @@ describe("window views", function()
         assert.equal("main", ns.SettingsUI.View())
         assert.is_true(ns.Nav.Current():IsVisible(), "the highlight left the hidden picker")
         r = reachable()
-        for _, name in ipairs({ "Change", "AmountUp", "AmountDown", "PercentUp", "PercentDown", "Duration1",
-            "Duration3", "Disenchant", "Mats", "Gather", "SendAuction", "SendDisenchant", "SendBank", "SendVendor",
-            "Tags", "Glow", "Friends", "Summary", "Minimap", "Done" }) do
-            assert.truthy(r["MailworthySettings" .. name], "reaches " .. name)
+        -- Two views since the UX review (U2): Mailing, then Bags and more.
+        assert.equal("mailing", ns.SettingsUI.Tab())
+        for _, name in ipairs({ "TabMailing", "TabMore", "Change", "AmountUp", "AmountDown", "PercentUp", "PercentDown",
+            "Duration1", "Duration3", "Disenchant", "Mats", "Gather", "SendAuction", "SendDisenchant", "SendBank",
+            "SendVendor", "Done" }) do
+            assert.truthy(r["MailworthySettings" .. name], "Mailing reaches " .. name)
+        end
+        for _, name in ipairs({ "Tags", "Glow", "Locks", "Summary", "Minimap", "Report" }) do
+            assert.is_nil(r["MailworthySettings" .. name], "Mailing: no " .. name)
         end
         assert.is_nil(r.MailworthySettingsChoice1)
         assert.is_nil(r.MailworthySettingsHere)
         assertNoBlankButtons()
+
+        press(_G.MailworthySettingsTabMore)
+        assert.equal("more", ns.SettingsUI.Tab())
+        assert.is_true(ns.Nav.Current():IsVisible())
+        r = reachable()
+        for _, name in ipairs({ "TabMailing", "TabMore", "Tags", "Glow", "Pins", "Tooltips", "PinWarning", "Minimap",
+            "Locks", "Pinned", "FriendsGuild", "Summary", "Report", "Done" }) do
+            assert.truthy(r["MailworthySettings" .. name], "Bags and more reaches " .. name)
+        end
+        -- A solo player (UX review U1): Friends, Guild and Mail ledger are one button.
+        for _, name in ipairs({ "Friends", "Guild", "Ledger", "Change", "AmountUp", "Disenchant", "SendVendor" }) do
+            assert.is_nil(r["MailworthySettings" .. name], "Bags and more: no " .. name)
+        end
+        assertNoBlankButtons()
+        ns.Routes.Add("Bob Surname", 333)
+        ns.SettingsUI.Refresh()
+        r = reachable()
+        for _, name in ipairs({ "Friends", "Guild", "Ledger" }) do
+            assert.truthy(r["MailworthySettings" .. name], "a binding: " .. name .. " is back")
+        end
+        assert.is_nil(r.MailworthySettingsFriendsGuild)
+        assertNoBlankButtons()
+        press(_G.MailworthySettingsTabMailing)
 
         press(_G.MailworthySettingsChange)
         assert.equal("pick", ns.SettingsUI.View())
