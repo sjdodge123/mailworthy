@@ -29,6 +29,7 @@ local function defaultState()
         bags = { [0] = {}, [1] = {}, [2] = {} },
         equipped = {}, -- inventory slot -> WowStub.item (GetInventoryItemID; 18 = the ranged slot)
         attached = {}, cursor = nil, used = {}, sent = {}, sentItems = {}, sounds = {}, postage = 30, money = 0, cod = 0, moneyCalls = {},
+        gold = 100000,
         inbox = {}, invoices = {}, takes = {},
         quests = {}, -- the quest log: { { title, header = true?, objectives = { { text, type } } } }
         itemClasses = {}, -- itemID -> "Mage" / "Mage, Warlock": the tooltip's "Classes: ..." line
@@ -528,7 +529,7 @@ _G.GetSendMailItem = function(i)
     local item = s().attached[i]
     if item then return item.hyperlink:match("%[(.-)%]") or "name", item.itemID, 0, item.stackCount, item.quality end
 end
--- What the player has (copper); nil until a spec sets WowStub.state.gold: no postage check.
+-- What the player has (copper): 10g unless a spec sets WowStub.state.gold (nil: unreadable, nothing goes).
 _G.GetMoney = function() return s().gold end
 _G.SOUNDKIT = { IG_MAINMENU_OPTION_CHECKBOX_ON = 856 }
 _G.PlaySound = function(kit) table.insert(s().sounds, kit) end

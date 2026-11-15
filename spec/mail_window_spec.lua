@@ -603,6 +603,39 @@ describe("mail window", function()
                 1, true), ns.Mailer.Status())
         end)
 
+        -- Codex review (2026-11-14): money Mailworthy can't read is never taken as enough.
+        it("money it can't read: Send is greyed out, the mailer refuses, and a run stops before SendMail", function()
+            WowStub.state.gold = nil
+            ns.MailWindow.Refresh()
+            assert.equal("Postage: 30c, keeps 5s", text("MailworthyMailSend"))
+            assert.is_false(send:IsEnabled())
+            assert.truthy(ns.MailWindow.Texts().note:find("can't read your money, so nothing is sent", 1, true),
+                ns.MailWindow.Texts().note)
+            assert.is_false(ns.Mailer.Start(ns.MailWindow.Result().mail, "Roknua Themicrulah"))
+            assert.equal("Can't send: Mailworthy can't read your money.", ns.Mailer.Status())
+            -- Readable at Send, unreadable when the mail is ready to go.
+            WowStub.state.gold = 5000
+            ns.Fire("PLAYER_MONEY")
+            send:Click()
+            WowStub.state.gold = nil
+            WowStub.runTimers()
+            assert.is_false(ns.Mailer.Busy())
+            assert.equal(0, #WowStub.state.sent)
+            assert.equal(0, #WowStub.state.attached)
+            assert.truthy(ns.Mailer.Status():find("can't read the postage for mail 1 or your money", 1, true),
+                ns.Mailer.Status())
+            -- The postage unreadable: the same.
+            WowStub.state.gold = 5000
+            local price = _G.GetSendMailPrice
+            _G.GetSendMailPrice = function() error("no price") end
+            ns.MailWindow.Refresh()
+            send:Click()
+            WowStub.runTimers()
+            _G.GetSendMailPrice = price
+            assert.equal(0, #WowStub.state.sent)
+            assert.equal(0, #WowStub.state.attached)
+        end)
+
         it("money gone mid-run: the attachments go back and nothing is sent", function()
             WowStub.state.gold = 5000
             send:Click()

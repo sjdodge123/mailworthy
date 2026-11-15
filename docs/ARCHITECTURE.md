@@ -422,7 +422,7 @@ against them.
 | A guild rule is a binding only when on, authored by a GM/officer in the player's roster, to a roster member | `Guild.Rules` (`InUse`), `Guild.Offer` (`RankOf(author) <= PUBLISHER_RANK`, recipients in roster), `Guild.Hear` (GUILD only); editing: `Guild.CanPublish`, `DraftAdd`, `Publish` |
 | Return to sender: only what the ledger shows was mailed and not mailed back; whole stacks; no system/COD/returned mail; shown like any recipient | `Returns.Owed`, `Returns.Split`, `Returns.Available` (needs `ledger`); `Bags.Evaluate` (no split for a hard keep; returns win over pins and picks); "back to" chip in `MailWindow` |
 | Never attach money | `Mailer` local `sendMail` (`SetSendMailCOD(0)`, `SetSendMailMoney(0)`) |
-| Postage never leaves the character with less than 5s | `Mailer.RESERVE`, `Mailer.Affords`: `Mailer.Short` → `Mailer.Blocker` and `UI.SendState` / `UI.PostageText` (before Send); the postage check in `Mailer` local `sendMail` (each mail) |
+| Postage never leaves the character with less than 5s | `Mailer.RESERVE`, `Mailer.Affords`: `Mailer.Short` → `Mailer.Blocker` and `UI.SendState` / `UI.PostageText` (before Send); the postage check in `Mailer` local `sendMail` (each mail); money or postage the game won't say: nothing goes |
 | Never mail a locked item | `Valuation.Evaluate` (first check); `Mailer.StillThere` |
 | Never mail an item an active quest names | `Quests.For` → `Valuation.Evaluate`; `Mailer.StillThere`; `Vendor.StillThere` |
 | Never mail a conjured item | `Conjured.Is` → `Valuation.Evaluate`, `Valuation.Unmailable`; `Mailer.StillThere` |

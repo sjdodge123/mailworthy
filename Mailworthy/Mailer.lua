@@ -90,14 +90,15 @@ function Mailer.ReserveText()
 end
 
 --- What the mail list costs to send and what the player has, when that isn't enough to pay it
---- and keep Mailer.RESERVE: need (the postage), have (copper); nil when it is, or when the game
---- doesn't say what the player has. `items` is the scan's mail list (each item's result.postage:
---- Valuation's postage for its stacks).
+--- and keep Mailer.RESERVE: need (the postage), have (copper); nil when it is. When the game
+--- doesn't say what the player has, need and a nil `have`: nothing goes on money it can't check
+--- (Codex review, 2026-11-14; before, the check was skipped). `items` is the scan's mail list
+--- (each item's result.postage: Valuation's postage for its stacks).
 function Mailer.Short(items)
-    local have = call(GetMoney)
-    if type(have) ~= "number" then return nil end
     local need = 0
     for _, item in ipairs(items or {}) do need = need + (tonumber(item.result and item.result.postage) or 0) end
+    local have = call(GetMoney)
+    if type(have) ~= "number" then return need, nil end
     if not Mailer.Affords(need, have) then return need, have end
     return nil
 end
@@ -174,6 +175,7 @@ function Mailer.Blocker(bankAlt, mails)
         end
     end
     local need, have = Mailer.Short(items)
+    if need and not have then return "Mailworthy can't read your money" end
     if need then
         return string.format("postage is %s and you have %s%s", ns.Valuation.Money(need), ns.Valuation.Money(have),
             Mailer.ReserveText())
@@ -381,7 +383,11 @@ local function sendMail(index)
     -- against what the player has, keeping Mailer.RESERVE. Short: give the attachments back,
     -- send nothing more.
     local price, have = call(GetSendMailPrice), call(GetMoney)
-    if type(price) == "number" and type(have) == "number" and not Mailer.Affords(price, have) then
+    -- Either one unreadable: nothing goes on money Mailworthy can't check (Codex review, 2026-11-14).
+    if type(price) ~= "number" or type(have) ~= "number" then
+        return Mailer.Stop(string.format("Mailworthy can't read the postage for mail %d or your money", index))
+    end
+    if not Mailer.Affords(price, have) then
         return Mailer.Stop(string.format("postage for mail %d is %s and you have %s%s", index,
             ns.Valuation.Money(price), ns.Valuation.Money(have), Mailer.ReserveText()))
     end

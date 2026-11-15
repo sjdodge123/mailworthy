@@ -1305,6 +1305,9 @@ end
 --- (operator, 2026-11-14: 5s always stays on the character).
 function UI.PostageText(need, have)
     local reserve = ns.Mailer.RESERVE
+    if not have then -- GetMoney unreadable (Mailer.Short): nothing goes
+        return string.format("Postage is %s and Mailworthy can't read your money, so nothing is sent.", money(need))
+    end
     return string.format("Postage is %s and you have %s; Mailworthy keeps %s on you. Press an item to keep it, "
         .. "or come back with %s more.", money(need), money(have), money(reserve), money(need + reserve - have))
 end
