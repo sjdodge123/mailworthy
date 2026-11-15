@@ -56,7 +56,7 @@ the order, but anything run at file load (constants built from other modules,
 | 2 | Pricing and rules | `Prices`, `Disenchant`, `Tiers`, `TierData` (fills `ns.Tiers`), `TierCheck`, `Quests`, `Conjured`, `Recipes`, `Ammo`, `Valuation`, `Config`, `Classes` |
 | 3 | Bindings and peers | `Routes`, `Comms`, `Guild`, `Stale`, `Version` |
 | 4 | Scan, send, records | `Bags`, `Mailer`, `Ledger`, `LedgerWire`, `LedgerHooks`, `LedgerExport`, `Contributions`, `Returns`, `Trip` |
-| 5 | Windows and input | `Widgets`, `MailButton`, `Nav`, `PadKey`, `SettingsUI`, `RoutesUI`, `LedgerUI`, `LocksUI`, `PinWarning`, `MinimapButton`, `MailWindow` (+ `MailTooltip`, `MailRows`, `MailRecipients`, `MailBanners`, `MailBindings`, `MailTotals`, `MailSend`, `MailTabs`), `BankAlt`, `Vendor` |
+| 5 | Windows and input | `Widgets`, `MailButton`, `Nav`, `PadKey`, `SettingsUI`, `RoutesUI`, `LedgerUI`, `LocksUI`, `PinsUI`, `PinWarning`, `MinimapButton`, `MailWindow` (+ `MailTooltip`, `MailRows`, `MailRecipients`, `MailBanners`, `MailBindings`, `MailTotals`, `MailSend`, `MailTabs`), `BankAlt`, `Vendor` |
 | 6 | Integrations, report | `BagAddons`, `AuctionatorTags`, `Report` |
 
 ## 3. Module map
@@ -74,7 +74,7 @@ function. Specs: the module's own spec first; `critical_path` = `spec/critical_p
 | `Gamepad.lua` | Read-only controller helpers: button names, glyphs, API presence | `Gamepad.Name/NameFor/Fill/Glyph/LabelStyle/Presence` | gamepad |
 | `Locks.lua` | Per-character item locks (Alt+click, L3, LocksUI) | `Locks.IsItemLocked`, `ToggleItem`, `Toggle`, `List`, `BagCounts`, `OnChanged`, `ToggleSelectedBagSlot`, `MigrateSlotLocks`, `BagClick(o)` (the modified-click / pad-key / install code Locks and Pins share) | locks, locks_ui |
 | `Palette.lua` | One colour and label per destination (AH, DE, V, BA, BH, F, R, ...) | entries, `ORDER`, `LEGEND`, `Hex`, `Letters` | border, bank_alt |
-| `Pins.lua` | Account-wide pins (bank / vendor) and the per-character BA/BH mode | `Pins.Effective`, `Set`, `Toggle`, `SetMode`, `Mode`, `Kind`, `OnChanged`, `ToggleSelectedBagSlot` | pins, pin_mode |
+| `Pins.lua` | Account-wide pins (bank / vendor) and the per-character BA/BH mode | `Pins.Effective`, `Set`, `Toggle`, `SetMode`, `Mode`, `Kind`, `OnChanged`, `ToggleSelectedBagSlot` (from `Locks.BagClick`) | pins, pin_mode |
 | `Border.lua` | Lock/pin glow on item buttons; the shared per-button draw pipeline; glow tooltip line | `Border.RefreshButton`, `DrawBagSlot`, `AddDecorator`, `AddRefresher`, `RefreshAll`, `Clear`, `Install` | border |
 | `Prices.lua` | Price-source adapter: Auctionator first, else TSM; disenchant value; vendor price | `Prices.Source`, `Lookup`, `LookupTSM`, `MaterialPrice`, `Vendor`, `DisenchantValueFor`, `ClassID`, `History` | prices |
 | `Disenchant.lua` | Era disenchant tables and expected value (port of Disenchantry 1.1.5) | `Disenchant.Outcomes`, `ExpectedValue` (pure), `Value` | disenchant |
@@ -102,15 +102,16 @@ function. Specs: the module's own spec first; `critical_path` = `spec/critical_p
 | `Contributions.lua` | What this account mailed because of guild rules; `MailworthyAPI.v1.GetGuildExport` | `Contributions.Tag`, `Count`, `Hear`, `Share`, `Export`, `Build` | contributions |
 | `Returns.lua` | Return to sender: per-visit toggle (its button shows only while on or when `Due`); what each sender is owed from the ledger | `Returns.On/Toggle/Available`, `Owed` (pure), `Split` (pure), `Due` (pure), `Result`, `Current` | returns |
 | `Trip.lua` | "Worth a mailbox trip" nudge away from a mailbox | `Trip.Check`, `Summary`, `TooltipText` | trip |
-| `Widgets.lua` | Shared window/button/label/footer/pager builders | `Widgets.Window`, `Button`, `SetToggled`, `Label`, `Footer`, `PagerBack`, `PlaceBeside` | widgets |
+| `Widgets.lua` | Shared window/button/label/footer builders; the window skeleton (`Shell`: title, sub line, legend, Done, Show beside the opener, the end of a Refresh), `ListWindow` (paged rows, empty line, bottom row), `Pager`, `Views` (one window, several views), button explanations (`Tip`: tooltip and the controller highlight), two-press buttons (`ConfirmButton`: Remove, Forget, Publish) | `Widgets.Window`, `Button`, `SetToggled`, `Label`, `Footer`, `PagerBack`, `PlaceBeside`, `Shell`, `ListWindow`, `Pager`, `Views`, `Tip` / `ShowTip` / `TipText`, `ConfirmButton(parent, text, confirmText, width, onConfirm, name, onArm)`, `Disarm` / `DisarmAll` / `Armed` / `SetConfirmText`, `CONFIRM_SECONDS` | widgets |
 | `MailButton.lua` | "Mailworthy" button under the mail window (both tabs); `Activate` entry point | `MailButton.Activate`, `GamepadUI`, `Refresh` | mailbutton |
-| `Nav.lua` | Mailworthy's own D-pad navigation and highlight over its windows (a window's own X is never a candidate: Circle closes it) | `Nav.Attach`, `Move`, `Press`, `CloseTop`, `Follow`, `Root`, `Pick` (pure), `AnyShown(except)` | nav, dpad_reach |
+| `Nav.lua` | Mailworthy's own D-pad navigation and highlight over its windows (a window's own X is never a candidate: Circle closes it) | `Nav.Attach`, `Move`, `Press`, `CloseTop`, `Follow`, `Root`, `Pick` (pure), `AnyShown(except)`, `Skip(button)` (not a D-pad stop: the mail rows' pick buttons), `DefaultWrap` (Down from the bottom row: the top-left, in every window unless `SetWrap` overrides) | nav, dpad_reach |
 | `PadKey.lua` | Mailworthy's own override bindings (sets: mail, window, bags, merchant, settings: every `Nav.Attach` window but the mailbox one, `Nav.AnyShown`) | `PadKey.Wanted`, `Check`, `SETS`, `KEY_FEATURE` | padkey |
-| `SettingsUI.lua` | Settings window (views: main, pick = bank alt picker) | `SettingsUI.Show/Toggle/Refresh`, `Choose`, `UseTyped`, `ToggleHere`, `TooltipsText` (the Item tooltips button, `MailworthySettingsTooltips`) | settings_ui, ux_views |
-| `RoutesUI.lua` | Friends window: bindings list, add (two steps), guild template view | `RoutesUI.Show`, `ShowGuild`, `Pick`, `Bind`, `Reload` | routes, guild, ux_views |
-| `LedgerUI.lua` | Ledger window: debts, Mark paid (two presses), Export log | `LedgerUI.Show`, `Export` | ledger |
-| `LocksUI.lua` | Locked items window with Unlock / Lock | `LocksUI.Show`, `Refresh` | locks_ui |
-| `PinWarning.lua` | One-time warning when a BA pin takes an item a profession uses | `PinWarning.Check`, `Show` | pin_mode |
+| `SettingsUI.lua` | Settings window, laid out by rows, in views (`Widgets.Views`): tabs **Mailing** (bank alt, gain, listing length, disenchant, profession materials, Sell what I gather, Send by tag) and **Bags and more** (tags, glow, pins, tooltips, pin warning, minimap, locked items, pinned items, friends / guild / ledger, summary, Report...), and pick (the bank alt picker); short labels with the explanation in a tooltip (`Widgets.Tip`); **solo mode** (`Solo`: no binding, no guild template in use or new, nothing in the ledger) folds Friends / Guild / Mail ledger into "Friends and guild..." | `SettingsUI.Show(opener, "mailing"\|"more"\|"pick")`, `Toggle`, `Refresh`, `RefreshIfShown`, `Tab` / `SetTab`, `Views`, `Solo`, `Choose`, `UseTyped`, `ToggleHere`, `OpenReport`, `TooltipsText`, `MatsText` | settings_ui, ux_views, dpad_reach |
+| `RoutesUI.lua` | Friends window on `Widgets.Shell` / `Views` / `Pager`: bindings list (with "Guild..."), add (two steps), guild template view (Back to the list); Remove and Publish take two presses | `RoutesUI.Show(opener, "list")`, `OpenGuild(fromList)`, `Views`, `ShowGuild`, `Pick`, `Bind`, `Reload` | routes, guild, ux_views |
+| `LedgerUI.lua` | Ledger window on `Widgets.ListWindow`: debts, Mark paid (two presses), Export log; pager on the bottom row | `LedgerUI.Show`, `Export` | ledger |
+| `LocksUI.lua` | Locked items window on `Widgets.ListWindow`, with Unlock / Lock | `LocksUI.Show`, `Refresh` | locks_ui |
+| `PinsUI.lua` | Pinned items window (`/mw pins`, Settings > Bags and more > "Pinned items (N)..."), built like LocksUI: rows with BA / BH / V and what the bags hold, Unpin (undo: Pin until it closes), none while `Mailer.Busy()`; listens to `Pins.OnChanged`, `Mailer.OnChanged`, `BAG_UPDATE_DELAYED` | `PinsUI.Show`, `Refresh`, `RefreshIfShown`, `Frame`, `List`, `ButtonText` | pins_ui, dpad_reach |
+| `PinWarning.lua` | One-time warning when a BA pin takes an item a profession uses (on `Widgets.Shell`; Settings > Bags and more > "Pin warning" turns it back on) | `PinWarning.Check`, `Show` | pin_mode |
 | `MinimapButton.lua` | Minimap button (Settings; Trip line in the tooltip) | `MinimapButton.Create`, `Refresh` | trip |
 | `MailWindow.lua` | **The Mailworthy window** at the mailbox: frame, Create, Layout, Refresh (one fill per block), Show, events; the other `Mail*.lua` files add to the same `ns.MailWindow` table and share state on `MailWindow.shared` (internal) | `MailWindow.Show/Toggle/Refresh/RefreshIfShown`, `Result`, `Frame` | mail_window, ux_views |
 | `MailTooltip.lua` | Row tooltips and the pick lines (mouse and the controller's highlight) | `MailWindow.TooltipLines` (third value: the Square line), `PickLines`, `InstallTooltip` | mail_window |
@@ -294,7 +295,7 @@ Every `ns.On` handler, by event. `Blocked.lua` registers `ADDON_ACTION_FORBIDDEN
 | Event | Modules |
 |---|---|
 | `ADDON_LOADED` | Core (`ns.Init`), BagAddons, MailButton (`Blizzard_MailFrame`) |
-| `PLAYER_LOGIN` | Core (first), Characters, Locks, Pins, Border, Config, Quests, Comms, Guild, Stale, Mailer, Ledger (owner index), LedgerHooks (prune, install), Contributions, PadKey, MailButton, SettingsUI, RoutesUI, LedgerUI, LocksUI, PinWarning, MinimapButton, MailWindow, BankAlt, Vendor, BagAddons, AuctionatorTags, Report |
+| `PLAYER_LOGIN` | Core (first), Characters, Locks, Pins, Border, Config, Quests, Comms, Guild, Stale, Mailer, Ledger (owner index), LedgerHooks (prune, install), Contributions, PadKey, MailButton, SettingsUI, RoutesUI, LedgerUI, LocksUI, PinsUI, PinWarning, Widgets (tooltips and disarming on `Nav.OnSelect`), Bags (Locks / Pins changes into `Bags.InputsChanged`), MinimapButton, MailWindow, BankAlt, Vendor, BagAddons, AuctionatorTags, Report |
 | `MAIL_SHOW` | Conjured, Recipes, Comms, Stale, Mailer, Trip, MailButton, Report |
 | `MAIL_CLOSED` | Border, Routes, Bags, Mailer, LedgerHooks, Contributions, Returns, Trip, MailWindow |
 | `MAIL_SEND_SUCCESS` | Mailer, LedgerHooks |
@@ -303,7 +304,7 @@ Every `ns.On` handler, by event. `Blocked.lua` registers `ADDON_ACTION_FORBIDDEN
 | `MAIL_INBOX_UPDATE` | Report (AH invoice cut) |
 | `MAIL_SEND_INFO_UPDATE`, `SEND_MAIL_MONEY_CHANGED`, `SEND_MAIL_COD_CHANGED` | LedgerHooks (send-tab snapshot) |
 | `UI_ERROR_MESSAGE` | Mailer (log) |
-| `BAG_UPDATE_DELAYED` | Recipes (before BankAlt: forgets "not known"), BankAlt, MailWindow, LocksUI, Trip, Vendor |
+| `BAG_UPDATE_DELAYED` | Recipes (before BankAlt: forgets "not known"), BankAlt, MailWindow, LocksUI, PinsUI, Trip, Vendor |
 | `PLAYER_MONEY` | MailWindow |
 | `PLAYER_REGEN_DISABLED` | PadKey (clear bindings), Mailer (stop) |
 | `PLAYER_REGEN_ENABLED` | Trip |
@@ -336,7 +337,7 @@ FOREVER-UI-NOTES.md; `spec/no_gamepad_taint_spec.lua` guards them.
 | BetterBags `Events:RegisterMessage` ("item/Updated", "item/Clearing", "bags/Draw/*/Done", "bags/DesignChanged") | addon messages | BagAddons (`betterBagsTags`) |
 | `SetOverrideBindingClick` / `ClearOverrideBindings` on `MailworthyPadWatcher` | override bindings | PadKey (`padNav`, `padTriangle`, `padLock`, `padPin`, `padVendor`) |
 | `OnUpdate` watchers | own frames | PadKey (0.1 s), MailWindow tab watcher (0.2 s), MinimapButton (drag only) |
-| `HookScript` | own frames only | MailWindow, Nav, BankAlt, Widgets |
+| `HookScript` | own frames only | MailWindow (and its `Mail*.lua` files), Nav, BankAlt, Widgets (`Tip`, `ConfirmButton`) |
 | `GetInventoryItemID("player", INVSLOT_RANGED)`, `GetItemInfoInstant` (the weapon's and the ammo's class) | API calls (pcall'd) | Ammo; `GetItemInfoInstant` also Prices, `Bags.Fingerprint` |
 
 Read-only: `FrameControlsManager:GetActiveFrame()`, `SmartNavigation:GetCurrentButton()`
@@ -423,7 +424,7 @@ All default on (`ns.Features.DEFAULTS` in `Core.lua`; the help line there lists 
 | `auctionatorTags` | AuctionatorTags |
 
 `/mw` (or `/mailworthy`), in `ns.HandleSlash`: (none) / `settings` → SettingsUI; `report` →
-Report; `feature <name> on|off`; `locks` → LocksUI; `pins` → `Pins.PrintList`;
+Report; `feature <name> on|off`; `locks` → LocksUI; `pins` → PinsUI;
 `pinwarning on|off`; `friends` / `bindings` → RoutesUI; `guild` → `RoutesUI.ShowGuild`;
 `scan` → `Bags.Scan`; `ledger` / `log` → LedgerUI; `summary` → `BankAlt.ShowWindow`;
 `vendor` → `Vendor.Toggle`; anything else → help.
