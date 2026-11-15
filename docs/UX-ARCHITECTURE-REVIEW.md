@@ -2,8 +2,14 @@
 
 A pass over the whole addon (about 16,000 lines in 49 files, 911 specs) for tech debt and simplification.
 Each item says what was found (file:function, so it survives line moves), why it matters and what to do.
-**Built** items are on branch `claude/ux-architecture-improvements-ba85c8` with specs; the rest are
-proposals, ordered by payoff. The UX proposals are drawn in
+
+**Status (2026-11-15): every item below is built** on branch `claude/ux-architecture-improvements-ba85c8`,
+with specs (B1-B4 first, then A1 and A7 in order, then A2-A6, A8-A10 and U1-U9 on four parallel branches,
+merged). Departures from the text below: U4's pick button stays for the mouse and `/mw feature padPick
+off` makes it a D-pad stop again; U8 keeps "Profession materials: on my bank alt (BA)" in full (the critical
+path reads it); in A2 the mail counts share `Mailer.PER_MAIL` but are not taken from `Mailer.Plan`; every
+SavedVariables migration in A10 is kept. In-game checks: README "Beta unknowns" (key bindings, Square on a
+row). The text below is the review as written; docs/ARCHITECTURE.md has the code as it is now. The UX proposals are drawn in
 [media/simplify-prototype.html](../media/simplify-prototype.html) → [.png](../media/simplify-prototype.png).
 
 Constraints kept throughout: AGENTS.md Safety, controller parity (D-pad reach of every view), no taint,
@@ -80,7 +86,7 @@ bindings; it touches no Blizzard frame. Needs a check against Forever's gamepad 
 
 ## Architecture proposals
 
-### A1. Verdict kinds instead of reason strings (highest payoff)
+### A1. Verdict kinds instead of reason strings (highest payoff; built: `Valuation.KINDS`, guarded by `verdict_kinds_spec`)
 The `reason` text is both what the player reads and what the code branches on: `Routes.HARD_KEEPS` is keyed
 by display strings (`["quest item"]`, `["item info not loaded yet"]`), `BankAlt` `QUIET_KEEPS` is a second
 overlapping list, and about 30 comparisons in Routes, Bags, BankAlt, Border, Valuation test the text.
