@@ -41,9 +41,8 @@ ns.Routes = Routes
 -- they only step through gold values that wont be very helpful early game. even 50s will not be
 -- used until level 30+"; "add 1s and 50c as lowest options as well").
 Routes.CAP_STEPS = { 50, 100, 500, 1000, 2500, 5000, 10000, 20000, 50000, 100000, 250000, 500000, 1000000 }
--- 10s each for a new binding (operator, 2026-11-11: "i think 10s is a good default option to
--- start"; it was 5g, 2026-10-26). A saved binding keeps the cap it has.
-Routes.DEFAULT_CAP = 1000
+-- 10s each for a new binding (Valuation.DEFAULT_CAP). A saved binding keeps the cap it has.
+Routes.DEFAULT_CAP = ns.Valuation.DEFAULT_CAP
 Routes.MAX = 12             -- bindings per scope
 Routes.SCOPES = { account = "All my characters", character = "This character" }
 Routes.SCOPE_REPORT = { account = "all my characters", character = "this character", guild = "guild template" }
@@ -77,14 +76,8 @@ local function listFor(scope)
     return scope == "character" and charList() or accountList()
 end
 
---- Pure: a player name as mail wants it: spaces collapsed, any "-Realm" suffix dropped
---- (guild rosters and addon messages carry one; a Forever name never has a hyphen).
-function Routes.Clean(name)
-    name = ns.Config.Clean(name)
-    if not name then return nil end
-    name = name:match("^([^%-]+)") or name
-    return ns.Config.Clean(name)
-end
+--- Pure: a player name as mail wants it (Characters.Clean: spaces collapsed, any "-Realm" dropped).
+Routes.Clean = ns.Characters.Clean
 
 -- An Enchanting binding also takes green and blue weapons and armor (operator, 2026-11-06:
 -- "the enchanter binding ... should also include green or blue items that can be used for

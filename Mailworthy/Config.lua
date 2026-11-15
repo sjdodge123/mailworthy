@@ -22,12 +22,8 @@ local function db()
     return MailworthyDB
 end
 
---- Collapse spaces; Forever names are "First Surname".
-function Config.Clean(name)
-    if type(name) ~= "string" then return nil end
-    name = name:gsub("%s+", " "):match("^%s*(.-)%s*$")
-    return name ~= "" and name or nil
-end
+--- Collapse spaces; Forever names are "First Surname" (Characters.CleanSpaces).
+Config.Clean = ns.Characters.CleanSpaces
 
 local realmKey = Util.RealmKey
 
@@ -203,6 +199,12 @@ function Config.ClearBankAlt()
     if db().bankAlts[key] == nil then return end
     db().bankAlts[key] = nil
     ns.Log.Add("config", "bank alt for %s cleared", key)
+end
+
+--- Does this character bank here what goes "to the bank" (it is the bank alt, or has none)?
+--- (BankAlt.BanksHere; Valuation.Verdict's `banksHere`.)
+function Config.BanksHere()
+    return Config.IsBankAltHere() or not Config.BankAlt()
 end
 
 --- Is this character the saved bank alt for its realm + faction?

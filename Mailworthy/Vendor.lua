@@ -1,5 +1,5 @@
 -- Sell the V items at a vendor. The bank alt view tags what a vendor pays more for with V
--- (BankAlt.Verdict: "not worth it" items and grey junk), and a main gets the same tags after a
+-- (Valuation.Verdict: "not worth it" items and grey junk), and a main gets the same tags after a
 -- Send, "so the trip to the vendor is easy". This is the last step of that trip: at a merchant,
 -- one button lists the V items in the bags with what the vendor pays, and Sell sells them.
 --
@@ -80,7 +80,7 @@ function Vendor.Stacks()
     heldForReturn = 0
     for _, list in ipairs({ result.keep, result.mail }) do
         for _, item in ipairs(list) do
-            local isV = ns.BankAlt.Verdict(item) == "v"
+            local isV = ns.Valuation.Verdict(item, ns.Config.BanksHere()) == "v"
             if isV and owed[item.itemID] and #owed[item.itemID] > 0 then
                 heldForReturn = heldForReturn + #item.slots
                 isV = false

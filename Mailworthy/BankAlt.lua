@@ -41,7 +41,7 @@ local P = ns.Palette
 
 --- Does this character bank here what goes "to the bank" (it is the bank alt, or has none)?
 function BankAlt.BanksHere()
-    return ns.Config.IsBankAltHere() or not ns.Config.BankAlt()
+    return ns.Config.BanksHere()
 end
 
 --- The Palette entry (tag letters, colours, label) for a verdict (BankAlt.Verdict). "b" (bank it, not
@@ -102,37 +102,9 @@ function BankAlt.AfterSend()
     BankAlt.Redraw()
 end
 
---- Pure: the tag for a valued item: "ah" / "de" when the auction house or
---- disenchanting beats the vendor by the minimum gain, "b" when it should be banked
---- for a later phase instead of listed, "craft" when this character's own profession needs
---- it (bank it until then), "v" when the vendor wins, nil when there's nothing to say
---- (locked, soulbound, tool, no price...).
+--- The tag for a valued item here (Valuation.Verdict, with where this character banks).
 function BankAlt.Verdict(item)
-    local r = item.result
-    if not r then return nil end
-    if r.pinned and ns.Valuation.Is(r, ns.Valuation.K.pinHere) then return "here" end
-    if r.vendorPin then return "v" end -- a vendor pin (Pins.lua): V whatever the market says
-    -- A pin valued for the bank alt where pins bank here (BankAlt.BanksHere) is a bank-here pin.
-    if r.pinned and r.action == "mail" and r.route == "bank" and BankAlt.BanksHere() then return "here" end
-    if ns.Valuation.BankForCraft(r) then return "craft" end
-    -- An enchanter's cheap green or blue piece, soulbound or not: disenchant it here (Valuation.DisenchantsHere).
-    if r.deHere and r.action == "keep" then return "de" end
-    -- Soulbound, with a vendor price: V (the vendor window sells it only when vendor-pinned).
-    if ns.Valuation.Is(r, ns.Valuation.K.soulbound) and (r.vendor or 0) > 0 then return "v" end
-    if r.action == "mail" then
-        -- Where the mailbox sends it, as the window does (operator, 2026-11-13: tags that ignored
-        -- bindings and Return to sender disagreed with the window).
-        if r.route == "return" then return "return" end
-        if r.to then return "friend" end
-        if r.route == "bank" then return "b" end
-        return (r.route == "ah" or r.route == "de") and r.route or nil
-    end
-    if ns.Valuation.Is(r, ns.Valuation.K.notWorth) and (r.vendor or 0) > 0 then return "v" end
-    -- Grey junk: no auction price, but a vendor buys it.
-    local unpriced = ns.Valuation.Is(r, ns.Valuation.K.noPrice) or ns.Valuation.Is(r, ns.Valuation.K.priceFailed)
-        or ns.Valuation.Is(r, ns.Valuation.K.junk)
-    if item.quality == 0 and unpriced and (item.vendor or 0) > 0 then return "v" end
-    return nil
+    return ns.Valuation.Verdict(item, BankAlt.BanksHere())
 end
 
 --- Settings for the verdicts: on the bank alt (and with "tags everywhere") no postage,

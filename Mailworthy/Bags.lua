@@ -168,7 +168,7 @@ function Bags.Part(item, slots, result)
 end
 
 --- The send switches (settings: Send Auction / Disenchant / Bank / Vendor; Valuation.SEND): what
---- Send takes of the bank alt's share, by the item's verdict (BankAlt.Verdict). A switch that is
+--- Send takes of the bank alt's share, by the item's verdict (Valuation.Verdict). A switch that is
 --- off keeps its items in the bags (result.held says why, result.route what it would have been,
 --- like a skipped bank alt); the Vendor switch, off by default, mails what a vendor pays more for
 --- too (route Valuation.VENDOR), so the bank alt can sell it.
@@ -184,7 +184,7 @@ end
 function Bags.ApplySendSwitches(item, settings, priced)
     local r = item.result
     if settings.forTags or settings.hold or type(r) ~= "table" or r.to or r.held or r.pinned then return end
-    local tag = ns.BankAlt.Verdict(item)
+    local tag = ns.Valuation.Verdict(item, ns.Config.BanksHere())
     local key = tag and ns.Valuation.SEND[tag]
     if not key then return end
     if r.action == "mail" and settings[key] == false then
