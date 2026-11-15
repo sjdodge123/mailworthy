@@ -11,6 +11,7 @@
 
 Core.lua
 Log.lua
+Util.lua
 Blocked.lua
 Characters.lua
 Gamepad.lua

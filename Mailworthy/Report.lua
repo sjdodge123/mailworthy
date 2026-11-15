@@ -13,12 +13,7 @@ ns.Report = Report
 
 local reportFrame, reportBox, reportText, reportHeading
 
-local function call(fn, ...)
-    if type(fn) ~= "function" then return nil end
-    local results = { pcall(fn, ...) }
-    if not results[1] then return nil end
-    return unpack(results, 2, table.maxn(results))
-end
+local call = ns.Util.Call
 
 local function strings(...)
     local out = {}

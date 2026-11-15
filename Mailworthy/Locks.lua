@@ -24,11 +24,11 @@ ns.Locks = Locks
 
 Locks.BAG_BUTTON_CONTEXT = "ButtonContext_ContainerFrameItemButton"
 
-local listeners = {}
+local changed = ns.Util.Signal("locks")
 
 local function items() return MailworthyCharDB and MailworthyCharDB.lockedItems or {} end
 
-function Locks.OnChanged(fn) table.insert(listeners, fn) end
+Locks.OnChanged = changed.Add
 
 local function itemAt(bag, slot)
     local get = C_Container and C_Container.GetContainerItemInfo
@@ -49,9 +49,7 @@ function Locks.IsLocked(bag, slot)
 end
 
 --- Listeners get (itemID, locked) for a toggle (Border flashes a fresh lock).
-local function notify(itemID, locked)
-    for _, fn in ipairs(listeners) do pcall(fn, itemID, locked) end
-end
+local notify = changed.Fire
 
 function Locks.ToggleItem(itemID, link, how)
     if not itemID then return nil end

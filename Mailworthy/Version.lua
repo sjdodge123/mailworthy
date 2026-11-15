@@ -30,7 +30,7 @@ Version.CURSEFORGE = "CurseForge"
 
 local told = false   -- the chat line went out this session
 local heard          -- { version, from }: the newest version heard this session (newer or not)
-local listeners = {}
+local changed = ns.Util.Signal("version redraw")
 
 function Version.On() return ns.Features.On("versionNotice") end
 
@@ -65,16 +65,9 @@ function Version.Message()
 end
 
 --- Call `fn` (no arguments) when a newer version is first heard (windows redraw their line).
-function Version.OnChanged(fn)
-    if type(fn) == "function" then listeners[#listeners + 1] = fn end
-end
+Version.OnChanged = changed.Add
 
-local function notify()
-    for _, fn in ipairs(listeners) do
-        local ok, err = pcall(fn)
-        if not ok then ns.Log.Add("error", "version redraw: %s", tostring(err)) end
-    end
-end
+local function notify() changed.Fire() end
 
 --- The newest version heard from any peer, this session or kept with the peers, and who has
 --- it: version, name (nil, nil when none was heard).

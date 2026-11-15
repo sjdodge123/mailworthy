@@ -59,12 +59,7 @@ local tags = setmetatable({}, { __mode = "k" }) -- bag button -> { bg, text }
 local cache = { dirty = true, bySlot = {}, byLink = {}, byItemID = {} }
 local frame, rows, header, legend
 
-local function call(fn, ...)
-    if type(fn) ~= "function" then return nil end
-    local results = { pcall(fn, ...) }
-    if not results[1] then return nil end
-    return unpack(results, 2, table.maxn(results))
-end
+local call = ns.Util.Call
 
 --- The character this realm + faction mails to: picked from a main on the same
 --- account, or declared here ("This character is my bank alt" in the settings

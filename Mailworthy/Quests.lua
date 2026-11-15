@@ -19,12 +19,7 @@ ns.Quests = Quests
 local needs -- lower-case item name -> quest title; nil = read the log again
 local MAX_ENTRIES = 100
 
-local function call(fn, ...)
-    if type(fn) ~= "function" then return nil end
-    local results = { pcall(fn, ...) }
-    if not results[1] then return nil end
-    return unpack(results, 2, table.maxn(results))
-end
+local call = ns.Util.Call
 
 --- Pure: the item an objective's text names: "Crisp Spider Meat: 3/5" (Classic), "3/5 Crisp
 --- Spider Meat" (the modern client), or the text itself. nil for an empty text.

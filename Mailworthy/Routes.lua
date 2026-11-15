@@ -73,12 +73,7 @@ end
 
 local skipped = {} -- route key -> true for this mailbox visit
 
-local function call(fn, ...)
-    if type(fn) ~= "function" then return nil end
-    local results = { pcall(fn, ...) }
-    if not results[1] then return nil end
-    return unpack(results, 2, table.maxn(results))
-end
+local call = ns.Util.Call
 
 local function realmKey()
     local _, realm, faction = ns.Characters.Current()

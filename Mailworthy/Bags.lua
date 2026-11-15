@@ -10,12 +10,7 @@ ns.Bags = Bags
 
 Bags.ATTACHMENTS = 12 -- per mail (ATTACHMENTS_MAX_SEND, measured)
 
-local function call(fn, ...)
-    if type(fn) ~= "function" then return nil end
-    local results = { pcall(fn, ...) }
-    if not results[1] then return nil end
-    return unpack(results, 2, table.maxn(results))
-end
+local call = ns.Util.Call
 
 --- The last equipped bag ID: the reagent bag (Enum.BagIndex.ReagentBag = 5 on
 --- Forever, Blizzard_FrameXMLBase/Constants.lua: NUM_TOTAL_EQUIPPED_BAG_SLOTS =

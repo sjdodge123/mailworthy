@@ -38,12 +38,7 @@ Stale.HEARD_DAYS = 14       -- and only if we heard it in the last two weeks
 Stale.KEEP_DAYS = 60
 Stale.MAX_AGE = 21          -- Auctionator returns no age past 21 days
 
-local function call(fn, ...)
-    if type(fn) ~= "function" then return nil end
-    local results = { pcall(fn, ...) }
-    if not results[1] then return nil end
-    return unpack(results, 2, table.maxn(results))
-end
+local call = ns.Util.Call
 
 local function serverTime() return call(GetServerTime) or time() end
 

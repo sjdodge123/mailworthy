@@ -6,12 +6,7 @@ local _, ns = ...
 local Characters = {}
 ns.Characters = Characters
 
-local function call(fn, ...)
-    if type(fn) ~= "function" then return nil end
-    local results = { pcall(fn, ...) }
-    if not results[1] then return nil end
-    return unpack(results, 2, table.maxn(results))
-end
+local call = ns.Util.Call
 
 --- "First Surname" on Forever (no realm suffix).
 function ns.PlayerName()

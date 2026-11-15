@@ -48,12 +48,7 @@ Ledger.MAX_NAMES = 30      -- item names kept per player and direction
 Ledger.RECEIVE_SLOTS = 16  -- ATTACHMENTS_MAX_RECEIVE
 Ledger.CHAT_DELAY = 1      -- seconds: takes from one sender in this window share a chat line
 
-local function call(fn, ...)
-    if type(fn) ~= "function" then return nil end
-    local results = { pcall(fn, ...) }
-    if not results[1] then return nil end
-    return unpack(results, 2, table.maxn(results))
-end
+local call = ns.Util.Call
 
 local function now() return call(GetServerTime) or time() end
 local function clean(name) return ns.Routes.Clean(name) end
@@ -264,10 +259,10 @@ local function player(name)
     return players[key]
 end
 
-local listeners = {}
+local ledgerChanged = ns.Util.Signal("ledger")
 --- fn() after the log or a balance changed (the ledger window, the mail window's line).
-function Ledger.OnChanged(fn) listeners[#listeners + 1] = fn end
-local function changed_() for _, fn in ipairs(listeners) do pcall(fn) end end
+Ledger.OnChanged = ledgerChanged.Add
+local function changed_() ledgerChanged.Fire() end
 
 --- Add an entry to the log (and its balance when it counts). Returns the entry.
 function Ledger.Add(entry)

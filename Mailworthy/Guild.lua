@@ -57,12 +57,7 @@ Guild.GEAR_NO_CAP = 999999999 -- on the wire: the Gear switch on, no price cap (
 local partial, pending = {}, {} -- sender -> template being assembled / waiting for the roster
 local lastAnswer, lastAsk, answering = -math.huge, -math.huge, false
 
-local function call(fn, ...)
-    if type(fn) ~= "function" then return nil end
-    local results = { pcall(fn, ...) }
-    if not results[1] then return nil end
-    return unpack(results, 2, table.maxn(results))
-end
+local call = ns.Util.Call
 
 local function now() return call(GetTime) or 0 end
 local function serverTime() return call(GetServerTime) or time() end

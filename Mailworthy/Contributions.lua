@@ -44,12 +44,7 @@ Contributions.COUNT_MAX = 2147483647   -- Postgres int4
 Contributions.DAY_MAX = 47482          -- floor(UNIX_MAX / 86400)
 Contributions.ROSTER_GAP = 10          -- seconds between roster reads on GUILD_ROSTER_UPDATE (one more follows)
 
-local function call(fn, ...)
-    if type(fn) ~= "function" then return nil end
-    local results = { pcall(fn, ...) }
-    if not results[1] then return nil end
-    return unpack(results, 2, table.maxn(results))
-end
+local call = ns.Util.Call
 
 local function now() return call(GetServerTime) or time() end
 local function tableOr(t) return type(t) == "table" and t or {} end

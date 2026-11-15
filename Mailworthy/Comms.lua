@@ -73,12 +73,7 @@ function Comms.Steps(professions)
     return table.concat(out, ",")
 end
 
-local function call(fn, ...)
-    if type(fn) ~= "function" then return nil end
-    local results = { pcall(fn, ...) }
-    if not results[1] then return nil end
-    return unpack(results, 2, table.maxn(results))
-end
+local call = ns.Util.Call
 
 local function now() return call(GetTime) or 0 end
 local function serverTime() return call(GetServerTime) or time() end
@@ -420,19 +415,14 @@ end
 -- Windows that show marks redraw when the names behind them change (a new peer, a peer's
 -- characters or professions changed), once per burst of messages: never on every addon packet (Codex review).
 Comms.MARK_DELAY = 1 -- seconds
-local markListeners, markPending = {}, false
+local marks, markPending = ns.Util.Signal("mark redraw"), false
 
 --- Call `fn` (no arguments) after the set of names known to run Mailworthy changed.
-function Comms.OnMarksChanged(fn)
-    if type(fn) == "function" then markListeners[#markListeners + 1] = fn end
-end
+Comms.OnMarksChanged = marks.Add
 
 local function notifyMarks()
     markPending = false
-    for _, fn in ipairs(markListeners) do
-        local ok, err = pcall(fn)
-        if not ok then ns.Log.Add("error", "mark redraw: %s", tostring(err)) end
-    end
+    marks.Fire()
 end
 
 -- Pure: what a stored peer puts on screen, as text: the names it marks (the sender and the

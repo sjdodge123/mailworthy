@@ -35,14 +35,9 @@ Mailer.RESERVE = 500 -- copper the player keeps after postage: 5s
 
 local state = { busy = false, run = 0 }
 Mailer.state = state
-local listeners = {}
+local changed, sent = ns.Util.Signal("mailer changed"), ns.Util.Signal("mailer sent")
 
-local function call(fn, ...)
-    if type(fn) ~= "function" then return nil end
-    local results = { pcall(fn, ...) }
-    if not results[1] then return nil end
-    return unpack(results, 2, table.maxn(results))
-end
+local call = ns.Util.Call
 
 -- Timers belong to one send run: once that run stops (combat, mailbox closed,
 -- failure) or a new one starts, its pending timers do nothing.
@@ -59,14 +54,11 @@ local function after(delay, fn)
     if C_Timer and type(C_Timer.After) == "function" then C_Timer.After(delay, run) else run() end
 end
 
-function Mailer.OnChanged(fn) table.insert(listeners, fn) end
+Mailer.OnChanged = changed.Add
 
-local sentListeners = {}
 --- fn(mailsSent) once a send run has mailed everything it planned.
-function Mailer.OnSent(fn) table.insert(sentListeners, fn) end
-local function notify()
-    for _, fn in ipairs(listeners) do pcall(fn) end
-end
+Mailer.OnSent = sent.Add
+local function notify() changed.Fire() end
 
 local function setStatus(text, ...)
     state.status = string.format(text, ...)
@@ -420,7 +412,7 @@ sendNext = function(index)
         if state.sent > 0 and type(kit) == "table" and kit.IG_MAINMENU_OPTION_CHECKBOX_ON then
             pcall(PlaySound, kit.IG_MAINMENU_OPTION_CHECKBOX_ON)
         end
-        for _, fn in ipairs(sentListeners) do pcall(fn, state.sent) end
+        sent.Fire(state.sent)
         return
     end
     if InCombatLockdown() then return Mailer.Stop("combat") end

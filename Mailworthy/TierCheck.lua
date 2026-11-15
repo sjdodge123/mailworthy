@@ -40,12 +40,7 @@ local PART_CLASSES = { [0] = true, [7] = true }
 -- where its bandages turn grey, so a still-yellow bandage is no evidence against it.
 TierCheck.EXEMPT = { [129] = { [2589] = true, [2592] = true, [4306] = true, [4338] = true } }
 
-local function call(fn, ...)
-    if type(fn) ~= "function" then return nil end
-    local results = { pcall(fn, ...) }
-    if not results[1] then return nil end
-    return unpack(results, 2, table.maxn(results))
-end
+local call = ns.Util.Call
 
 local function itemIDFromLink(link)
     return tonumber(type(link) == "string" and link:match("item:(%d+)") or nil)

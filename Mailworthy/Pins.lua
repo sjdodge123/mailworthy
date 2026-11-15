@@ -48,14 +48,14 @@ Pins.NEXT = { [Pins.BANK] = Pins.VENDOR } -- the cycle: none -> bank -> vendor -
 -- colour comes from Palette.lua: a BH pin glows in BH's.
 Pins.COLOR = ns.Palette.BA.fg
 
-local listeners = {}
+local changed = ns.Util.Signal("pins")
 
 local function pins()
     MailworthyDB.pins = type(MailworthyDB.pins) == "table" and MailworthyDB.pins or {}
     return MailworthyDB.pins
 end
 
-function Pins.OnChanged(fn) table.insert(listeners, fn) end
+Pins.OnChanged = changed.Add
 
 --- This character's setting: Pins.BANK (mail pinned items to the bank alt) or Pins.HERE.
 function Pins.Mode()
@@ -99,7 +99,7 @@ function Pins.SetMode(mode, how)
     mode = mode == Pins.HERE and Pins.HERE or Pins.BANK
     MailworthyCharDB.pinMode = mode == Pins.HERE and Pins.HERE or nil
     ns.Log.Add("pin", "pin mode %s by %s", mode, tostring(how))
-    for _, fn in ipairs(listeners) do pcall(fn, nil, nil) end
+    changed.Fire(nil, nil)
     return mode
 end
 
@@ -147,7 +147,7 @@ function Pins.Set(itemID, link, kind, how)
     elseif kind == nil then
         ns.Print(string.format("Pin removed from %s.", tostring(link)))
     end
-    for _, fn in ipairs(listeners) do pcall(fn, itemID, kind) end
+    changed.Fire(itemID, kind)
     return kind
 end
 

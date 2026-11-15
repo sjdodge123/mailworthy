@@ -25,12 +25,7 @@ Ammo.RANGED_SLOT = 18  -- INVSLOT_RANGED
 Ammo.FIRES = { [2] = 2, [18] = 2, [3] = 3 }
 Ammo.NAMES = { [2] = "arrows", [3] = "bullets" }
 
-local function call(fn, ...)
-    if type(fn) ~= "function" then return nil end
-    local results = { pcall(fn, ...) }
-    if not results[1] then return nil end
-    return unpack(results, 2, table.maxn(results))
-end
+local call = ns.Util.Call
 
 local function classOf(item)
     local instant = (C_Item and C_Item.GetItemInfoInstant) or GetItemInfoInstant
