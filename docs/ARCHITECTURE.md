@@ -26,8 +26,10 @@ Keep this file current: `AGENTS.md` ("Working rules") says when a PR has to upda
   `Mailer.OnChanged`, `Mailer.OnSent`, `Ledger.OnChanged`, `Comms.OnMarksChanged`,
   `Version.OnChanged`, each a `ns.Util.Signal` (a listener's error is logged, never dropped);
   and Border's draw pipeline, `Border.AddDecorator` / `Border.AddRefresher`.
-- **Shared helpers**: `ns.Util.Call` (a guarded call returning every result; files take it as a
-  local `call`) and `ns.Util.Signal(area)` (`Util.lua`, loaded after `Log`).
+- **Shared helpers** (`Util.lua`, loaded after `Log`): `ns.Util.Call` (a guarded call returning every
+  result; files take it as a local `call`), `ns.Util.Signal(area)`, and the small helpers in section 3.
+- **Key bindings**: `Mailworthy/Bindings.xml` (the client loads it without a `.toc` line; the package
+  layout check allows it) calls the global `MailworthyBinding`, which only opens Mailworthy's windows.
 - **Frames** are all created at `PLAYER_LOGIN` (or `ADDON_LOADED`), on `UIParent` and then
   `SetParent`, never while a gamepad panel is open (AGENTS.md "Never write into Blizzard's
   controller UI").
@@ -64,9 +66,9 @@ function. Specs: the module's own spec first; `critical_path` = `spec/critical_p
 
 | File | Purpose | Main API | Specs |
 |---|---|---|---|
-| `Core.lua` | Namespace, SavedVariables init, event dispatch, feature switches, `/mw` | `ns.On`, `ns.Fire`, `ns.Init`, `ns.Print`, `ns.Features.On/Describe/DEFAULTS`, `ns.HandleSlash` | core |
+| `Core.lua` | Namespace, SavedVariables init, event dispatch, feature switches, `/mw`, key bindings (`Bindings.xml`: Options > Keybindings > AddOns, "Mailworthy: settings" / "Mailworthy: bug report") | `ns.On`, `ns.Fire`, `ns.Init`, `ns.Print`, `ns.Features.On/Describe/DEFAULTS`, `ns.HandleSlash`, global `MailworthyBinding(which)`, `ns.BINDINGS` | core, bindings |
 | `Log.lua` | Account-wide dated diagnostics log (300 lines) | `Log.Add(area, fmt, ...)`, `Log.Lines`, `Log.Trim` (pure) | core |
-| `Util.lua` | Helpers every module shares: a guarded call, listener lists | `Util.Call`, `Util.Signal(area)` (`Add`, `Fire`, `Count`) | util |
+| `Util.lua` | Helpers every module shares: a guarded call, listener lists, server time, a timer with a synchronous fallback, the realm|faction key, SavedVariables stores, a name's lower-case key, an item's name from its link, "a, b and c" | `Util.Call`, `Signal(area)` (`Add`, `Fire`, `Count`), `Now`, `After`, `RealmKey`, `Table`, `Store(db, field, key)`, `NameKey`, `LinkName`, `ListText` | util |
 | `Blocked.lua` | Records `ADDON_ACTION_FORBIDDEN/BLOCKED` blamed on Mailworthy with the last command | `Blocked.OnEvent`, `Blocked.Lines` | blocked, report |
 | `Characters.lua` | Known characters of the account; who this one can mail | `ns.PlayerName`, `Characters.Current/Record/Mailable/Key/Professions` | characters |
 | `Gamepad.lua` | Read-only controller helpers: button names, glyphs, API presence | `Gamepad.Name/NameFor/Fill/Glyph/LabelStyle/Presence` | gamepad |
