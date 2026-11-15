@@ -1,5 +1,5 @@
 -- Who the mail window's list goes to (MailWindow.lua): "To:" with the bank alt (Skip once beside it,
--- or Choose bank alt... without one, or Summary... on the bank alt), a line for each other
+-- or Choose bank alt... without one, or Bank alt summary... on the bank alt), a line for each other
 -- recipient (folded into "+N more" past UI.TO_LINES), and Return to sender, which adds the players
 -- who mailed this character an item as recipients for the visit (Returns.lua). AGENTS Safety: every
 -- recipient is named here before Send.
@@ -85,7 +85,7 @@ end
 function S.CreateToButtons()
     local frame = S.frame
     -- On the bank alt, where Skip once doesn't apply: the summary of what to sell (BankAlt.lua).
-    S.summaryButton = W.Button(frame, "Summary...", 84, function() ns.BankAlt.ShowWindow(frame) end,
+    S.summaryButton = W.Button(frame, "Bank alt summary...", 150, function() ns.BankAlt.ShowWindow(frame) end,
         "MailworthyMailSummary")
     S.summaryButton:Hide()
     -- Skip once for the bank alt too (operator, 2026-11-08): its share stays this visit, bindings go.
@@ -125,7 +125,7 @@ function S.FillTo(result, ctx)
     local canChoose = recipients[1].bank and bankAlt == nil and not isBankAlt and not ctx.busy
     if canChoose then S.chooseAltButton:Show() else S.chooseAltButton:Hide() end
     at(S.chooseAltButton, -20, -44, "TOPRIGHT")
-    at(S.toNote, canChoose and -178 or (canSkip or isBankAlt) and -112 or -26, -52, "TOPRIGHT")
+    at(S.toNote, (canChoose or isBankAlt) and -178 or canSkip and -112 or -26, -52, "TOPRIGHT")
     local more, foldRows = 0, 1
     for i, line in ipairs(S.toLines) do
         local r = recipients[i + 1]

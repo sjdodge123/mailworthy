@@ -2,7 +2,7 @@
 -- buttons on its right, shown only when it has something to say (UX review A5: one helper for all).
 --   stale  prices are old: rescan Auctionator (Stale.lua)
 --   owed   pay back: what another player mailed this account beyond what it mailed back (Ledger.lua),
---          with Ledger...; only this side ever shows
+--          with Mail ledger...; only this side ever shows
 --   offer  a crafter of your own takes some of the list (Routes.Offer): Bind, and "Not for <name>"
 local _, ns = ...
 
@@ -58,7 +58,7 @@ local offer -- the own-crafter binding on offer (Routes.Offer), or nil
 function S.CreateBanners()
     stale = banner({ height = 32, labelY = 0, buttonY = 0 })
     owed = banner({ height = 30, labelY = -2, buttonY = 4, buttons = {
-        { "Ledger...", 90, function() ns.LedgerUI.Show(S.frame) end, "MailworthyMailLedger" } } })
+        { "Mail ledger...", 110, function() ns.LedgerUI.Show(S.frame) end, "MailworthyMailLedger" } } })
     offerBanner = banner({ height = 40, labelY = 2, buttonY = 2, buttons = {
         { "Bind", 60, function() UI.AcceptOffer() end, "MailworthyMailOfferBind" },
         { "Not for them", 140, function() UI.DeclineOffer() end, "MailworthyMailOfferNot" } } })

@@ -1169,6 +1169,37 @@ describe("mail window", function()
         assert.is_false(ns.MailWindow.Frame():IsShown())
     end)
 
+    -- UX review U6 / U7 (2026-11-15): "..." on what opens a window; Remove asks first, Skip once doesn't.
+    it("buttons that open a window end in ...; a binding's Remove asks Sure? first, Skip once is one press", function()
+        ns.Routes.Add("Bob Surname", 333)
+        ns.Routes.Add("Ann Other", 197)
+        _G.MailworthyMailButton:Click()
+        assert.equal("Settings...", text("MailworthyMailSettings"))
+        assert.equal("Mail ledger...", text("MailworthyMailLedger"))
+        assert.equal("Bank alt summary...", text("MailworthyMailSummary"))
+        _G.MailworthyMailSkip1:Click()
+        assert.equal("Undo skip", text("MailworthyMailSkip1"), "Skip once: one press")
+        _G.MailworthyMailSkip1:Click()
+        local remove = _G.MailworthyMailUnbind1
+        remove:Click()
+        assert.equal(2, ns.Routes.Count())
+        assert.equal("Sure?", text("MailworthyMailUnbind1"))
+        WowStub.runTimers(3) -- 3 s on: back to Remove, and the next press asks again
+        assert.equal("Remove", text("MailworthyMailUnbind1"))
+        remove:Click()
+        WowStub.state.now = WowStub.state.now + 4
+        remove:Click()
+        assert.equal(2, ns.Routes.Count(), "a second press after the 3 s asks again")
+        assert.equal("Sure?", text("MailworthyMailUnbind1"))
+        -- The row now shows another binding: the armed Sure? is cancelled, nothing removed.
+        ns.Routes.Remove(ns.Routes.List()[1].key)
+        ns.MailWindow.Refresh()
+        assert.equal("Remove", text("MailworthyMailUnbind1"))
+        remove:Click()
+        remove:Click()
+        assert.equal(0, ns.Routes.Count())
+    end)
+
     -- UX review U4 (2026-11-15): a row with a pick button was two D-pad stops (the row, then its pick).
     -- Now one: Square on the highlighted row moves its pick on; the button stays for the mouse.
     describe("row picks with the controller: one stop per row, Square picks", function()

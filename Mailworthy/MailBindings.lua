@@ -1,5 +1,6 @@
 -- The mail window's bindings block (Routes; MailWindow.lua): shown only while there are bindings.
--- One row each with Skip once (this mailbox visit) and Remove, under a "Bindings" heading with the way into the friends
+-- One row each with Skip once (this mailbox visit, one press) and Remove (asks "Sure?" first:
+-- Widgets.ConfirmButton, UX review U7), under a "Bindings" heading with the way into the friends
 -- window. The mail list below shows where each item goes. A guild template's rules (Guild.lua) are
 -- rows too, with Skip once but no Remove; while any shows, "Guild rules: on" on the heading turns
 -- them all off in one press (operator, 2026-11-07).
@@ -21,7 +22,7 @@ function S.CreateBindingsHead()
     S.guildButton = W.Button(frame, "Guild rules: on", 130, function()
         if ns.Guild.SetUse(false) then
             ns.Print("Guild rules off: your materials no longer follow the guild template. "
-                .. "Turn them back on with /mw guild.")
+                .. "Turn them back on in Settings... > Guild...")
         end
         UI.Refresh()
     end, "MailworthyMailGuildRules")
@@ -42,7 +43,7 @@ function S.CreateBindingRows()
             if ns.Routes.Skipped(row.key) then ns.Routes.Unskip(row.key) else ns.Routes.SkipOnce(row.key) end
             UI.Refresh()
         end, "MailworthyMailSkip" .. i)
-        row.remove = W.Button(frame, "Remove", 74, function()
+        row.remove = W.ConfirmButton(frame, "Remove", "Sure?", 74, function()
             if row.key and ns.Routes.Remove(row.key) then
                 ns.Print("Binding removed.")
                 UI.Refresh()
@@ -59,7 +60,8 @@ end
 --- so when the first hidden one is a guild rule, all the hidden ones are: those are in the Guild
 --- window, not Friends (2026-11-07, Codex review).
 function UI.MoreText(n, guildOnly)
-    return string.format("|cffaaaaaa+ %d more: %s|r", n, guildOnly and "guild rules, /mw guild" or "press Friends...")
+    return string.format("|cffaaaaaa+ %d more: %s|r", n, guildOnly and "guild rules, Settings... > Guild..."
+        or "press Friends...")
 end
 
 --- Pure: a binding row's grey tags: "(guild, skill 120)", "(skill 120)", "(guild)" or "". The skill
@@ -77,6 +79,9 @@ function S.FillBindings()
     local shown = 0
     for i, row in ipairs(S.routeRows) do
         local r = list[i]
+        -- Another binding on this row now: a "Sure?" armed for the one before is cancelled (the
+        -- ConfirmButton disarms when hidden), so a second press never removes a binding not asked for.
+        if (r and r.key) ~= row.key then row.remove:Hide() end
         row.key = r and r.key or nil
         if r and i == UI.ROUTE_ROWS and #list > UI.ROUTE_ROWS then
             row.text:SetText(UI.MoreText(#list - UI.ROUTE_ROWS + 1, r.scope == "guild"))

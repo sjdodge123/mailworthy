@@ -192,3 +192,55 @@ function Widgets.PagerBack(parent, nextButton, name, onClick)
     nextButton:HookScript("OnHide", function() b:Hide() end)
     return b
 end
+
+-- ------------------------------------------------------------------------------------------------
+-- Widgets.ConfirmButton (UX review U7). Added by the mail-window branch for its Remove; the UI
+-- branch adds the same function under the same name and signature: keep one copy when merging.
+-- ------------------------------------------------------------------------------------------------
+local CONFIRM_SECONDS = 3
+local confirms = setmetatable({}, { __mode = "k" }) -- button -> { text = , at = GetTime() of the first press }
+local confirmNav = false
+
+local function disarm(b)
+    local c = confirms[b]
+    if c and c.at then
+        c.at = nil
+        b:SetText(c.text)
+    end
+end
+
+--- A button for a press that can't be undone (Remove, Forget, Publish), like Mark paid: the first
+--- press shows `confirmText` ("Sure?") for CONFIRM_SECONDS, a second press within them
+--- calls `onConfirm`. The timeout, the controller's highlight moving to another button (Nav) or the
+--- button hiding cancels. Create it at login (it is a Widgets.Button).
+function Widgets.ConfirmButton(parent, text, confirmText, width, onConfirm, name)
+    local b
+    b = Widgets.Button(parent, text, width, function()
+        local c = confirms[b]
+        local now = GetTime()
+        if c.at and now - c.at <= CONFIRM_SECONDS then
+            disarm(b)
+            onConfirm(b)
+            return
+        end
+        c.at = now
+        b:SetText(confirmText)
+        local timer = rawget(_G, "C_Timer")
+        if type(timer) == "table" and type(timer.After) == "function" then
+            timer.After(CONFIRM_SECONDS, function()
+                if confirms[b].at == now then disarm(b) end
+            end)
+        end
+    end, name)
+    confirms[b] = { text = text }
+    b:HookScript("OnHide", function() disarm(b) end)
+    if not confirmNav and ns.Nav and ns.Nav.OnSelect then
+        confirmNav = true
+        ns.Nav.OnSelect(function(selected)
+            for other in pairs(confirms) do
+                if other ~= selected then disarm(other) end
+            end
+        end)
+    end
+    return b
+end

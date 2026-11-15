@@ -1,5 +1,5 @@
 -- Send, and only what was previewed (MailWindow.lua; AGENTS Safety: "what was previewed must be
--- exactly what was sent"). The button row: Send (Stop while a run is on), Settings, Return to
+-- exactly what was sent"). The button row: Send (Stop while a run is on), Settings..., Return to
 -- sender. Send re-reads the bags first; if the fresh list sends anything somewhere the list on
 -- screen didn't say (UI.Changed), nothing goes: the list now shows where, and a second press sends
 -- it. Mailer.Start then re-checks each slot before attaching it and keeps Mailer.RESERVE.
@@ -144,7 +144,8 @@ function S.CreateButtons()
     S.sendButton = W.Button(frame, "Send", 190, function()
         if ns.Mailer.Busy() then UI.Stop() else UI.Send() end
     end, "MailworthyMailSend")
-    S.settingsButton = W.Button(frame, "Settings", 110, function() ns.SettingsUI.Show(frame) end, "MailworthyMailSettings")
+    S.settingsButton = W.Button(frame, "Settings...", 110, function() ns.SettingsUI.Show(frame) end,
+        "MailworthyMailSettings")
     S.returnButton = W.Button(frame, "Return to sender", 150, function() UI.ToggleReturns() end, "MailworthyMailReturn")
 end
 
