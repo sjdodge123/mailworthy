@@ -20,10 +20,10 @@
 --       tiers: a binding stops taking what the bound player's skill is past; Mailworthys
 --       before v0.18 drop it)
 --   M2|<mail's sender>|<recipient>|<server time>|<mail id>|<itemID>:<count>:<copper>:<scan age>:<k>;...
---       (Ledger.lua: what a mail to another player was worth when it went; WHISPER only, to the
+--       (LedgerWire.lua: what a mail to another player was worth when it went; WHISPER only, to the
 --       recipient once heard from. v0.25.0 sent V2|<sender>|<recipient>|<time>|<itemID>:<count>:<copper>;...,
 --       still read, and drops M2)
---   R2|<recipient>|<mail's sender>|<mail id>|<itemID>:<count>:<copper>:<k>;...   (Ledger.lua: the value the
+--   R2|<recipient>|<mail's sender>|<mail id>|<itemID>:<count>:<copper>:<k>;...   (LedgerWire.lua: the value the
 --       recipient settled on when it differs from the M2 one, so the sender's log matches; WHISPER only,
 --       held until the sender is heard from)
 --   U2|<this build's release: v0.31.0>   (Version.lua: right after a hello, release builds only;
