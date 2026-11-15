@@ -513,14 +513,16 @@ local ROW_TEXT = {
     end,
 }
 
+local summaryWin
+local SUMMARY_BOTTOM = -74 - 5 * 28 - 12 -- the row of buttons under the five rows
+
 function BankAlt.CreateWindow()
     if frame then return frame end
     local W = ns.Widgets
-    frame = W.Window("MailworthySummaryFrame", 440, 286)
-    frame:SetPoint("CENTER")
-    local title = W.Label(frame, "GameFontNormalLarge")
-    title:SetPoint("TOPLEFT", 22, -18)
-    title:SetText("Mailworthy: what to sell")
+    -- One name for it everywhere: "Bank alt summary" (UX review U6; it was "Mailworthy: what to sell").
+    summaryWin = W.Shell({ name = "MailworthySummaryFrame", width = 440, height = 286, title = "Bank alt summary",
+        strata = "DIALOG" })
+    frame = summaryWin.frame
     header = W.Label(frame, "GameFontNormal")
     header:SetPoint("TOPLEFT", 24, -50)
     rows = {}
@@ -538,10 +540,9 @@ function BankAlt.CreateWindow()
         row.value:SetPoint("TOPRIGHT", -26, y - 1)
         rows[key] = row
     end
-    W.Button(frame, "Close", 100, function() frame:Hide() end, "MailworthySummaryClose"):SetPoint("BOTTOMRIGHT", -20, 40)
-    W.Button(frame, "Scan details", 120, function() ns.Bags.Scan() end, "MailworthySummaryScan")
-        :SetPoint("BOTTOMLEFT", 20, 40)
-    ns.Nav.Attach(frame)
+    summaryWin.at(summaryWin.Done("MailworthySummaryDone"), -24, SUMMARY_BOTTOM, "TOPRIGHT") -- "Done", like every window
+    summaryWin.at(W.Button(frame, "Scan details", 120, function() ns.Bags.Scan() end, "MailworthySummaryScan"),
+        24, SUMMARY_BOTTOM)
     return frame
 end
 
@@ -560,6 +561,7 @@ function BankAlt.RefreshWindow()
         row.text:SetText(text)
         row.value:SetText(value)
     end
+    summaryWin.Finish(SUMMARY_BOTTOM, false)
 end
 
 --- `opener`: the Mailworthy window whose button opened it (placed beside that), or nil (centred).
