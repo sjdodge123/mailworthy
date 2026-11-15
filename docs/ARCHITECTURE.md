@@ -285,7 +285,7 @@ Every `ns.On` handler, by event. `Blocked.lua` registers `ADDON_ACTION_FORBIDDEN
 | `MAIL_INBOX_UPDATE` | Report (AH invoice cut) |
 | `MAIL_SEND_INFO_UPDATE`, `SEND_MAIL_MONEY_CHANGED`, `SEND_MAIL_COD_CHANGED` | Ledger (send-tab snapshot) |
 | `UI_ERROR_MESSAGE` | Mailer (log) |
-| `BAG_UPDATE_DELAYED` | BankAlt, MailWindow, LocksUI, Trip, Vendor |
+| `BAG_UPDATE_DELAYED` | Recipes (before BankAlt: forgets "not known"), BankAlt, MailWindow, LocksUI, Trip, Vendor |
 | `PLAYER_MONEY` | MailWindow |
 | `PLAYER_REGEN_DISABLED` | PadKey (clear bindings), Mailer (stop) |
 | `PLAYER_REGEN_ENABLED` | Trip |

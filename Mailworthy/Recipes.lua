@@ -11,8 +11,9 @@
 -- compared with ITEM_SPELL_KNOWN (a global string Forever's own trainer UI uses,
 -- Blizzard_TrainerUI.lua), the English "Already known" when it is missing (README "Beta unknowns";
 -- /mw report says what was found). Every call is pcall'd; no answer is "not known", so the binding
--- keeps the recipe as before. Answers are remembered for one mailbox visit (MAIL_SHOW forgets them,
--- so a recipe learned since is read again); a "not known" only once the item's data is loaded.
+-- keeps the recipe as before. Answers are remembered for one mailbox visit (MAIL_SHOW forgets them);
+-- a "not known" only once the item's data is loaded, and only until the next bag update (learning a
+-- recipe uses its item up, so a copy left in the bags is read again).
 local _, ns = ...
 
 local Recipes = {}
@@ -75,8 +76,13 @@ function Recipes.Known(itemID)
     return false
 end
 
---- Forget what the tooltips said.
-function Recipes.Forget() cache = {} end
+--- Forget what the tooltips said: every answer, or (`unknownOnly`) the "not known" ones.
+function Recipes.Forget(unknownOnly)
+    if not unknownOnly then cache = {} return end
+    for itemID, known in pairs(cache) do
+        if known == false then cache[itemID] = nil end
+    end
+end
 
 --- /mw report: whether the client has the tooltip's text, and which recipes in the bags it knows.
 function Recipes.ReportLines()
@@ -97,5 +103,12 @@ function Recipes.ReportLines()
         #names > 0 and table.concat(names, ", ") or "none") }
 end
 
--- Each mailbox visit asks the tooltips again, once.
-ns.On("MAIL_SHOW", function() Recipes.Forget() end)
+-- Each mailbox visit asks the tooltips again, once, and the bag tags' cached verdicts with them.
+ns.On("MAIL_SHOW", function()
+    Recipes.Forget()
+    if ns.BankAlt then ns.BankAlt.Invalidate() end
+end)
+-- Learning a recipe uses its item up: the bag update that follows asks the "not known" ones again, so
+-- another copy left in the bags is tagged as known (Codex review, 2026-11-14). Registered before
+-- BankAlt's handler (Recipes.lua loads first, ns.Fire runs handlers in order), which redraws the tags.
+ns.On("BAG_UPDATE_DELAYED", function() Recipes.Forget(true) end)

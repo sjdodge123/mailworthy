@@ -132,6 +132,34 @@ describe("known recipes", function()
         assert.is_true(ns.Recipes.Known(STEW))
     end)
 
+    -- Codex review, 2026-11-14: learning one copy left the other's bag tag kept "for this character".
+    it("learning a recipe re-reads a copy left in the bags: its bag tag follows", function()
+        useAuctionator()
+        MailworthyCharDB.tagsAfterSend = true -- this main sent before: its bags are tagged
+        local link = WowStub.link(STEW, "Recipe: Westfall Stew")
+        WowStub.setBag(0, 3, WowStub.item(STEW, "Recipe: Westfall Stew", { sell = 50, class = 9, subclass = 5 }))
+        ns.Fire("BAG_UPDATE_DELAYED")
+        assert.truthy(ns.BankAlt.ItemFor(STEW).result.forMe, "not learned yet: kept for the cook")
+        -- The player learns it: one copy is used up, the other stays.
+        WowStub.state.known[STEW] = true
+        WowStub.setBag(0, 3, nil)
+        ns.Fire("BAG_UPDATE_DELAYED")
+        local stew = ns.BankAlt.ItemFor(STEW)
+        assert.equal("mail", stew.result.action)
+        assert.is_nil(stew.result.forMe)
+        assert.equal(link, stew.link)
+    end)
+
+    it("a mailbox visit reads the bag tags again too", function()
+        useAuctionator()
+        MailworthyCharDB.tagsAfterSend = true -- this main sent before: its bags are tagged
+        ns.Fire("BAG_UPDATE_DELAYED")
+        assert.truthy(ns.BankAlt.ItemFor(STEW).result.forMe)
+        WowStub.state.known[STEW] = true
+        ns.Fire("MAIL_SHOW")
+        assert.equal("mail", ns.BankAlt.ItemFor(STEW).result.action)
+    end)
+
     it("doesn't remember 'not known' before the item's data loads", function()
         WowStub.state.uncached[STEW] = true
         assert.is_false(ns.Recipes.Known(STEW))
