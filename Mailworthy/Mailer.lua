@@ -24,7 +24,7 @@ local _, ns = ...
 local Mailer = {}
 ns.Mailer = Mailer
 
-Mailer.PER_MAIL = 12
+Mailer.PER_MAIL = 12 -- stacks per mail (ATTACHMENTS_MAX_SEND, measured); Bags.Evaluate counts mails by it too
 Mailer.DELAY = 0.5
 Mailer.TIMEOUT = 10
 Mailer.SUBJECT = "Mailworthy %d/%d"

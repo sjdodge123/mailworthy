@@ -72,8 +72,7 @@ function Report.Frame() return reportFrame end
 
 function Report.Build()
     local name, realm, faction = ns.Characters.Current()
-    local v = ns.Bags.Settings()
-    v.serverDay = ns.Config.ServerDay()
+    local v = ns.Bags.PrepareSettings(ns.Bags.Settings())
     local lines = {
         string.format("Mailworthy %s report at %s", ns.VERSION, date("%Y-%m-%d %H:%M")),
         "build: " .. strings(call(GetBuildInfo)),
@@ -82,7 +81,7 @@ function Report.Build()
         "bank alt: " .. tostring(ns.Config.BankAlt() or "none set"),
         string.format("server: launch day %s (realm first seen %s)", tostring(ns.Config.ServerDay()),
             date("%Y-%m-%d", ns.Config.FirstSeen())),
-        ns.Bags.SettingsLine(ns.Bags.Evaluate(v).settings, { extra = {
+        ns.Bags.SettingsLine(v, { extra = {
             "tags " .. (ns.Config.Flag("tagsEverywhere") and "every character" or ("bank alt only, here: " .. tostring(ns.BankAlt.Mode()))),
             "lock glow " .. (ns.Config.Flag("glowEverywhere") and "always" or "with the Mailworthy window open"),
             "item tooltips " .. ns.Config.Tooltips(),
