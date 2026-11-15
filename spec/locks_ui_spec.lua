@@ -50,10 +50,9 @@ describe("the locked items window", function()
         ns.HandleSlash("locks")
         tick()
         assert.equal("settings", ns.PadKey.Wanted(), "the window takes the controller like the others")
-        for _ = 1, 2 do -- from the top (the X): the first row, then the second
-            WowStub.state.now = WowStub.state.now + 1
-            _G.MailworthyPadDown:Click()
-        end
+        -- The highlight starts on the first row's Unlock (never the X: Nav.Candidates), one Down to the second.
+        WowStub.state.now = WowStub.state.now + 1
+        _G.MailworthyPadDown:Click()
         assert.equal(_G.MailworthyLocksUnlock2, ns.Nav.Current())
         WowStub.state.now = WowStub.state.now + 1
         _G.MailworthyPadCross:Click()

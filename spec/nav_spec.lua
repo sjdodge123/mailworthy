@@ -23,6 +23,34 @@ describe("navigation search", function()
         assert.equal(a, ns.Nav.TopLeft({ b, c, a }))
     end)
 
+    it("never starts on (or walks to) a window's X: the first Cross never closes the window", function()
+        WowStub.state.layout = true
+        WowStub.state.gamepadUI = true
+        ns.Fire("PLAYER_LOGIN")
+        for _, open in ipairs({ ns.SettingsUI.Show, ns.LocksUI.Show, ns.LedgerUI.Show, ns.RoutesUI.Show,
+            function() ns.HandleSlash("report") end }) do
+            open()
+            local root = ns.Nav.Root()
+            assert.truthy(root and root.CloseButton, "a Widgets.Window")
+            for _, c in ipairs(ns.Nav.Candidates()) do
+                assert.are_not.equal(root.CloseButton, c.button, root:GetName() .. ": the X is a candidate")
+            end
+            ns.Nav.Reset()
+            assert.truthy(ns.Nav.Current(), root:GetName() .. ": a button to start on")
+            assert.are_not.equal(root.CloseButton, ns.Nav.Current(), root:GetName() .. ": starts on the X")
+            root:Hide()
+        end
+    end)
+
+    it("PadKey's free-standing windows are every Nav window but the mailbox one", function()
+        ns.Fire("PLAYER_LOGIN")
+        assert.is_false(ns.Nav.AnyShown(ns.MailWindow.Frame()))
+        ns.MailWindow.Frame():Show()
+        assert.is_false(ns.Nav.AnyShown(ns.MailWindow.Frame()), "the mailbox window is not free-standing")
+        ns.LocksUI.Show()
+        assert.is_true(ns.Nav.AnyShown(ns.MailWindow.Frame()))
+    end)
+
     it("moves the highlight over visible window buttons and presses with Cross", function()
         ns.Fire("PLAYER_LOGIN")
         MailFrame:Show()

@@ -67,12 +67,16 @@ function Nav.TopLeft(candidates)
     return best
 end
 
---- Visible buttons under the window, with their centres.
+--- Visible buttons under the window, with their centres. The window's own X (Widgets.Window's
+--- CloseButton) is left out: it sits above every other button, so the top-left start landed on it
+--- and the first Cross closed the window (UX pass, 2026-11-15). Circle closes it with a controller.
 function Nav.Candidates()
     local list = {}
+    local root = Nav.Root()
+    local close = root and rawget(root, "CloseButton")
     local function walk(frame)
         for _, child in ipairs({ frame:GetChildren() }) do
-            if child:IsVisible() then
+            if child:IsVisible() and child ~= close then
                 if child:IsObjectType("Button") then
                     local x, y = child:GetCenter()
                     if x and y then list[#list + 1] = { button = child, x = x, y = y } end
@@ -81,9 +85,17 @@ function Nav.Candidates()
             end
         end
     end
-    local root = Nav.Root()
     if root then walk(root) end
     return list
+end
+
+--- Is one of the registered windows other than `except` shown (PadKey: the free-standing
+--- windows, Settings, Friends, Ledger, ..., take the "settings" binding set)?
+function Nav.AnyShown(except)
+    for frame in pairs(highlights) do
+        if frame ~= except and frame:IsShown() then return true end
+    end
+    return false
 end
 
 local function entryFor(button, candidates)

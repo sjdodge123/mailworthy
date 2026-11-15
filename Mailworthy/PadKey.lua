@@ -79,13 +79,9 @@ end
 function PadKey.Wanted()
     if InCombatLockdown() or not ns.MailButton.GamepadUI() then return nil end
     -- "settings": our free-standing windows (settings, friends, ledger, locked items, bank alt summary,
-    -- report), anywhere.
-    local standalone = false
-    for _, mod in ipairs({ ns.SettingsUI, ns.RoutesUI, ns.LedgerUI, ns.LocksUI, ns.PinWarning, ns.BankAlt, ns.Vendor,
-        ns.Report }) do
-        local f = mod and mod.Frame()
-        if f and f:IsShown() then standalone = true end
-    end
+    -- report, ...), anywhere: every window Nav.Attach registered except the mailbox one, so a new
+    -- window needs no entry here.
+    local standalone = ns.Nav.AnyShown(ns.MailWindow and ns.MailWindow.Frame())
     if standalone and ns.Features.On("padNav") then return "settings" end
     local focused = activeFrame()
     local mail = rawget(_G, "MailFrame")
