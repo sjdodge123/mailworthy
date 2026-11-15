@@ -20,7 +20,10 @@ SavedVariables, feature switches, where each Safety rule is enforced) before rea
   system, COD or returned mail), whatever its price, and only when that player is shown in
   the preview like any recipient, a "To:" line and the "back to <name>" chip on each row
   (operator, 2026-11-08: "any new recipient should be shown even if its a return to
-  sender"). Never attach money.
+  sender"). Never attach money. Never send a mail whose postage would leave the character
+  with less than 5s (`Mailer.RESERVE`; operator, 2026-11-14: "you should always have a reserve
+  of 5s before mailworthy will auto send"): Send stays greyed out, and a run stops before the
+  mail that would.
   Never mail a locked item.
 - Never mail an item an active quest's objective names, quest item or not (operator,
   2026-11-08). Never mail a conjured item (a Healthstone, a mana gem, a mage's food and water;
@@ -101,7 +104,8 @@ textures / font strings on Blizzard frames kept in our own tables, read-only
 `spec/critical_path_spec.lua` is the shipping gate: a mailbox visit with a realistic
 bag, by mouse and by controller, with and without Auctionator, with a binding, with a bank pin, with a hunter's
 ammo, with a guild
-template (on and off), with Return to sender (on a main and on the bank alt), and on
+template (on and off), with Return to sender (on a main and on the bank alt), with the 5s
+money reserve (before Send and mid-run), and on
 an older build's SavedVariables; every mail checked against the Safety rules above, and
 what was previewed must be exactly what was sent. CI runs it as its own job,
 `critical-path`, which main's branch protection requires (operator, 2026-11-07); `release.yml`
