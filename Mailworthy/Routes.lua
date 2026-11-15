@@ -215,21 +215,38 @@ function Routes.Recipient(route)
     return Routes.Crafter(route, ns.Comms and ns.Comms.Peer(route.to) or nil)
 end
 
--- The guild roster's rank for a member's primary profession (C_Club member info carries
--- profession1ID / profession1Rank, as Blizzard's Communities roster sorts by them).
-local function guildSkill(name, profession)
-    if call(IsInGuild) ~= true then return nil end
+-- The guild roster's members by lower-case name (the first of a name wins), with their C_Club member
+-- info: it carries profession1ID / profession1Rank, as Blizzard's Communities roster sorts by them.
+local function guildRoster()
+    local byName = {}
+    if call(IsInGuild) ~= true then return byName end
     local club = rawget(_G, "C_Club")
     local clubId = type(club) == "table" and call(club.GetGuildClubId) or nil
     local members = clubId and call(club.GetClubMembers, clubId) or nil
     for _, memberId in ipairs(type(members) == "table" and members or {}) do
         local info = call(club.GetMemberInfo, clubId, memberId)
-        if type(info) == "table" and info.name and tostring(Routes.Clean(info.name)):lower() == name:lower() then
-            if tonumber(info.profession1ID) == profession then return tonumber(info.profession1Rank) end
-            if tonumber(info.profession2ID) == profession then return tonumber(info.profession2Rank) end
-            return nil
+        if type(info) == "table" and info.name then
+            local key = tostring(Routes.Clean(info.name)):lower()
+            if byName[key] == nil then byName[key] = info end
         end
     end
+    return byName
+end
+
+-- The guild roster's rank for a member's primary profession. `cache` (optional): a table that keeps
+-- the roster for several calls (Routes.Active: one roster walk per scan, not one per binding).
+local function guildSkill(name, profession, cache)
+    local roster
+    if cache then
+        cache.roster = cache.roster or guildRoster()
+        roster = cache.roster
+    else
+        roster = guildRoster()
+    end
+    local info = roster[name:lower()]
+    if not info then return nil end
+    if tonumber(info.profession1ID) == profession then return tonumber(info.profession1Rank) end
+    if tonumber(info.profession2ID) == profession then return tonumber(info.profession2Rank) end
     return nil
 end
 
@@ -255,14 +272,15 @@ end
 --- The skill in a binding's profession of the character that gets its mail, or nil when
 --- unknown: the highest of what their Mailworthy said (Comms "S2"), this account's own
 --- character's last login, and the guild roster (primary professions only). Skill only
---- grows, so the highest is the latest.
-function Routes.Skill(route)
+--- grows, so the highest is the latest. `cache` (optional, a table): keeps the guild roster between
+--- calls (Routes.Active passes one per scan).
+function Routes.Skill(route, cache)
     if route.class then return nil end
     local to = Routes.Recipient(route)
     local profession = tonumber(route.profession)
     local best
     for _, skill in ipairs({ ns.Comms and ns.Comms.Skill(to, profession) or false, ownSkill(to, profession) or false,
-        guildSkill(to, profession) or false }) do
+        guildSkill(to, profession, cache) or false }) do
         if skill and (not best or skill > best) then best = skill end
     end
     return best
@@ -492,12 +510,13 @@ end
 function Routes.Count() return #Routes.List() end
 
 --- The bindings in force for this mailbox visit (not skipped once), each with the
---- recipient's `skill` (Routes.Skill) for the material tiers.
+--- recipient's `skill` (Routes.Skill) for the material tiers. The guild roster is walked once for
+--- all of them (every bag scan calls this).
 function Routes.Active()
-    local list = {}
+    local list, cache = {}, {}
     for _, r in ipairs(Routes.List()) do
         if not skipped[r.key] then
-            r.skill = Routes.Skill(r)
+            r.skill = Routes.Skill(r, cache)
             list[#list + 1] = r
         end
     end

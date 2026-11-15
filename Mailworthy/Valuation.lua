@@ -645,7 +645,6 @@ function Valuation.Evaluate(item, price, settings)
         return keep(K.pinHere, { pinned = true, vendor = (item.vendor or 0) * (item.count or 1) })
     end
     if item.pin == Valuation.PIN_BANK then
-        if item.vendor == nil then return keep(K.notLoaded) end
         if type(price) == "table" and price.failed then
             return keep(K.priceFailed, { vendor = item.vendor * (item.count or 1), failed = true })
         end

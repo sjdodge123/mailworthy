@@ -648,6 +648,28 @@ describe("bindings", function()
         end)
     end)
 
+    describe("the guild roster per scan", function()
+        it("Routes.Active walks the roster once for all its bindings, and reads the same skills", function()
+            WowStub.state.guild = { clubId = 3, members = {
+                { name = "Bob Surname", realm = "Classic Beta PvP", level = 30, online = true,
+                    professions = { ENCHANTING, TAILORING }, ranks = { 120, 80 } },
+                { name = "Ann Crafter", level = 30, online = true, professions = { ALCHEMY }, ranks = { 60 } },
+            } }
+            assert.truthy(ns.Routes.Add(BOB, ENCHANTING))
+            assert.truthy(ns.Routes.Add(BOB, TAILORING))
+            assert.truthy(ns.Routes.Add("Ann Crafter", ALCHEMY))
+            local walks, members = 0, C_Club.GetClubMembers
+            C_Club.GetClubMembers = function(...) walks = walks + 1 return members(...) end
+            local skills = {}
+            for _, r in ipairs(ns.Routes.Active()) do skills[r.to .. ":" .. r.profession] = r.skill end
+            C_Club.GetClubMembers = members
+            assert.equal(1, walks, "one roster walk for three bindings")
+            assert.same({ [BOB .. ":" .. ENCHANTING] = 120, [BOB .. ":" .. TAILORING] = 80, ["Ann Crafter:" .. ALCHEMY] = 60 },
+                skills)
+            assert.equal(80, ns.Routes.Skill({ to = BOB, profession = TAILORING }), "a single call reads it too")
+        end)
+    end)
+
     describe("who can be bound", function()
         it("party members, the guild (C_Club: professions, presence, realm suffix), own characters; online first", function()
             WowStub.state.group = { members = { { name = "Pal Member", level = 20, online = true, class = "Rogue" } } }

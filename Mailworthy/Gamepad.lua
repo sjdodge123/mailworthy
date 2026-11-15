@@ -46,7 +46,6 @@ local function get(path)
     end
     return v
 end
-Gamepad.Get = get
 
 --- "Shapes" = PlayStation, "Generic" / "Letters" = Xbox, "Reverse" = Switch.
 function Gamepad.LabelStyle()

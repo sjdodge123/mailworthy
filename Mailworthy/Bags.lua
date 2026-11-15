@@ -326,10 +326,22 @@ function Bags.Evaluate(settings)
             table.insert(result.keep, item)
         end
     end
-    local owed = settings.returns
+    -- What is owed back, per item ID: a copy of settings.returns' list for this scan, which
+    -- Returns.Split uses up across the item's bag groups (settings.returns itself stays as it was).
+    local owed, owedLeft = settings.returns, {}
+    local function owedFor(itemID)
+        local list = owed and owed[itemID]
+        if not list then return nil end
+        if not owedLeft[itemID] then
+            local copy = {}
+            for i, o in ipairs(list) do copy[i] = { to = o.to, count = o.count, at = o.at } end
+            owedLeft[itemID] = copy
+        end
+        return owedLeft[itemID]
+    end
     for _, item in ipairs(Bags.Group(Bags.Slots())) do
         value(item)
-        local list = owed and owed[item.itemID]
+        local list = owedFor(item.itemID)
         local r = item.result
         -- A soulbound item never goes back to anyone, vendor-pinned or not (its keep reason is the pin's).
         local hard = ns.Valuation.Unmailable(r) or ns.Valuation.HardKeep(r) or item.bound

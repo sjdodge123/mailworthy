@@ -68,13 +68,6 @@ function Locks.Toggle(bag, slot, how)
     return Locks.ToggleItem(info.itemID, info.hyperlink, how)
 end
 
-function Locks.PrintList()
-    local list = {}
-    for itemID, entry in pairs(items()) do list[#list + 1] = tostring(entry.link or itemID) end
-    table.sort(list)
-    ns.Print(#list == 0 and "No locked items." or ("Locked items: " .. table.concat(list, ", ")))
-end
-
 --- How many items are locked on this character.
 function Locks.Count()
     local n = 0

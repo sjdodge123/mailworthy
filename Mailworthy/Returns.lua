@@ -114,10 +114,11 @@ function Returns.Current()
     return Returns.Owed(ns.Ledger.Store().log, ns.PlayerName())
 end
 
---- Pure: which of `slots` ({ bag, slot, count }) go back to whom, from `owed` (this item ID's
---- list from Returns.Owed; counts are used up, so several bag groups of one item share it).
---- Whole stacks, the biggest first, never past what is owed. Returns { { to, slots, count } },
---- and the slots left over.
+--- Which of `slots` ({ bag, slot, count }) go back to whom, from `owed` (this item ID's list from
+--- Returns.Owed). Not pure: it uses up `owed`'s counts in place, on purpose, so several bag groups
+--- of one item (bound or not, in use or not: Bags.Group) share what is owed; pass a copy to keep
+--- yours (Bags.Evaluate copies settings.returns' list once per scan). Whole stacks, the biggest
+--- first, never past what is owed. Returns { { to, slots, count } }, and the slots left over.
 function Returns.Split(slots, owed)
     local left = {}
     for _, s in ipairs(slots or {}) do left[#left + 1] = s end
