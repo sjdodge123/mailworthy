@@ -1593,6 +1593,64 @@ describe("critical path: mailing", function()
         assert.truthy(ns.Mailer.Status():find("postage for mail 2", 1, true), ns.Mailer.Status())
     end)
 
+    -- The money reserve (operator, 2026-11-14: "mailworthy won't spend your last money on mailing
+    -- items, you should always have a reserve of 5s"): postage never leaves less than 5s.
+    local function postageOf(mail)
+        local need = 0
+        for _, item in ipairs(mail) do need = need + item.result.postage end
+        return need
+    end
+
+    it("a 5s reserve: enough for the postage alone sends nothing; postage and 5s sends what was previewed", function()
+        WowStub.state.gold = 100000
+        mailbox()
+        _G.MailworthyMailButton:Click()
+        local preview = previewed(ns)
+        local need = postageOf(ns.MailWindow.Result().mail)
+        assert.truthy(need > 0)
+        WowStub.state.gold = need + ns.Mailer.RESERVE - 1
+        ns.Fire("PLAYER_MONEY")
+        local send = _G.MailworthyMailSend
+        assert.is_false(send:IsEnabled())
+        assert.truthy(tostring(send.text):find("^Postage: "), tostring(send.text))
+        send:Click()
+        assert.is_false(ns.Mailer.Start(ns.MailWindow.Result().mail, BANK_ALT))
+        for _ = 1, 3 do
+            WowStub.runTimers()
+            ns.Fire("MAIL_SEND_SUCCESS")
+        end
+        assertSafeSoFar(preview, { [BANK_ALT] = true }, 0)
+        assert.equal(0, #WowStub.state.attached)
+        WowStub.state.gold = need + ns.Mailer.RESERVE
+        ns.Fire("PLAYER_MONEY")
+        assert.is_true(send:IsEnabled())
+        send:Click()
+        deliver(ns)
+        assertSafeAndComplete(ns, preview, { [BANK_ALT] = true })
+    end)
+
+    it("a 5s reserve mid-run: once a mail's postage would leave less than 5s, it is given back and the run stops", function()
+        WowStub.state.gold = 100000
+        mailbox()
+        _G.MailworthyMailButton:Click()
+        local preview = previewed(ns)
+        _G.MailworthyMailSend:Click()
+        WowStub.runTimers()
+        assert.equal(1, #WowStub.state.sent)
+        -- Spent elsewhere while the first mail was on its way: enough for any postage, not for 5s on top.
+        WowStub.state.gold = ns.Mailer.RESERVE + WowStub.state.postage - 1 -- one stack's postage, 1c short of 5s on top
+        ns.Fire("MAIL_SEND_SUCCESS")
+        for _ = 1, 3 do
+            WowStub.runTimers()
+            ns.Fire("MAIL_SEND_SUCCESS")
+        end
+        assert.is_false(ns.Mailer.Busy())
+        assert.equal(0, #WowStub.state.attached)
+        assertSafeSoFar(preview, { [BANK_ALT] = true }, 1)
+        assert.truthy(ns.Mailer.Status():find("postage for mail 2", 1, true), ns.Mailer.Status())
+        assert.truthy(ns.Mailer.Status():find("keeps 5s", 1, true), ns.Mailer.Status())
+    end)
+
     -- A crafter of your own (QoL pass F, 2026-11-09): the window offers a binding to a known
     -- character of this account. A new way a recipient gets added, so: only once the player
     -- pressed Bind, only as previewed after that, and never when the offer was left or declined.

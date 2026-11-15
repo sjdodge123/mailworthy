@@ -308,7 +308,7 @@ describe("mail window", function()
             assert.same({ "Stop", true }, { S({ busy = true, mails = 2, send = "Send to Roknua" }) })
             assert.same({ "Stopping...", false }, { S({ busy = true, stopping = true, mails = 2 }) })
             assert.same({ "Nothing to send", false }, { S({ mails = 0, send = "Send" }) })
-            assert.same({ "Postage: 3s 60c", false }, { S({ mails = 2, need = 360, send = "Send to Roknua" }) })
+            assert.same({ "Postage: 3s 60c, keeps 5s", false }, { S({ mails = 2, need = 360, send = "Send to Roknua" }) })
             assert.same({ "Click Send Mail", false }, { S({ inbox = true, mails = 2 }) })
             assert.same({ "Send Mail tab: R1", false }, { S({ inbox = true, pad = true, mails = 0 }) })
             assert.same({ "Sending...", false }, { S({ inbox = true, busy = true, mails = 2 }) }, "no Stop on the Inbox")
@@ -559,19 +559,81 @@ describe("mail window", function()
         it("short on postage: Send is greyed out with the postage, the note says what is missing; money brings it back", function()
             WowStub.state.gold = 10
             ns.MailWindow.Refresh()
-            assert.equal("Postage: 30c", text("MailworthyMailSend"))
+            assert.equal("Postage: 30c, keeps 5s", text("MailworthyMailSend"))
             assert.is_false(send:IsEnabled())
-            assert.truthy(ns.MailWindow.Texts().note:find(
-                "Postage is 30c and you have 10c. Press an item to keep it, or come back with 20c more.", 1, true))
+            assert.truthy(ns.MailWindow.Texts().note:find("Postage is 30c and you have 10c; Mailworthy keeps 5s on you. "
+                .. "Press an item to keep it, or come back with 5s 20c more.", 1, true), ns.MailWindow.Texts().note)
             send:Click()
             WowStub.runTimers()
             assert.equal(0, #WowStub.state.sent)
             assert.is_false(ns.Mailer.Start(ns.MailWindow.Result().mail, "Roknua Themicrulah"), "the mailer refuses too")
-            assert.equal("Can't send: postage is 30c and you have 10c.", ns.Mailer.Status())
+            assert.equal("Can't send: postage is 30c and you have 10c; Mailworthy keeps 5s on you.", ns.Mailer.Status())
             WowStub.state.gold = 5000
             ns.Fire("PLAYER_MONEY")
             assert.equal("Send to Roknua", text("MailworthyMailSend"))
             assert.is_true(send:IsEnabled())
+        end)
+
+        -- The reserve (operator, 2026-11-14: "you should always have a reserve of 5s before mailworthy
+        -- will auto send"): enough for the postage isn't enough; the postage and 5s on top is.
+        it("a 5s reserve: postage that would leave less than 5s is refused, before Send and mid-run", function()
+            assert.equal(500, ns.Mailer.RESERVE)
+            assert.is_true(ns.Mailer.Affords(30, 530))
+            assert.is_false(ns.Mailer.Affords(30, 529))
+            assert.is_false(ns.Mailer.Affords(0, 499), "below 5s nothing goes, whatever the postage")
+            WowStub.state.gold = 529 -- the 30c postage, and 1c short of keeping 5s
+            ns.MailWindow.Refresh()
+            assert.equal("Postage: 30c, keeps 5s", text("MailworthyMailSend"))
+            assert.is_false(send:IsEnabled())
+            assert.truthy(ns.MailWindow.Texts().note:find("come back with 1c more", 1, true), ns.MailWindow.Texts().note)
+            assert.is_false(ns.Mailer.Start(ns.MailWindow.Result().mail, "Roknua Themicrulah"))
+            assert.equal(0, #WowStub.state.sent)
+            WowStub.state.gold = 530
+            ns.Fire("PLAYER_MONEY")
+            assert.equal("Send to Roknua", text("MailworthyMailSend"))
+            assert.is_true(send:IsEnabled())
+            -- Spent down to 5s 29c while the stack sat attached: this mail's 30c would leave 4s 99c.
+            send:Click()
+            WowStub.state.gold = 529
+            WowStub.runTimers()
+            assert.is_false(ns.Mailer.Busy())
+            assert.equal(0, #WowStub.state.sent)
+            assert.equal(0, #WowStub.state.attached)
+            assert.truthy(ns.Mailer.Status():find("postage for mail 1 is 30c and you have 5s 29c; Mailworthy keeps 5s on you",
+                1, true), ns.Mailer.Status())
+        end)
+
+        -- Codex review (2026-11-14): money Mailworthy can't read is never taken as enough.
+        it("money it can't read: Send is greyed out, the mailer refuses, and a run stops before SendMail", function()
+            WowStub.state.gold = nil
+            ns.MailWindow.Refresh()
+            assert.equal("Postage: 30c, keeps 5s", text("MailworthyMailSend"))
+            assert.is_false(send:IsEnabled())
+            assert.truthy(ns.MailWindow.Texts().note:find("can't read your money, so nothing is sent", 1, true),
+                ns.MailWindow.Texts().note)
+            assert.is_false(ns.Mailer.Start(ns.MailWindow.Result().mail, "Roknua Themicrulah"))
+            assert.equal("Can't send: Mailworthy can't read your money.", ns.Mailer.Status())
+            -- Readable at Send, unreadable when the mail is ready to go.
+            WowStub.state.gold = 5000
+            ns.Fire("PLAYER_MONEY")
+            send:Click()
+            WowStub.state.gold = nil
+            WowStub.runTimers()
+            assert.is_false(ns.Mailer.Busy())
+            assert.equal(0, #WowStub.state.sent)
+            assert.equal(0, #WowStub.state.attached)
+            assert.truthy(ns.Mailer.Status():find("can't read the postage for mail 1 or your money", 1, true),
+                ns.Mailer.Status())
+            -- The postage unreadable: the same.
+            WowStub.state.gold = 5000
+            local price = _G.GetSendMailPrice
+            _G.GetSendMailPrice = function() error("no price") end
+            ns.MailWindow.Refresh()
+            send:Click()
+            WowStub.runTimers()
+            _G.GetSendMailPrice = price
+            assert.equal(0, #WowStub.state.sent)
+            assert.equal(0, #WowStub.state.attached)
         end)
 
         it("money gone mid-run: the attachments go back and nothing is sent", function()

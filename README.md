@@ -27,7 +27,7 @@ than at the vendor goes to your bank alt. The rest stays in your bags to vendor.
   what stays and why, and the total gain. **Send** mails it all in one press, 12 stacks
   per mail; while it runs the button is **Stop** (the mail already on its way arrives, the rest
   stays). When it is done the window and chat say what went, to whom, for how much, and what
-  stayed. If you can't pay the postage, nothing is sent and Send shows the postage instead. Pressing an item locks it, so it stays. **Skip once** beside your bank alt keeps
+  stayed. Mailworthy never spends your last 5s on postage: if the postage would leave you with less than 5s, nothing is sent and Send shows the postage instead (and a run stops before the mail that would). Pressing an item locks it, so it stays. **Skip once** beside your bank alt keeps
   its share in the bags for this visit (bindings still go). Hovering an item says what the
   window does with it, or why it stays.
 - **Return to sender:** a toggle in the window, on every character (bank alt too). Pressed,

@@ -15,6 +15,10 @@
 -- given back), nothing is sent the player can't pay the postage for (Mailer.Short before Send,
 -- GetSendMailPrice against GetMoney before each SendMail), and a run ends with a receipt
 -- (Mailer.Receipt, Mailer.ReceiptText): what went, to whom, its gain, what stayed and why.
+--
+-- A money reserve (operator, 2026-11-14: "you should always have a reserve of 5s before
+-- mailworthy will auto send"): postage never takes the player below Mailer.RESERVE, before Send
+-- (Mailer.Short) and before each SendMail alike.
 local _, ns = ...
 
 local Mailer = {}
@@ -27,6 +31,7 @@ Mailer.SUBJECT = "Mailworthy %d/%d"
 Mailer.FRIEND_SUBJECT = "Mailworthy %d/%d: %s"
 Mailer.RETURN_SUBJECT = "Mailworthy %d/%d: returned to you"
 Mailer.KEEP_DAYS = 30
+Mailer.RESERVE = 500 -- copper the player keeps after postage: 5s
 
 local state = { busy = false, run = 0 }
 Mailer.state = state
@@ -74,15 +79,27 @@ function Mailer.Busy() return state.busy end
 --- True once the player pressed Stop while a mail was waiting for the game's answer.
 function Mailer.Stopping() return state.busy and state.stopRequested ~= nil end
 
---- What the mail list costs to send and what the player has, when that isn't enough: need, have
---- (copper); nil when it is, or when the game doesn't say what the player has. `items` is the
---- scan's mail list (each item's result.postage: Valuation's postage for its stacks).
+--- Pure: can the player pay `price` (copper) out of `have` and still keep Mailer.RESERVE?
+function Mailer.Affords(price, have)
+    return price + Mailer.RESERVE <= have
+end
+
+--- Pure: "; Mailworthy keeps 5s on you" (the reserve, for the messages that refuse a send).
+function Mailer.ReserveText()
+    return "; Mailworthy keeps " .. ns.Valuation.Money(Mailer.RESERVE) .. " on you"
+end
+
+--- What the mail list costs to send and what the player has, when that isn't enough to pay it
+--- and keep Mailer.RESERVE: need (the postage), have (copper); nil when it is. When the game
+--- doesn't say what the player has, need and a nil `have`: nothing goes on money it can't check
+--- (Codex review, 2026-11-14; before, the check was skipped). `items` is the scan's mail list
+--- (each item's result.postage: Valuation's postage for its stacks).
 function Mailer.Short(items)
-    local have = call(GetMoney)
-    if type(have) ~= "number" then return nil end
     local need = 0
     for _, item in ipairs(items or {}) do need = need + (tonumber(item.result and item.result.postage) or 0) end
-    if need > have then return need, have end
+    local have = call(GetMoney)
+    if type(have) ~= "number" then return need, nil end
+    if not Mailer.Affords(need, have) then return need, have end
     return nil
 end
 
@@ -146,7 +163,8 @@ function Mailer.Blocker(bankAlt, mails)
     if InCombatLockdown() then return "not in combat" end
     if not sendTabShown() then return "switch to the Send Mail tab first" end
     if not mails or #mails == 0 then return "nothing to mail" end
-    -- Short on postage: nothing goes until the whole list can be paid for (QoL pass, 2026-11-09).
+    -- Short on postage: nothing goes until the whole list can be paid for (QoL pass, 2026-11-09),
+    -- with Mailer.RESERVE left over (operator, 2026-11-14).
     local items, seen = {}, {}
     for _, mail in ipairs(mails) do
         for _, stack in ipairs(mail.stacks) do
@@ -157,8 +175,10 @@ function Mailer.Blocker(bankAlt, mails)
         end
     end
     local need, have = Mailer.Short(items)
+    if need and not have then return "Mailworthy can't read your money" end
     if need then
-        return string.format("postage is %s and you have %s", ns.Valuation.Money(need), ns.Valuation.Money(have))
+        return string.format("postage is %s and you have %s%s", ns.Valuation.Money(need), ns.Valuation.Money(have),
+            Mailer.ReserveText())
     end
     return nil
 end
@@ -360,11 +380,16 @@ local function sendMail(index)
     pcall(SetSendMailCOD, 0)
     pcall(SetSendMailMoney, 0)
     -- The game's own check before its Send button (MailFrame.lua): what this mail costs
-    -- against what the player has. Short: give the attachments back, send nothing more.
+    -- against what the player has, keeping Mailer.RESERVE. Short: give the attachments back,
+    -- send nothing more.
     local price, have = call(GetSendMailPrice), call(GetMoney)
-    if type(price) == "number" and type(have) == "number" and price > have then
-        return Mailer.Stop(string.format("postage for mail %d is %s and you have %s", index,
-            ns.Valuation.Money(price), ns.Valuation.Money(have)))
+    -- Either one unreadable: nothing goes on money Mailworthy can't check (Codex review, 2026-11-14).
+    if type(price) ~= "number" or type(have) ~= "number" then
+        return Mailer.Stop(string.format("Mailworthy can't read the postage for mail %d or your money", index))
+    end
+    if not Mailer.Affords(price, have) then
+        return Mailer.Stop(string.format("postage for mail %d is %s and you have %s%s", index,
+            ns.Valuation.Money(price), ns.Valuation.Money(have), Mailer.ReserveText()))
     end
     state.waiting = index
     ns.lastCommand = string.format("Mailworthy send %d/%d", index, #state.mails)

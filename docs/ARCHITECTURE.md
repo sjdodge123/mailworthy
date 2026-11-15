@@ -89,7 +89,7 @@ function. Specs: the module's own spec first; `critical_path` = `spec/critical_p
 | `Stale.lua` | Stale-price nudge; peers' scan days (display only) | `Stale.OwnAge`, `Nudge` (pure), `Hear`, `Message`, `Current` | stale |
 | `Version.lua` | "Your Mailworthy is out of date" from peers' release versions | `Version.Parse/Newer` (pure), `Hear`, `Message`, `Outdated`, `OnChanged` | version |
 | `Bags.lua` | **The scan**: bag slots into items, each valued; the preview list | `Bags.Evaluate`, `Slots`, `Fingerprint` / `FingerprintOf` (pure; bag contents without ammo stack sizes), `Group`, `CurrentSettings`, `ApplySendSwitches`, `SkipBankAlt/BankAltSkipped`, `HoldReason`, `ProfessionKeep`, `Scan` | bags, send_switches |
-| `Mailer.lua` | **The send**: plan 12 stacks per mail, re-check, attach, send, chain | `Mailer.Start`, `Plan` (pure), `Blocker`, `StillThere` (ammo of a weapon equipped since the preview stays; so does a stack already attached), `Stop`, `RequestStop`, `Busy`, `Status`, `OnChanged`, `OnSent` | mailer |
+| `Mailer.lua` | **The send**: plan 12 stacks per mail, re-check, attach, send, chain | `Mailer.Start`, `Plan` (pure), `Blocker`, `Short` (the list's postage + `RESERVE` against `GetMoney`), `Affords` (pure: postage + the 5s `RESERVE`), `ReserveText`, `StillThere` (ammo of a weapon equipped since the preview stays; so does a stack already attached), `Stop`, `RequestStop`, `Busy`, `Status`, `OnChanged`, `OnSent` | mailer |
 | `Ledger.lua` | Mail ledger: every mail sent and taken, values, balances; M2/R2 value exchange | `Ledger.RecordSent`, `Add`, `Debts`, `Net`, `MarkPaid`, `Store`, `Install`, `Hear*`, `ExportText` | ledger |
 | `Contributions.lua` | What this account mailed because of guild rules; `MailworthyAPI.v1.GetGuildExport` | `Contributions.Tag`, `Count`, `Hear`, `Share`, `Export`, `Build` | contributions |
 | `Returns.lua` | Return to sender: per-visit toggle; what each sender is owed from the ledger | `Returns.On/Toggle/Available`, `Owed` (pure), `Split` (pure), `Result`, `Current` | returns |
@@ -146,11 +146,11 @@ function. Specs: the module's own spec first; `critical_path` = `spec/critical_p
    `Mailer.Start(result.mail, Config.BankAlt(), settings)`:
    - `Mailer.Plan` groups the previewed slots by recipient (bank alt first), 12 stacks a
      mail; `Mailer.Blocker` refuses (already running, a binding naming this character, a
-     bank-alt mail with no bank alt, combat, Send Mail tab hidden, postage short).
+     bank-alt mail with no bank alt, combat, Send Mail tab hidden, postage short: `Mailer.Short`, which keeps `Mailer.RESERVE` = 5s on the character).
    - `sendNext(i)`: `ClearSendMail`; each stack must pass `Mailer.StillThere` before
      `C_Container.UseContainerItem`; failures are skipped and listed as stayed.
    - `sendMail(i)`: attached count must match, `SetSendMailCOD(0)`, `SetSendMailMoney(0)`,
-     postage check, `SendMail(to, subject, "")`, 10 s watchdog.
+     postage check (`GetSendMailPrice` + `Mailer.RESERVE` against `GetMoney`, `Mailer.Affords`), `SendMail(to, subject, "")`, 10 s watchdog.
    - `MAIL_SEND_SUCCESS`: credit (`MailworthyDB.mailed`, `Contributions.Tag/Count`,
      `Ledger.RecordSent` with exactly what was attached), then the next mail.
    - Stops on `MAIL_FAILED`, `MAIL_CLOSED`, `PLAYER_REGEN_DISABLED`, tab hidden, timeout,
@@ -422,6 +422,7 @@ against them.
 | A guild rule is a binding only when on, authored by a GM/officer in the player's roster, to a roster member | `Guild.Rules` (`InUse`), `Guild.Offer` (`RankOf(author) <= PUBLISHER_RANK`, recipients in roster), `Guild.Hear` (GUILD only); editing: `Guild.CanPublish`, `DraftAdd`, `Publish` |
 | Return to sender: only what the ledger shows was mailed and not mailed back; whole stacks; no system/COD/returned mail; shown like any recipient | `Returns.Owed`, `Returns.Split`, `Returns.Available` (needs `ledger`); `Bags.Evaluate` (no split for a hard keep; returns win over pins and picks); "back to" chip in `MailWindow` |
 | Never attach money | `Mailer` local `sendMail` (`SetSendMailCOD(0)`, `SetSendMailMoney(0)`) |
+| Postage never leaves the character with less than 5s | `Mailer.RESERVE`, `Mailer.Affords`: `Mailer.Short` → `Mailer.Blocker` and `UI.SendState` / `UI.PostageText` (before Send); the postage check in `Mailer` local `sendMail` (each mail); money or postage the game won't say: nothing goes |
 | Never mail a locked item | `Valuation.Evaluate` (first check); `Mailer.StillThere` |
 | Never mail an item an active quest names | `Quests.For` → `Valuation.Evaluate`; `Mailer.StillThere`; `Vendor.StillThere` |
 | Never mail a conjured item | `Conjured.Is` → `Valuation.Evaluate`, `Valuation.Unmailable`; `Mailer.StillThere` |

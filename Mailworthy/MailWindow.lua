@@ -1290,21 +1290,26 @@ end
 --- Pure: the Send button's text and whether it can be pressed (media/qol-prototype.png). `s`:
 --- busy (a run is on), stopping (Stop was pressed, a mail is still waiting for its answer),
 --- inbox (the Inbox tab shows), pad, mails (items on the mail list), need (the postage, when the
---- player can't pay it), send (UI.SendText's "Send to ..."). On the Inbox nothing is ever sent
+--- player can't pay it and keep Mailer.RESERVE), send (UI.SendText's "Send to ..."). On the Inbox nothing is ever sent
 --- or stopped from here (Codex review); a run on shows as "Sending...".
 function UI.SendState(s)
     if s.inbox then return s.busy and "Sending..." or UI.InboxSendText(s.pad), false end
     if s.stopping then return "Stopping...", false end
     if s.busy then return "Stop", true end
     if (s.mails or 0) == 0 then return "Nothing to send", false end
-    if s.need then return "Postage: " .. money(s.need), false end
+    if s.need then return "Postage: " .. money(s.need) .. ", keeps " .. money(ns.Mailer.RESERVE), false end
     return s.send, true
 end
 
---- Pure: the note under the total when the player can't pay the postage.
+--- Pure: the note under the total when the player can't pay the postage and keep Mailer.RESERVE
+--- (operator, 2026-11-14: 5s always stays on the character).
 function UI.PostageText(need, have)
-    return string.format("Postage is %s and you have %s. Press an item to keep it, or come back with %s more.",
-        money(need), money(have), money(need - have))
+    local reserve = ns.Mailer.RESERVE
+    if not have then -- GetMoney unreadable (Mailer.Short): nothing goes
+        return string.format("Postage is %s and Mailworthy can't read your money, so nothing is sent.", money(need))
+    end
+    return string.format("Postage is %s and you have %s; Mailworthy keeps %s on you. Press an item to keep it, "
+        .. "or come back with %s more.", money(need), money(have), money(reserve), money(need + reserve - have))
 end
 
 --- How many items of a scan stay for the vendor (the bank alt view's V: BankAlt.Verdict).
