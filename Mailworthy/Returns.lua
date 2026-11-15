@@ -95,6 +95,20 @@ function Returns.Owed(log, me)
     return owed
 end
 
+--- Pure: is anything in the scan's lists (`scan.mail`, `scan.keep`: items with an itemID) owed back
+--- to a player, per `owed` (Returns.Owed)? The mailbox window shows Return to sender only then, or
+--- while it is on: a player who only mails a bank alt never sees it (UX pass, 2026-11-15).
+function Returns.Due(owed, scan)
+    if type(owed) ~= "table" or type(scan) ~= "table" then return false end
+    for _, list in ipairs({ scan.mail, scan.keep }) do
+        for _, item in ipairs(type(list) == "table" and list or {}) do
+            local id = type(item) == "table" and item.itemID
+            if id and type(owed[id]) == "table" and #owed[id] > 0 then return true end
+        end
+    end
+    return false
+end
+
 --- What this character owes back right now (Returns.Owed over this realm + faction's ledger).
 function Returns.Current()
     return Returns.Owed(ns.Ledger.Store().log, ns.PlayerName())

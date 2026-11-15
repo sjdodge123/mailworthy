@@ -1117,7 +1117,11 @@ function UI.Refresh(keepScan)
     if enabled then sendButton:Enable() else sendButton:Disable() end
     returnButton:SetText(ns.Returns.On() and "Return to sender: on" or "Return to sender")
     W.SetToggled(returnButton, ns.Returns.On())
-    if ns.Returns.Available() then returnButton:Show() else returnButton:Hide() end
+    -- Only when something in the bags was mailed here by another player (or it is on): solo players
+    -- who only mail a bank alt never see it.
+    local returnable = ns.Returns.Available()
+        and (ns.Returns.On() or ns.Returns.Due(ns.Util.Call(ns.Returns.Current), result))
+    if returnable then returnButton:Show() else returnButton:Hide() end
     if ns.Mailer.Busy() then returnButton:Disable() else returnButton:Enable() end
     local footer, notice = W.Footer(pad, marked, "\n"), ns.Version.Text() -- notice: a newer Mailworthy is out
     if notice then footer = footer ~= "" and (notice .. "\n" .. footer) or notice end

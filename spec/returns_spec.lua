@@ -219,6 +219,26 @@ describe("return to sender", function()
             assert.is_false(ns.Widgets.IsToggled(_G.MailworthyMailReturn))
         end)
 
+        it("no button until something in the bags was mailed here by another player (UX pass, 2026-11-15)", function()
+            ns.MailWindow.Show("send")
+            assert.is_false(_G.MailworthyMailReturn:IsShown(), "nothing owed: a solo player never sees it")
+            take(BOB, { 2770, "Copper Ore" }, 5) -- owed, but not in the bags
+            ns.MailWindow.Refresh()
+            assert.is_false(_G.MailworthyMailReturn:IsShown(), "what is owed isn't in the bags")
+            take(BOB, WOOL, 20)
+            ns.MailWindow.Refresh()
+            assert.is_true(_G.MailworthyMailReturn:IsShown())
+        end)
+
+        it("Returns.Due: an owed item ID in the mail or keep list", function()
+            local owed = { [WOOL[1]] = { { to = BOB, count = 20 } } }
+            assert.is_true(ns.Returns.Due(owed, { mail = {}, keep = { { itemID = WOOL[1] } } }))
+            assert.is_true(ns.Returns.Due(owed, { mail = { { itemID = WOOL[1] } }, keep = {} }))
+            assert.is_false(ns.Returns.Due(owed, { mail = { { itemID = 2770 } }, keep = {} }))
+            assert.is_false(ns.Returns.Due({}, { mail = { { itemID = WOOL[1] } } }))
+            assert.is_false(ns.Returns.Due(nil, nil))
+        end)
+
         it("no button with /mw feature returnToSender off, or without the mail ledger", function()
             ns.HandleSlash("feature returnToSender off")
             ns.MailWindow.Show("send")

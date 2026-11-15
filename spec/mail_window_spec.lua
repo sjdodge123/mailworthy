@@ -50,6 +50,21 @@ describe("mail window", function()
         assert.equal("Send to Roknua", text("MailworthyMailSend"))
     end)
 
+    -- UX pass, 2026-11-15 (operator: "many people only use this addon just to mail stuff to one bank alt
+    -- and nothing else"): no friend, guild or return controls for a player who has none of them.
+    it("a bank-alt-only player sees no pick buttons, bindings block or Return to sender", function()
+        _G.MailworthyMailButton:Click()
+        for i = 1, ns.MailWindow.MAIL_ROWS do
+            assert.is_false(_G["MailworthyMailPick" .. i]:IsShown(), "pick button on Mailing row " .. i)
+        end
+        for i = 1, ns.MailWindow.STAY_ROWS do
+            assert.is_false(_G["MailworthyStayPick" .. i]:IsShown(), "pick button on Staying row " .. i)
+        end
+        assert.is_false(_G.MailworthyMailFriends:IsShown(), "no bindings block")
+        assert.is_false(_G.MailworthyMailReturn:IsShown(), "nothing in the bags was mailed here by another player")
+        assert.equal("Send to Roknua", text("MailworthyMailSend"))
+    end)
+
     it("Skip once beside the bank alt: its items move to Staying, Send has nothing for it, Undo puts them back", function()
         -- operator, 2026-11-08: "Players should be able to click skip once for their bank alt sends too"
         _G.MailworthyMailButton:Click()
