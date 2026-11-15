@@ -24,8 +24,10 @@ Keep this file current: `AGENTS.md` ("Working rules") says when a PR has to upda
   and runs every handler under `pcall`; errors go to the log.
 - **Module-to-module listeners** (not game events): `Locks.OnChanged`, `Pins.OnChanged`,
   `Mailer.OnChanged`, `Mailer.OnSent`, `Ledger.OnChanged`, `Comms.OnMarksChanged`,
-  `Version.OnChanged`; and Border's draw pipeline, `Border.AddDecorator` /
-  `Border.AddRefresher`.
+  `Version.OnChanged`, each a `ns.Util.Signal` (a listener's error is logged, never dropped);
+  and Border's draw pipeline, `Border.AddDecorator` / `Border.AddRefresher`.
+- **Shared helpers**: `ns.Util.Call` (a guarded call returning every result; files take it as a
+  local `call`) and `ns.Util.Signal(area)` (`Util.lua`, loaded after `Log`).
 - **Frames** are all created at `PLAYER_LOGIN` (or `ADDON_LOADED`), on `UIParent` and then
   `SetParent`, never while a gamepad panel is open (AGENTS.md "Never write into Blizzard's
   controller UI").
@@ -48,7 +50,7 @@ the order, but anything run at file load (constants built from other modules,
 
 | # | Layer | Files |
 |---|---|---|
-| 1 | Foundation | `Core`, `Log`, `Blocked`, `Characters`, `Gamepad`, `Locks`, `Palette`, `Pins`, `Border` |
+| 1 | Foundation | `Core`, `Log`, `Util`, `Blocked`, `Characters`, `Gamepad`, `Locks`, `Palette`, `Pins`, `Border` |
 | 2 | Pricing and rules | `Prices`, `Disenchant`, `Tiers`, `TierData` (fills `ns.Tiers`), `TierCheck`, `Quests`, `Conjured`, `Recipes`, `Ammo`, `Valuation`, `Config`, `Classes` |
 | 3 | Bindings and peers | `Routes`, `Comms`, `Guild`, `Stale`, `Version` |
 | 4 | Scan, send, records | `Bags`, `Mailer`, `Ledger`, `Contributions`, `Returns`, `Trip` |
@@ -64,6 +66,7 @@ function. Specs: the module's own spec first; `critical_path` = `spec/critical_p
 |---|---|---|---|
 | `Core.lua` | Namespace, SavedVariables init, event dispatch, feature switches, `/mw` | `ns.On`, `ns.Fire`, `ns.Init`, `ns.Print`, `ns.Features.On/Describe/DEFAULTS`, `ns.HandleSlash` | core |
 | `Log.lua` | Account-wide dated diagnostics log (300 lines) | `Log.Add(area, fmt, ...)`, `Log.Lines`, `Log.Trim` (pure) | core |
+| `Util.lua` | Helpers every module shares: a guarded call, listener lists | `Util.Call`, `Util.Signal(area)` (`Add`, `Fire`, `Count`) | util |
 | `Blocked.lua` | Records `ADDON_ACTION_FORBIDDEN/BLOCKED` blamed on Mailworthy with the last command | `Blocked.OnEvent`, `Blocked.Lines` | blocked, report |
 | `Characters.lua` | Known characters of the account; who this one can mail | `ns.PlayerName`, `Characters.Current/Record/Mailable/Key/Professions` | characters |
 | `Gamepad.lua` | Read-only controller helpers: button names, glyphs, API presence | `Gamepad.Name/NameFor/Fill/Glyph/LabelStyle/Presence` | gamepad |
@@ -92,12 +95,12 @@ function. Specs: the module's own spec first; `critical_path` = `spec/critical_p
 | `Mailer.lua` | **The send**: plan 12 stacks per mail, re-check, attach, send, chain | `Mailer.Start`, `Plan` (pure), `Blocker`, `Short` (the list's postage + `RESERVE` against `GetMoney`), `Affords` (pure: postage + the 5s `RESERVE`), `ReserveText`, `StillThere` (ammo of a weapon equipped since the preview stays; so does a stack already attached), `Stop`, `RequestStop`, `Busy`, `Status`, `OnChanged`, `OnSent` | mailer |
 | `Ledger.lua` | Mail ledger: every mail sent and taken, values, balances; M2/R2 value exchange | `Ledger.RecordSent`, `Add`, `Debts`, `Net`, `MarkPaid`, `Store`, `Install`, `Hear*`, `ExportText` | ledger |
 | `Contributions.lua` | What this account mailed because of guild rules; `MailworthyAPI.v1.GetGuildExport` | `Contributions.Tag`, `Count`, `Hear`, `Share`, `Export`, `Build` | contributions |
-| `Returns.lua` | Return to sender: per-visit toggle; what each sender is owed from the ledger | `Returns.On/Toggle/Available`, `Owed` (pure), `Split` (pure), `Result`, `Current` | returns |
+| `Returns.lua` | Return to sender: per-visit toggle (its button shows only while on or when `Due`); what each sender is owed from the ledger | `Returns.On/Toggle/Available`, `Owed` (pure), `Split` (pure), `Due` (pure), `Result`, `Current` | returns |
 | `Trip.lua` | "Worth a mailbox trip" nudge away from a mailbox | `Trip.Check`, `Summary`, `TooltipText` | trip |
 | `Widgets.lua` | Shared window/button/label/footer/pager builders | `Widgets.Window`, `Button`, `SetToggled`, `Label`, `Footer`, `PagerBack`, `PlaceBeside` | widgets |
 | `MailButton.lua` | "Mailworthy" button under the mail window (both tabs); `Activate` entry point | `MailButton.Activate`, `GamepadUI`, `Refresh` | mailbutton |
-| `Nav.lua` | Mailworthy's own D-pad navigation and highlight over its windows | `Nav.Attach`, `Move`, `Press`, `CloseTop`, `Follow`, `Root`, `Pick` (pure) | nav, dpad_reach |
-| `PadKey.lua` | Mailworthy's own override bindings (sets: mail, window, bags, merchant, settings) | `PadKey.Wanted`, `Check`, `SETS`, `KEY_FEATURE` | padkey |
+| `Nav.lua` | Mailworthy's own D-pad navigation and highlight over its windows (a window's own X is never a candidate: Circle closes it) | `Nav.Attach`, `Move`, `Press`, `CloseTop`, `Follow`, `Root`, `Pick` (pure), `AnyShown(except)` | nav, dpad_reach |
+| `PadKey.lua` | Mailworthy's own override bindings (sets: mail, window, bags, merchant, settings: every `Nav.Attach` window but the mailbox one, `Nav.AnyShown`) | `PadKey.Wanted`, `Check`, `SETS`, `KEY_FEATURE` | padkey |
 | `SettingsUI.lua` | Settings window (views: main, pick = bank alt picker) | `SettingsUI.Show/Toggle/Refresh`, `Choose`, `UseTyped`, `ToggleHere`, `TooltipsText` (the Item tooltips button, `MailworthySettingsTooltips`) | settings_ui, ux_views |
 | `RoutesUI.lua` | Friends window: bindings list, add (two steps), guild template view | `RoutesUI.Show`, `ShowGuild`, `Pick`, `Bind`, `Reload` | routes, guild, ux_views |
 | `LedgerUI.lua` | Ledger window: debts, Mark paid (two presses), Export log | `LedgerUI.Show`, `Export` | ledger |
@@ -448,7 +451,7 @@ against them.
 - **Controller gate** (CI job `controller`): `dpad_reach_spec` (D-pad walk of every view;
   a new window or view adds its walk), `padkey_spec`, `nav_spec`, `ux_views_spec`,
   `no_gamepad_taint_spec`.
-- **Everything else**: one `<module>_spec.lua` per module (section 3), plus
+- **Everything else**: one `<module>_spec.lua` per module (section 3; `util_spec` for `Util`), plus
   `send_switches_spec` (Bags.ApplySendSwitches), `pin_mode_spec` (BA/BH, PinWarning),
   `peer_mark_spec` (Comms.Mark).
 - Run: `eval "$(luarocks --lua-version=5.1 path)"`, `busted --lua=luajit`, `luacheck .`

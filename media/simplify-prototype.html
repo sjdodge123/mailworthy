@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Mailworthy simplification prototype</title>
+<!-- Prototype of the UX and architecture pass (2026-11-15; docs/UX-ARCHITECTURE-REVIEW.md).
+     Row 1: the player who only mails a bank alt (panel 2 is built on the branch). Row 2: Settings in two
+     views, and the slash commands a controller can't reach. Row 3: with bindings, fewer D-pad stops and a
+     safer Remove; what changed under the hood. Rendered to media/simplify-prototype.png by
+     tools/build-icons.sh. The names are made up (same cast as ux-pass-prototype.html). -->
+<style>
+  :root {
+    --gold: #ffd100; --text: #f2e8d0; --dim: #b9ad92; --edge: #8a6a2a; --edge-hi: #e0b44c;
+    --panel: #15110c; --row: #221b12; --row-alt: #1c160f; --green: #1eff00; --white: #ffffff;
+    --mint: #33ff99; --note: #9ec7ff; --warn: #ff8040; --new: #ff7ad9;
+  }
+  * { box-sizing: border-box; }
+  /* Authored at 1660 x 1880 (the PNG's size): three columns. In a narrower window the
+     columns wrap to two or one and the page scrolls (no script: it also works in a static preview). */
+  html { margin: 0; overflow: auto; }
+  body { margin: 0; max-width: 1660px; min-height: 1880px; }
+  body {
+    font: 13px/1.35 "Trebuchet MS", "Segoe UI", Arial, sans-serif; color: var(--text);
+    background: radial-gradient(ellipse at 30% 20%, #3a4a3a 0%, #1d241c 45%, #0d110d 100%);
+  }
+  .page { padding: 18px 24px; }
+  .banner { display: flex; flex-wrap: wrap; align-items: baseline; gap: 16px; margin-bottom: 6px; }
+  .banner h1 { margin: 0; font: bold 20px Georgia, serif; color: var(--gold); }
+  .banner span { color: var(--dim); font-size: 13px; }
+  .key { color: var(--dim); font-size: 12px; margin-bottom: 14px; }
+  .key b { color: var(--new); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(480px, 100%), 510px)); column-gap: 40px; row-gap: 26px; align-items: start; }
+  .rowhead { grid-column: 1 / -1; margin: 0 0 -12px; font: bold 15px Georgia, serif; color: var(--text);
+    border-bottom: 1px solid #4b5a48; padding-bottom: 4px; }
+  .rowhead small { color: var(--dim); font: 12px "Trebuchet MS", Arial, sans-serif; margin-left: 10px; }
+  .cap { margin: 0 0 8px; }
+  .cap b { color: var(--gold); font: bold 14px Georgia, serif; }
+  .cap .size { float: right; color: var(--mint); font-size: 12px; font-weight: bold; }
+  .cap ul { margin: 4px 0 0; padding-left: 18px; color: var(--dim); font-size: 12px; }
+  .cap li { margin: 1px 0; }
+  .cap li b { color: var(--text); font: bold 12px "Trebuchet MS", Arial, sans-serif; }
+
+  .frame {
+    position: relative; background: var(--panel); border: 3px solid var(--edge);
+    border-radius: 10px; box-shadow: 0 0 0 1px #000, inset 0 0 0 1px var(--edge-hi), 0 12px 30px rgba(0,0,0,.6);
+  }
+  .title {
+    height: 34px; display: flex; align-items: center; gap: 8px; padding: 0 12px;
+    font: bold 15px Georgia, "Times New Roman", serif; color: var(--gold);
+    background: linear-gradient(#3b2d18, #241a0d); border-bottom: 2px solid var(--edge); border-radius: 7px 7px 0 0;
+  }
+  .title img { width: 22px; height: 22px; }
+  .title .x { margin-left: auto; width: 18px; height: 18px; border-radius: 50%; background: #8b1a1a;
+    color: #fff; font: bold 12px Arial; display: grid; place-items: center; border: 1px solid #d9a; }
+  .content { padding: 10px 16px 14px; }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 70px; height: 26px; padding: 0 12px;
+    font: bold 12px "Trebuchet MS", Arial, sans-serif; color: var(--gold);
+    background: linear-gradient(#9b1c1c, #5c0d0d); border: 1px solid #e0b44c; border-radius: 4px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.25); white-space: nowrap;
+  }
+  .btn.grey { background: linear-gradient(#4a4036, #2b241c); }
+  .btn.small { min-width: 0; height: 22px; padding: 0 9px; font-size: 11px; }
+  .btn.step { min-width: 24px; width: 24px; padding: 0; }
+  .btn.off { color: #8d8474; background: linear-gradient(#35302a, #26211b); border-color: #6b5a3a; box-shadow: none; }
+  .btn .meta { color: var(--dim); font-weight: normal; }
+  .nav { outline: 2px solid var(--gold); outline-offset: 3px; }
+  h3 { margin: 12px 0 5px; font: bold 13px Georgia, serif; color: var(--gold); display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  h3 small { color: var(--dim); font: 12px "Trebuchet MS", Arial, sans-serif; }
+  h3 .right { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+  .hint { color: var(--dim); font-size: 11px; }
+
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 4px 8px; vertical-align: middle; }
+  tr:nth-child(odd) td { background: var(--row); }
+  tr:nth-child(even) td { background: var(--row-alt); }
+  .icon { width: 24px; height: 24px; border-radius: 3px; border: 1px solid #000; box-shadow: inset 0 0 0 1px rgba(255,255,255,.15); }
+  .q1 { color: var(--white); } .q2 { color: var(--green); }
+  .count { color: var(--dim); }
+  .why { display: inline-block; padding: 1px 7px; border-radius: 9px; font-size: 11px; font-weight: bold; white-space: nowrap; }
+  .why.ah { background: #2d4a6b; color: #cfe6ff; }
+  .why.de { background: #4b2d6b; color: #ead7ff; }
+  .why.friend { background: #8c5a1e; color: #ffe8c2; }
+  .gain { text-align: right; white-space: nowrap; }
+  .money i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin: 0 4px 0 2px; }
+  .g { background: radial-gradient(#fff3a0, #d4a017); } .s { background: radial-gradient(#ffffff, #9a9a9a); }
+  .c { background: radial-gradient(#ffcf9a, #a0582a); }
+  .kept td { padding: 3px 8px; color: var(--dim); font-size: 12px; }
+  .kept .tag { color: var(--note); }
+  .busy table { opacity: .55; }
+
+  .to { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 10px; background: var(--row);
+    border: 1px solid #3a2e1c; border-radius: 4px; }
+  .to b { color: var(--gold); }
+  .to .who { color: var(--white); font-weight: bold; font-size: 14px; }
+  .to .none { color: #aaa; }
+  .to .note { color: var(--dim); font-size: 12px; }
+  .to .btn { margin-left: auto; }
+  .tomore { padding: 3px 10px 0 38px; font-size: 12px; display: flex; gap: 8px; }
+  .tomore .note { color: var(--dim); margin-left: auto; }
+  .offer { margin-top: 6px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 10px; background: #2a2013;
+    border: 1px solid #8c5a1e; border-radius: 4px; font-size: 12px; }
+  .offer b { color: var(--gold); }
+  .offer .buttons { margin-left: auto; display: flex; gap: 6px; }
+  .total { margin-top: 10px; padding: 7px 10px; background: #1d2a1d; border: 1px solid #3f6b3f; border-radius: 4px; }
+  .total .big { font-size: 15px; font-weight: bold; color: #b6ff9a; }
+  .total .sub { color: var(--dim); font-size: 12px; }
+  .total .warn { color: var(--warn); font-size: 12px; }
+  .total .ok { color: var(--text); font-size: 12px; }
+  .total.plain { background: var(--row); border-color: #3a2e1c; }
+  .total.plain .big { color: var(--white); }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; align-items: center; }
+  .actions .btn { height: 30px; font-size: 13px; min-width: 100px; }
+  .actions .send { min-width: 180px; }
+  .actions .legend { white-space: nowrap; margin-left: auto; }
+  .variant { margin-top: 10px; padding: 6px 10px; border: 1px dashed #6b7a66; border-radius: 6px; font-size: 12px; color: var(--dim); }
+  .variant b { color: var(--text); }
+
+  .set { display: flex; align-items: center; gap: 6px; min-height: 26px; margin: 3px 0; }
+  .set .label { flex: 1; }
+  .set .label b { color: var(--white); }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .pair .btn { width: 100%; }
+  .foot { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+  .foot .hint { flex: 1; }
+  .between { text-align: center; color: var(--new); font-size: 12px; font-weight: bold; margin: 8px 0; }
+  .sub { color: var(--dim); font-size: 12px; }
+
+  .lockrow { display: flex; align-items: center; gap: 8px; padding: 5px 10px; background: var(--row); border: 1px solid #3a2e1c;
+    border-radius: 4px; margin-bottom: 5px; }
+  .lockrow .where { color: var(--dim); font-size: 12px; }
+  .lockrow .gone { color: var(--warn); font-size: 12px; }
+  .lockrow .btn { margin-left: auto; }
+  .lockname { color: #4da6ff; font-weight: bold; }
+
+  .chat { background: rgba(0,0,0,.55); border: 1px solid #333; border-radius: 4px; padding: 8px 10px; font-size: 13px; line-height: 1.5; }
+  .chat .mw { color: var(--mint); }
+  .chat .old { color: #8c8c8c; }
+  .tip { display: inline-block; margin-top: 10px; background: #0b0b14; border: 1px solid #9a9a9a; border-radius: 5px; padding: 7px 10px;
+    font-size: 12px; line-height: 1.5; }
+  .new { box-shadow: 0 0 0 2px var(--new) !important; border-radius: 4px; }
+  .nav.new { box-shadow: 0 0 0 7px var(--new) !important; }
+  .total .new { margin-top: 5px; padding: 1px 4px; }
+  .pad { padding-top: 12px; }
+  .padline { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-height: 30px; padding: 2px 8px; }
+  .padline:nth-child(odd) { background: var(--row); } .padline:nth-child(even) { background: var(--row-alt); }
+  .padline .where { color: var(--dim); font-size: 11px; width: 150px; flex: none; }
+  .padline .btn { margin-left: auto; }
+  .gp { display: inline-grid; place-items: center; min-width: 17px; height: 17px; padding: 0 3px; border-radius: 9px; vertical-align: -3px;
+    background: #2a2a2a; border: 1px solid #bbb; color: #fff; font: bold 10px Arial, sans-serif; }
+  .gp.sh { border-radius: 5px 5px 3px 3px; padding: 0 5px; } .gp.st { border-style: double; border-width: 3px; height: 19px; }
+  .gp.ps { color: #cfe0ff; } .gp.xa { background: #2e7d32; } .gp.xb { background: #b3261e; } .gp.xy { background: #b58900; }
+  .uphint { color: var(--new); font-size: 11px; font-weight: bold; white-space: nowrap; }
+  .tip .h { color: var(--gold); font-weight: bold; font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="banner"><h1>Mailworthy simplification pass</h1>
+    <span>docs/UX-ARCHITECTURE-REVIEW.md. Panels marked BUILT are on the branch; the rest are proposals. Every button works by mouse and by Cross on the D-pad highlight (gold outline).</span></div>
+  <div class="key"><b>Pink outline</b> = new or changed. <span style="color:#ff8040;font-weight:bold">Orange</span> = today's problem. Names are made up (same cast as the other sheets). Controller icons are stand-ins for the game's own.</div>
+
+  <div class="grid">
+    <!-- ============ Row 1: the player who only mails a bank alt ============ -->
+    <div class="rowhead">The player who only mails a bank alt <small>B1, B4 built; U1 proposed</small></div>
+
+    <div>
+      <div class="cap"><b>1 · Today: a solo player's mailbox</b><span class="size">two problems</span>
+        <ul><li><b>The highlight opens on the X:</b> it is the highest button, so the first Cross closes the window</li>
+          <li><b>Return to sender</b> shows on every visit, though nobody ever mailed this character anything</li>
+          <li>The Me / Friend / Guild pick button is already hidden with no binding (kept that way)</li></ul></div>
+      <div class="frame">
+        <div class="title"><img src="logo-512.png" alt=""><span>Mailworthy</span><span class="x nav" style="outline-color:#ff8040">x</span></div>
+        <div class="content">
+          <div class="to"><b>To:</b><span class="who">Penny Ledgerwick</span><span class="note">your bank alt · 1 mail</span><span class="btn grey small">Skip once</span></div>
+          <h3>Mailing <small class="right">3 items · 1 mail</small></h3>
+          <table>
+            <tr><td style="width:32px"><div class="icon" style="background:linear-gradient(135deg,#e0874a,#7a3e1a)"></div></td>
+              <td><span class="q1">Copper Ore</span> <span class="count">x13</span></td><td><span class="why ah">Auction</span></td>
+              <td class="gain money">+29<i class="s"></i>80<i class="c"></i></td></tr>
+            <tr><td><div class="icon" style="background:linear-gradient(135deg,#c97b3d,#6b3a18)"></div></td>
+              <td><span class="q2">Bandit Cloak</span></td><td><span class="why de">Disenchant</span></td>
+              <td class="gain money">+49<i class="s"></i>81<i class="c"></i></td></tr>
+            <tr><td><div class="icon" style="background:linear-gradient(135deg,#8a8a8a,#3a3a3a)"></div></td>
+              <td><span class="q1">Rough Stone</span> <span class="count">x20</span></td><td><span class="why ah">Auction</span></td>
+              <td class="gain money">+12<i class="s"></i>40<i class="c"></i></td></tr>
+          </table>
+          <h3>Staying in your bags <small class="right">2 items</small></h3>
+          <table class="kept">
+            <tr><td>Linen Cloth x20</td><td class="tag">your Tailoring needs it</td></tr>
+            <tr><td>Broken Fang x3</td><td class="tag">junk: sell it at a vendor</td></tr>
+          </table>
+          <div class="total"><div class="big money">+91<i class="s"></i>61<i class="c"></i> more than vendoring</div>
+            <div class="sub">after the 5% AH cut, 24h deposits and 1s 20c postage</div></div>
+          <div class="actions"><span class="btn send">Send to Penny</span><span class="btn grey">Settings</span>
+            <span class="btn grey" style="box-shadow:0 0 0 2px #ff8040">Return to sender</span></div>
+          <div class="actions"><span class="hint legend" style="margin-left:0">&#9747; press &nbsp; &#9711; close &nbsp; D-pad move</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="cap"><b>2 · BUILT: the same visit</b><span class="size">one button fewer, safe first Cross</span>
+        <ul><li><b>The X is never a D-pad stop</b> (Circle and Escape close; the mouse still has it). The highlight opens on Skip once</li>
+          <li><b>Return to sender</b> appears only when an item in the bags was mailed here by another player, or while it is on</li>
+          <li>The report box gets <b>Done</b> (its X was its only button)</li></ul></div>
+      <div class="frame">
+        <div class="title"><img src="logo-512.png" alt=""><span>Mailworthy</span><span class="x">x</span></div>
+        <div class="content">
+          <div class="to"><b>To:</b><span class="who">Penny Ledgerwick</span><span class="note">your bank alt · 1 mail</span><span class="btn grey small nav new">Skip once</span></div>
+          <h3>Mailing <small class="right">3 items · 1 mail</small></h3>
+          <table>
+            <tr><td style="width:32px"><div class="icon" style="background:linear-gradient(135deg,#e0874a,#7a3e1a)"></div></td>
+              <td><span class="q1">Copper Ore</span> <span class="count">x13</span></td><td><span class="why ah">Auction</span></td>
+              <td class="gain money">+29<i class="s"></i>80<i class="c"></i></td></tr>
+            <tr><td><div class="icon" style="background:linear-gradient(135deg,#c97b3d,#6b3a18)"></div></td>
+              <td><span class="q2">Bandit Cloak</span></td><td><span class="why de">Disenchant</span></td>
+              <td class="gain money">+49<i class="s"></i>81<i class="c"></i></td></tr>
+            <tr><td><div class="icon" style="background:linear-gradient(135deg,#8a8a8a,#3a3a3a)"></div></td>
+              <td><span class="q1">Rough Stone</span> <span class="count">x20</span></td><td><span class="why ah">Auction</span></td>
+              <td class="gain money">+12<i class="s"></i>40<i class="c"></i></td></tr>
+          </table>
+          <h3>Staying in your bags <small class="right">2 items</small></h3>
+          <table class="kept">
+            <tr><td>Linen Cloth x20</td><td class="tag">your Tailoring needs it</td></tr>
+            <tr><td>Broken Fang x3</td><td class="tag">junk: sell it at a vendor</td></tr>
+          </table>
+          <div class="total"><div class="big money">+91<i class="s"></i>61<i class="c"></i> more than vendoring</div>
+            <div class="sub">after the 5% AH cut, 24h deposits and 1s 20c postage</div></div>
+          <div class="actions"><span class="btn send">Send to Penny</span><span class="btn grey">Settings</span>
+            <span class="hint legend">&#9747; press &nbsp; &#9711; close &nbsp; D-pad move</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="cap"><b>3 · U1: Settings for a solo player</b><span class="size">27 → 24 buttons</span>
+        <ul><li>No binding, no guild rules in use, nothing in the ledger: <b>Friends, Guild and Mail ledger fold into one button</b></li>
+          <li>It opens the friends window, which already has the guild line and Mail ledger...</li>
+          <li>The moment any of them is in use, the three buttons come back</li></ul></div>
+      <div class="frame">
+        <div class="title"><img src="logo-512.png" alt=""><span>Mailworthy settings</span><span class="x">x</span></div>
+        <div class="content">
+          <h3>Bank alt</h3>
+          <div class="to"><span class="who">Penny Ledgerwick</span><span class="note">priest 23 · all mail goes here</span><span class="btn grey small nav">Change...</span></div>
+          <h3>What gets mailed</h3>
+          <div class="set"><span class="label">Gain at least <b>5s</b></span><span class="btn grey small step">-</span><span class="btn grey small step">+</span></div>
+          <div class="set"><span class="label">and at least <b>25%</b> over the vendor price</span><span class="btn grey small step">-</span><span class="btn grey small step">+</span></div>
+          <div class="set"><span class="label">Auction listing</span><span class="btn grey small">2h</span><span class="btn grey small">8h</span><span class="btn small">24h</span></div>
+          <div class="set"><span class="btn grey small" style="flex:1">Include disenchant value: on</span></div>
+          <div class="set"><span class="btn grey small" style="flex:1">Profession materials: on (BH)</span></div>
+          <h3>In your bags</h3>
+          <div class="pair"><span class="btn grey small">Bag tags: bank alt + after Send</span><span class="btn grey small">Lock glow: in Mailworthy</span></div>
+          <h3>More</h3>
+          <div class="pair"><span class="btn grey small new">Friends and guild...</span><span class="btn grey small">Bank alt summary...</span>
+            <span class="btn grey small">Minimap button: shown</span><span class="btn grey small">Locked items (2)...</span></div>
+          <div class="foot"><span class="hint">Prices: Auctionator (scanned today)</span><span class="btn">Done</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ Row 2: Settings in two views ============ -->
+    <div class="rowhead">Settings in two views, and what a controller can't reach today <small>U2, U3, U8 proposed</small></div>
+
+    <div>
+      <div class="cap"><b>4 · U2: Settings › Mailing</b><span class="size">600 → about 340 px</span>
+        <ul><li>Two tab buttons on the top row; <b>Up from anywhere lands on them</b>, Left / Right switches</li>
+          <li>Everything that decides <i>what gets mailed</i> lives here</li>
+          <li><b>Short labels</b> (U8): the long explanation moves to the tooltip / highlight line</li></ul></div>
+      <div class="frame">
+        <div class="title"><img src="logo-512.png" alt=""><span>Mailworthy settings</span><span class="x">x</span></div>
+        <div class="content">
+          <div class="pair" style="margin-bottom:8px"><span class="btn small nav new">Mailing</span><span class="btn grey small new">Bags and more</span></div>
+          <div class="to"><b>Bank alt:</b><span class="who">Penny Ledgerwick</span><span class="btn grey small">Change...</span></div>
+          <div class="set"><span class="label">Gain at least <b>5s</b> and <b>25%</b> over vendor</span><span class="btn grey small step">-</span><span class="btn grey small step">+</span><span class="btn grey small step">-</span><span class="btn grey small step">+</span></div>
+          <div class="set"><span class="label">Auction listing</span><span class="btn grey small">2h</span><span class="btn grey small">8h</span><span class="btn small">24h</span></div>
+          <div class="pair"><span class="btn grey small new">Disenchant value: on</span><span class="btn grey small new">Profession mats: on (BH)</span>
+            <span class="btn grey small new">Sell what I gather: off</span><span class="btn grey small">Send by tag...</span></div>
+          <div class="tip"><span class="h">Profession mats: on (BH)</span><br>This character keeps what Tailoring 130 and First Aid 80 still use,<br>to bank here. Press: on my bank alt (BA).</div>
+          <div class="foot"><span class="hint">Prices: Auctionator (scanned today)</span><span class="btn">Done</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="cap"><b>5 · U2 + U3: Settings › Bags and more</b><span class="size">every slash command has a button</span>
+        <ul><li><b>Report...</b>: a controller player can file a bug report (today only <code>/mw report</code>)</li>
+          <li><b>Pinned items (3)...</b>: a window like Locked items (today <code>/mw pins</code> prints to chat; a pin on an item no longer in the bags can't be removed)</li>
+          <li><b>Pin warning</b> toggle (today only <code>/mw pinwarning on</code> after "Don't show this again")</li></ul></div>
+      <div class="frame">
+        <div class="title"><img src="logo-512.png" alt=""><span>Mailworthy settings</span><span class="x">x</span></div>
+        <div class="content">
+          <div class="pair" style="margin-bottom:8px"><span class="btn grey small">Mailing</span><span class="btn small nav">Bags and more</span></div>
+          <h3>In your bags</h3>
+          <div class="pair"><span class="btn grey small">Bag tags: bank alt + after Send</span><span class="btn grey small">Lock glow: in Mailworthy</span>
+            <span class="btn grey small">Pins: to my bank alt (BA)</span><span class="btn grey small">Item tooltips: full</span>
+            <span class="btn grey small new">Pin warning: on</span><span class="btn grey small">Minimap button: shown</span></div>
+          <h3>Windows</h3>
+          <div class="pair"><span class="btn grey small">Locked items (2)...</span><span class="btn grey small new">Pinned items (3)...</span>
+            <span class="btn grey small">Friends and guild...</span><span class="btn grey small">Bank alt summary...</span>
+            <span class="btn grey small">Mail ledger...</span><span class="btn grey small new">Report...</span></div>
+          <div class="foot"><span class="hint">Prices: Auctionator (scanned today)</span><span class="btn">Done</span></div>
+          <div class="variant"><b>D-pad:</b> Down from Done wraps to the tabs (U5: every window wraps, not only the mailbox one).</div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="cap"><b>6 · U3: the Pinned items window</b><span class="size">LocksUI's pattern</span>
+        <ul><li>Built like Locked items: a row per pin, what the bags hold, <b>Unpin</b> (undo: <b>Pin</b> until it closes)</li>
+          <li>The only way to remove a pin on an item that left the bags, by mouse or controller</li>
+          <li>No change during a send (<code>Mailer.Busy</code>), like every other list</li></ul></div>
+      <div class="frame">
+        <div class="title"><img src="logo-512.png" alt=""><span>Pinned items</span><span class="x">x</span></div>
+        <div class="content">
+          <div class="sub" style="margin-bottom:8px">Bank pins go to your bank alt (BA); vendor pins stay, tagged V.</div>
+          <div class="lockrow"><span class="lockname" style="color:#1eff00">Bandit Cloak</span><span class="where">BA · x1 in your bags</span><span class="btn grey small nav new">Unpin</span></div>
+          <div class="lockrow"><span class="lockname" style="color:#fff">Raw Brilliant Smallfish</span><span class="gone">BA · not in your bags</span><span class="btn grey small new">Unpin</span></div>
+          <div class="lockrow"><span class="lockname" style="color:#9d9d9d">Broken Fang</span><span class="where">V · unpinned</span><span class="btn grey small new">Pin</span></div>
+          <div class="foot"><span class="hint">Ctrl+Alt+click (R3) an item in your bags to pin it.</span><span class="btn">Done</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ Row 3: with bindings ============ -->
+    <div class="rowhead">With bindings: fewer D-pad stops, safer Remove <small>U4, U5, U7 proposed</small></div>
+
+    <div>
+      <div class="cap"><b>7 · U4: one stop per row</b><span class="size">13 rows: 26 → 13 stops</span>
+        <ul><li>Today each row with a pick button is two D-pad stops (the row, then its pick)</li>
+          <li><b>Square on a row cycles its pick</b> (Me → Friend → Guild), an override binding on our own frame like Cross; the mouse keeps the button</li>
+          <li>The highlighted row's tooltip already shows where each press sends it</li></ul></div>
+      <div class="frame">
+        <div class="title"><img src="logo-512.png" alt=""><span>Mailworthy</span><span class="x">x</span></div>
+        <div class="content">
+          <div class="to"><b>To:</b><span class="who">Penny Ledgerwick</span><span class="note">your bank alt · 1 mail</span><span class="btn grey small">Skip once</span></div>
+          <div class="tomore"><span>Bob Thornfield</span><span class="note">Enchanting materials · 1 mail</span></div>
+          <h3>Mailing <small class="right">3 items · 2 mails</small></h3>
+          <table>
+            <tr class="nav new"><td style="width:32px"><div class="icon" style="background:linear-gradient(135deg,#a9c5ff,#3d4f8a)"></div></td>
+              <td><span class="q1">Strange Dust</span> <span class="count">x20</span></td><td><span class="why friend">to Bob</span></td>
+              <td><span class="btn grey small">Friend</span></td></tr>
+            <tr><td><div class="icon" style="background:linear-gradient(135deg,#e0874a,#7a3e1a)"></div></td>
+              <td><span class="q1">Copper Ore</span> <span class="count">x13</span></td><td><span class="why ah">Auction</span></td>
+              <td class="gain money">+29<i class="s"></i>80<i class="c"></i></td></tr>
+          </table>
+          <div class="tip"><span class="h">Strange Dust</span><br>Mailing to Bob (Enchanting).<br>
+            <span class="gp xa">A</span> lock it &nbsp; <span class="gp" style="background:#1565c0">X</span> <b style="color:#ff7ad9">Me: to your bank alt</b></div>
+          <div class="actions"><span class="btn send">Send to Penny, Bob</span><span class="btn grey">Settings...</span>
+            <span class="hint legend">&#9747; press &nbsp; &#9634; pick &nbsp; &#9711; close</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="cap"><b>8 · U7: Remove asks once</b><span class="size">Mark paid's two presses</span>
+        <ul><li>Today <b>Remove</b> sits beside Skip once and deletes the binding on one press; so do Forget and Publish</li>
+          <li>One <code>Widgets.ConfirmButton</code>: the first press says <b>Sure?</b> for 3 s, the second acts</li>
+          <li>Moving the highlight away cancels it</li></ul></div>
+      <div class="frame">
+        <div class="title"><img src="logo-512.png" alt=""><span>Mailworthy</span><span class="x">x</span></div>
+        <div class="content">
+          <h3>Bindings <small class="right"><span class="btn grey small">Friends...</span></small></h3>
+          <div class="set"><span class="label">Enchanting materials <b style="color:#ffd100">to Bob</b></span><span class="btn grey small">Skip once</span><span class="btn small nav new">Sure?</span></div>
+          <div class="set"><span class="label">Leatherworking materials <b style="color:#ffd100">to Tilda</b></span><span class="btn grey small">Skip once</span><span class="btn grey small">Remove</span></div>
+          <div class="sub" style="margin-top:6px">Press again to remove Bob's binding. Skip once only skips it this visit.</div>
+        </div>
+      </div>
+      <div class="cap" style="margin-top:18px"><b>U6: one word for each thing</b>
+        <ul><li><b>Done</b> closes every window (today Vendor and the summary say Close)</li>
+          <li><b>...</b> means a window opens: <b>Settings...</b> in the mailbox window; never on a toggle</li>
+          <li>One name each: <b>Mail ledger...</b>, <b>Bank alt summary...</b></li>
+          <li>On shows one way: the green fill and ": on" (drop the <code>&gt; text &lt;</code> arrows)</li>
+          <li>Messages name the button, not <code>/mw guild</code></li></ul></div>
+    </div>
+
+    <div>
+      <div class="cap"><b>Under the hood (built and proposed)</b>
+        <ul><li><b>BUILT</b> <code>Util.lua</code>: 18 copies of <code>call()</code> → <code>ns.Util.Call</code>; 7 listener lists → <code>ns.Util.Signal</code>, which logs a listener's error (4 lists dropped them)</li>
+          <li><b>BUILT</b> PadKey's free-standing windows come from <code>Nav.AnyShown</code>: a new window needs no hand-kept entry</li>
+          <li><b>A1</b> verdict <code>kind</code> instead of reason text: today <code>Routes.HARD_KEEPS</code> is keyed by display strings, so rewording a reason breaks a Safety check</li>
+          <li><b>A2</b> <code>Bags.Evaluate</code> (180 lines) into prepare / facts / decide / tally</li>
+          <li><b>A4</b> <code>Widgets.ListWindow</code>: the pager, row pool, legend, Done and Show code that 6 windows copy</li>
+          <li><b>A5</b> <code>MailWindow.lua</code> (1,542 lines) into rows, totals, send, recipients</li>
+          <li><b>A6</b> a registry for addon message kinds instead of Comms' two if-chains</li>
+          <li><b>A8</b> one <code>StillThere</code> for Mailer and Vendor: the last-moment Safety re-check exists twice</li></ul></div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
