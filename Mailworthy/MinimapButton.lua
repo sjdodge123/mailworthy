@@ -15,8 +15,7 @@ MinimapButton.DEFAULT_ANGLE = 200
 local button
 
 local function saved()
-    MailworthyDB.minimap = type(MailworthyDB.minimap) == "table" and MailworthyDB.minimap or {}
-    local s = MailworthyDB.minimap
+    local s = ns.Util.Store(MailworthyDB, "minimap")
     if type(s.angle) ~= "number" then s.angle = MinimapButton.DEFAULT_ANGLE end
     return s
 end

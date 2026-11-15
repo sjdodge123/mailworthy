@@ -38,9 +38,10 @@ Stale.HEARD_DAYS = 14       -- and only if we heard it in the last two weeks
 Stale.KEEP_DAYS = 60
 Stale.MAX_AGE = 21          -- Auctionator returns no age past 21 days
 
-local call = ns.Util.Call
+local Util = ns.Util
+local call = Util.Call
 
-local function serverTime() return call(GetServerTime) or time() end
+local serverTime = Util.Now
 
 --- Pure: the server day (days since the epoch) of a server time.
 function Stale.Day(t) return math.floor((t or serverTime()) / 86400) end
@@ -82,17 +83,7 @@ function Stale.Message()
     return day and Stale.Encode(day) or nil
 end
 
-local function realmKey()
-    local _, realm, faction = ns.Characters.Current()
-    return tostring(realm) .. "|" .. tostring(faction)
-end
-
-local function store()
-    MailworthyDB.fresh = type(MailworthyDB.fresh) == "table" and MailworthyDB.fresh or {}
-    local key = realmKey()
-    MailworthyDB.fresh[key] = type(MailworthyDB.fresh[key]) == "table" and MailworthyDB.fresh[key] or {}
-    return MailworthyDB.fresh[key]
-end
+local function store() return Util.Store(MailworthyDB, "fresh", (Util.RealmKey())) end
 
 function Stale.Peers() return store() end
 

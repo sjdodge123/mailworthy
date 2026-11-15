@@ -90,7 +90,7 @@ function Quests.For(link)
         local ok, quests = pcall(Quests.Read)
         needs = Quests.Index(ok and quests or {})
     end
-    local name = tostring(link or ""):match("%[(.-)%]") or link
+    local name = ns.Util.LinkName(link) or link
     return type(name) == "string" and needs[name:lower()] or nil
 end
 

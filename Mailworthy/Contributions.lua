@@ -44,10 +44,11 @@ Contributions.COUNT_MAX = 2147483647   -- Postgres int4
 Contributions.DAY_MAX = 47482          -- floor(UNIX_MAX / 86400)
 Contributions.ROSTER_GAP = 10          -- seconds between roster reads on GUILD_ROSTER_UPDATE (one more follows)
 
-local call = ns.Util.Call
+local Util = ns.Util
+local call = Util.Call
 
-local function now() return call(GetServerTime) or time() end
-local function tableOr(t) return type(t) == "table" and t or {} end
+local now = Util.Now
+local tableOr = Util.Table
 
 --- Pure: a whole number from 0 to COUNT_MAX, or nil.
 local function whole(x)
@@ -82,8 +83,7 @@ end
 -- Counting -------------------------------------------------------------------------------------
 
 function Contributions.Store()
-    MailworthyDB.guildGiven = tableOr(MailworthyDB.guildGiven)
-    return MailworthyDB.guildGiven
+    return Util.Store(MailworthyDB, "guildGiven")
 end
 
 --- Pure: a counter as SavedVariables hold it, cleaned and with days before the window dropped
@@ -175,8 +175,7 @@ function Contributions.Count(to, tag, at, char)
     at = unixTime(at or now()) or unixTime(time())
     local today = Contributions.Day(at)
     local all = Contributions.Store()
-    local guild = tableOr(all[tag.key])
-    all[tag.key] = guild
+    local guild = Util.Store(all, tag.key)
     local c = Contributions.Clean(guild[char:lower()], today) or { name = char, total = 0, since = at, days = {} }
     c.name = char
     c.total = math.min(Contributions.COUNT_MAX, c.total + units)
@@ -302,9 +301,7 @@ function Contributions.Hear(sender, part, channel)
         end
     end
     if sum > p.total then return "days above the total" end
-    MailworthyDB.guildHeard = tableOr(MailworthyDB.guildHeard)
-    local guild = tableOr(MailworthyDB.guildHeard[key])
-    MailworthyDB.guildHeard[key] = guild
+    local guild = Util.Store(MailworthyDB, "guildHeard", key)
     local old = guild[lower]
     local oldAsOf = type(old) == "table" and tonumber(old.asOf) or 0
     if oldAsOf >= p.asOf and oldAsOf <= unixTime(now()) then return "not newer" end
@@ -330,9 +327,9 @@ local function readRoster()
     if call(IsInGuild) ~= true then return nil end
     local names, n = {}, 0
     local function add(name)
-        name = type(name) == "string" and ns.Routes.Clean(name) or nil
-        if name then
-            names[name:lower()] = true
+        local key = Util.NameKey(name)
+        if key then
+            names[key] = true
             n = n + 1
         end
     end
@@ -490,16 +487,15 @@ function Contributions.Export(guildName)
     local guild = type(guildName) == "string" and guildName ~= "" and guildName or ns.Guild.Mine()
     if not guild or type(MailworthyDB) ~= "table" then return nil end
     local key = ns.Guild.Key(guild)
-    local _, realm, faction = ns.Characters.Current()
+    local realmKey, realm, faction = Util.RealmKey()
     local templates, peers, given = tableOr(MailworthyDB.guildTemplates), tableOr(MailworthyDB.peers),
         tableOr(MailworthyDB.guildGiven)
     -- This account's names, read without Ledger.IsOwn: its Config.BankAlt() creates missing settings tables,
     -- and the export writes nothing (Codex review).
-    local realmKey = tostring(realm) .. "|" .. tostring(faction)
     local own = {}
     local function addOwn(name)
-        name = type(name) == "string" and ns.Routes.Clean(name) or nil
-        if name then own[name:lower()] = true end
+        local lower = Util.NameKey(name)
+        if lower then own[lower] = true end
     end
     addOwn(ns.PlayerName())
     addOwn(tableOr(MailworthyDB.bankAlts)[realmKey])

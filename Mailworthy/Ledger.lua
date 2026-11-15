@@ -48,24 +48,17 @@ Ledger.MAX_NAMES = 30      -- item names kept per player and direction
 Ledger.RECEIVE_SLOTS = 16  -- ATTACHMENTS_MAX_RECEIVE
 Ledger.CHAT_DELAY = 1      -- seconds: takes from one sender in this window share a chat line
 
-local call = ns.Util.Call
+local Util = ns.Util
+local call = Util.Call
 
-local function now() return call(GetServerTime) or time() end
+local now = Util.Now
 local function clean(name) return ns.Routes.Clean(name) end
 local function money(c) return ns.Valuation.Money(c) end
 
-local function realmKey()
-    local _, realm, faction = ns.Characters.Current()
-    return tostring(realm) .. "|" .. tostring(faction)
-end
-
-local function tableOr(t) return type(t) == "table" and t or {} end
+local tableOr = Util.Table
 
 local function store()
-    MailworthyDB.ledger = tableOr(MailworthyDB.ledger)
-    local key = realmKey()
-    local s = tableOr(MailworthyDB.ledger[key])
-    MailworthyDB.ledger[key] = s
+    local s = Util.Store(MailworthyDB, "ledger", (Util.RealmKey()))
     s.log, s.players, s.expect, s.outbox = tableOr(s.log), tableOr(s.players), tableOr(s.expect), tableOr(s.outbox)
     return s
 end
@@ -75,7 +68,7 @@ function Ledger.On() return ns.Features.On("ledger") end
 
 --- Pure: "[Linen Cloth]" out of an item link, or nil.
 function Ledger.NameOf(link)
-    return type(link) == "string" and link:match("%[(.-)%]") or nil
+    return Util.LinkName(link)
 end
 
 --- Is `name` this character, another character of this account here, or the bank alt?
@@ -87,8 +80,7 @@ function Ledger.IsOwn(name)
     for _, c in ipairs(ns.Characters.Mailable()) do
         if tostring(c.name):lower() == lower then return true end
     end
-    local bank = clean(ns.Config.BankAlt())
-    return bank ~= nil and bank:lower() == lower
+    return Util.NameKey(ns.Config.BankAlt()) == lower
 end
 
 --- The player behind a character: a Mailworthy peer whose hello lists `name` as one of their

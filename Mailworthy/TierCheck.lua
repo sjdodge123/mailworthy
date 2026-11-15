@@ -40,7 +40,8 @@ local PART_CLASSES = { [0] = true, [7] = true }
 -- where its bandages turn grey, so a still-yellow bandage is no evidence against it.
 TierCheck.EXEMPT = { [129] = { [2589] = true, [2592] = true, [4306] = true, [4338] = true } }
 
-local call = ns.Util.Call
+local Util = ns.Util
+local call = Util.Call
 
 local function itemIDFromLink(link)
     return tonumber(type(link) == "string" and link:match("item:(%d+)") or nil)
@@ -227,8 +228,7 @@ local function charKey() return ns.Characters.Key(ns.Characters.Current()) end
 --- profession, skillLine, version, findings = { { itemID, name, doneAt, recipe, difficulty, color, via, text }, ... } }
 --- (findings: what the table, as of `version`, calls done that a non-grey recipe still uses; /mw report's lines).
 function TierCheck.Records()
-    MailworthyDB.tierCheck = type(MailworthyDB.tierCheck) == "table" and MailworthyDB.tierCheck or {}
-    return MailworthyDB.tierCheck
+    return Util.Store(MailworthyDB, "tierCheck")
 end
 
 --- This character's latest read of `skillLine`, or nil.
@@ -251,12 +251,9 @@ function TierCheck.Scan(craft)
     end
     if not read then return nil, why end
     if not read.rank or #read.recipes == 0 then return nil, "no learned recipes read" end
-    local record = { rank = read.rank, at = call(GetServerTime) or time(), recipes = #read.recipes, source = read.source,
+    local record = { rank = read.rank, at = Util.Now(), recipes = #read.recipes, source = read.source,
         reagents = TierCheck.Summarize(read.recipes, read.skillLine, classOf) }
-    local records = TierCheck.Records()
-    local key = charKey()
-    records[key] = type(records[key]) == "table" and records[key] or {}
-    records[key][read.skillLine] = record
+    Util.Store(TierCheck.Records(), charKey())[read.skillLine] = record
     local findings = TierCheck.Findings(read.skillLine, record)
     -- The comparison is saved with the read, so the SavedVariables file holds the answer for a reader
     -- outside the game (rl-companion) without the tier table or /mw report.

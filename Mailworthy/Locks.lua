@@ -85,7 +85,7 @@ end
 --- Pure: an item's name out of its link ("|cff..|Hitem:2770..|h[Copper Ore]|h|r" -> "Copper Ore"),
 --- or "item 2770" without one.
 function Locks.NameOf(itemID, link)
-    local name = type(link) == "string" and link:match("%[(.-)%]") or nil
+    local name = ns.Util.LinkName(link)
     return name and name ~= "" and name or ("item " .. tostring(itemID))
 end
 

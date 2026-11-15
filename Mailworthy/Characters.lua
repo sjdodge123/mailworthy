@@ -49,7 +49,7 @@ function Characters.Record()
     local _, class = call(UnitClass, "player")
     local entry = {
         name = name, realm = realm, faction = faction, class = class, level = call(UnitLevel, "player"),
-        professions = professions(), lastSeen = call(GetServerTime) or time(),
+        professions = professions(), lastSeen = ns.Util.Now(),
     }
     MailworthyDB.characters[Characters.Key(name, realm, faction)] = entry
     ns.Log.Add("chars", "recorded %s", Characters.Describe(entry))

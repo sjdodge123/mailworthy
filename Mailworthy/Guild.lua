@@ -57,10 +57,11 @@ Guild.GEAR_NO_CAP = 999999999 -- on the wire: the Gear switch on, no price cap (
 local partial, pending = {}, {} -- sender -> template being assembled / waiting for the roster
 local lastAnswer, lastAsk, answering = -math.huge, -math.huge, false
 
-local call = ns.Util.Call
+local Util = ns.Util
+local call = Util.Call
 
 local function now() return call(GetTime) or 0 end
-local function serverTime() return call(GetServerTime) or time() end
+local serverTime = Util.Now
 local function lower(name) return tostring(name):lower() end
 
 function Guild.On() return ns.Features.On("guildTemplate") end
@@ -110,16 +111,12 @@ end
 function Guild.Key(guild)
     if type(guild) ~= "string" or guild == "" then guild = Guild.Mine() end
     if not guild then return nil end
-    local _, realm, faction = ns.Characters.Current()
-    return tostring(realm) .. "|" .. tostring(faction) .. "|" .. guild
+    return Util.RealmKey() .. "|" .. guild
 end
 
 local function guildKey() return Guild.Key() end
 
-local function store(field)
-    MailworthyDB[field] = type(MailworthyDB[field]) == "table" and MailworthyDB[field] or {}
-    return MailworthyDB[field]
-end
+local function store(field) return Util.Store(MailworthyDB, field) end
 
 --- The template this character's guild uses, or nil: { rev, from, at, rules = { { profession, to,
 --- cap, gear (Routes.GEAR_DE or nil; the Enchanting rule only) } }, use = nil (not chosen yet) /
@@ -340,9 +337,7 @@ local function refreshWindows()
 end
 
 local function published(key)
-    local all = store("guildPublished")
-    all[key] = type(all[key]) == "table" and all[key] or {}
-    return all[key]
+    return Util.Store(MailworthyDB, "guildPublished", key)
 end
 
 -- Someone passed on a template in this character's name that it never published: send the

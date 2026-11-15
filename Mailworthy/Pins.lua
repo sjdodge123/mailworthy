@@ -51,8 +51,7 @@ Pins.COLOR = ns.Palette.BA.fg
 local changed = ns.Util.Signal("pins")
 
 local function pins()
-    MailworthyDB.pins = type(MailworthyDB.pins) == "table" and MailworthyDB.pins or {}
-    return MailworthyDB.pins
+    return ns.Util.Store(MailworthyDB, "pins")
 end
 
 Pins.OnChanged = changed.Add

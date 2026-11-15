@@ -37,7 +37,8 @@ local state = { busy = false, run = 0 }
 Mailer.state = state
 local changed, sent = ns.Util.Signal("mailer changed"), ns.Util.Signal("mailer sent")
 
-local call = ns.Util.Call
+local Util = ns.Util
+local call = Util.Call
 
 -- Timers belong to one send run: once that run stops (combat, mailbox closed,
 -- failure) or a new one starts, its pending timers do nothing.
@@ -51,7 +52,7 @@ local function after(delay, fn)
             Mailer.Stop("error: " .. tostring(err))
         end
     end
-    if C_Timer and type(C_Timer.After) == "function" then C_Timer.After(delay, run) else run() end
+    Util.After(delay, run)
 end
 
 Mailer.OnChanged = changed.Add
@@ -201,19 +202,18 @@ local function attachedCount()
 end
 
 local function record(mail)
-    MailworthyDB.mailed = type(MailworthyDB.mailed) == "table" and MailworthyDB.mailed or {}
-    local now = call(GetServerTime) or time()
+    local mailed, now = Util.Store(MailworthyDB, "mailed"), Util.Now()
     for _, stack in ipairs(mail.attached or {}) do
         local r = stack.item.result or {}
-        MailworthyDB.mailed[stack.itemID] = { route = r.route, listRoute = r.listRoute, reason = r.reason, gain = r.gain, at = now,
+        mailed[stack.itemID] = { route = r.route, listRoute = r.listRoute, reason = r.reason, gain = r.gain, at = now,
             from = ns.PlayerName(), to = mail.to }
     end
 end
 
 --- Drop records older than KEEP_DAYS.
 function Mailer.Prune(now)
-    now = now or call(GetServerTime) or time()
-    for itemID, entry in pairs(type(MailworthyDB.mailed) == "table" and MailworthyDB.mailed or {}) do
+    now = now or Util.Now()
+    for itemID, entry in pairs(Util.Table(MailworthyDB.mailed)) do
         if type(entry) ~= "table" or (tonumber(entry.at) or 0) < now - Mailer.KEEP_DAYS * 86400 then
             MailworthyDB.mailed[itemID] = nil
         end
@@ -286,17 +286,13 @@ function Mailer.Dismiss()
 end
 
 local function plural(n, one, many) return string.format("%d %s", n, n == 1 and one or (many or one .. "s")) end
-local function itemName(link) return tostring(link):match("%[(.-)%]") or tostring(link) end
+local function itemName(link) return Util.LinkName(link) or tostring(link) end
 local function firstNames(names)
     local out = {}
     for i, name in ipairs(names) do out[i] = tostring(name):match("^(%S+)") or tostring(name) end
     return out
 end
-local function andList(names)
-    if #names == 0 then return "nobody" end
-    if #names == 1 then return names[1] end
-    return table.concat(names, ", ", 1, #names - 1) .. " and " .. names[#names]
-end
+local function andList(names) return Util.ListText(names, "nobody") end
 
 --- Pure: the receipt as text (media/qol-prototype.png, "After: a receipt"). `vendorLeft`: items
 --- left in the bags for the vendor. Returns the window's headline, its note (may be ""), and the
@@ -449,9 +445,7 @@ function Mailer.Recipients(mails, sentOnly)
             names[#names + 1] = to
         end
     end
-    if #names == 0 then return "nobody" end
-    if #names == 1 then return names[1] end
-    return table.concat(names, ", ", 1, #names - 1) .. " and " .. names[#names]
+    return Util.ListText(names, "nobody")
 end
 
 --- One press: send every mail in the plan: the bank alt's, then each binding's.

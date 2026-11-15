@@ -66,24 +66,12 @@ end
 
 local skipped = {} -- route key -> true for this mailbox visit
 
-local call = ns.Util.Call
+local Util = ns.Util
+local call = Util.Call
 
-local function realmKey()
-    local _, realm, faction = ns.Characters.Current()
-    return tostring(realm) .. "|" .. tostring(faction)
-end
+local function accountList() return Util.Store(MailworthyDB, "routes", (Util.RealmKey())) end
 
-local function accountList()
-    MailworthyDB.routes = type(MailworthyDB.routes) == "table" and MailworthyDB.routes or {}
-    local key = realmKey()
-    MailworthyDB.routes[key] = type(MailworthyDB.routes[key]) == "table" and MailworthyDB.routes[key] or {}
-    return MailworthyDB.routes[key]
-end
-
-local function charList()
-    MailworthyCharDB.routes = type(MailworthyCharDB.routes) == "table" and MailworthyCharDB.routes or {}
-    return MailworthyCharDB.routes
-end
+local function charList() return Util.Store(MailworthyCharDB, "routes") end
 
 local function listFor(scope)
     return scope == "character" and charList() or accountList()
@@ -563,7 +551,7 @@ function Routes.Add(name, what, opts)
         return nil, "not a crafting profession"
     end
     local route = { to = name, profession = profession, class = class,
-        cap = opts.cap == nil and Routes.DEFAULT_CAP or (opts.cap or nil), at = call(GetServerTime) or time() }
+        cap = opts.cap == nil and Routes.DEFAULT_CAP or (opts.cap or nil), at = Util.Now() }
     local key = Routes.KeyOf(route)
     if find(key) then return nil, "already bound" end
     local scope = opts.scope == "character" and "character" or "account"
@@ -745,7 +733,7 @@ local function peerCandidates(list, byName)
     if not ns.Comms then return end
     for _, peer in pairs(ns.Comms.Peers()) do
         addCandidate(list, byName, { name = peer.name, source = "mailworthy", professions = peer.professions })
-        local entry = byName[tostring(Routes.Clean(peer.name) or ""):lower()]
+        local entry = byName[Util.NameKey(peer.name) or ""]
         if entry then entry.peer = peer end
     end
 end
@@ -813,12 +801,7 @@ end
 Routes.CRAFTER = { [164] = "blacksmith", [202] = "engineer", [165] = "leatherworker", [197] = "tailor",
     [171] = "alchemist", [333] = "enchanter", [185] = "cook" }
 
-local function dismissals()
-    MailworthyDB.crafterOffers = type(MailworthyDB.crafterOffers) == "table" and MailworthyDB.crafterOffers or {}
-    local key = realmKey()
-    MailworthyDB.crafterOffers[key] = type(MailworthyDB.crafterOffers[key]) == "table" and MailworthyDB.crafterOffers[key] or {}
-    return MailworthyDB.crafterOffers[key]
-end
+local function dismissals() return Util.Store(MailworthyDB, "crafterOffers", (Util.RealmKey())) end
 local function offerKey(name, profession) return tostring(name):lower() .. "|" .. tostring(tonumber(profession)) end
 
 --- "Not for <name>": never offer this character this profession's materials again.
@@ -861,7 +844,7 @@ function Routes.Offer(scan, bankAlt)
     end
     if #items == 0 then return nil end
     local me = tostring(ns.PlayerName()):lower()
-    local alt = tostring(Routes.Clean(bankAlt) or ""):lower()
+    local alt = Util.NameKey(bankAlt) or ""
     local active = Routes.Active()
     local best
     for _, entry in ipairs(ns.Characters.Mailable()) do

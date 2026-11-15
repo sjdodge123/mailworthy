@@ -1361,7 +1361,7 @@ function UI.Send()
     local changed = UI.Changed(shown, result.mail, alt, ns.Config.BankAlt(), stayed)
     if #changed > 0 then
         local c = changed[1]
-        local name = tostring(c.item.link or ""):match("%[(.-)%]") or ("item " .. tostring(c.item.itemID))
+        local name = ns.Util.LinkName(c.item.link) or ("item " .. tostring(c.item.itemID))
         local text = c.wasCount and string.format("Not sent: %s to %s is now x%d (the list said x%d). "
                 .. "Check the list, then press Send again.", name, firstName(c.to), c.count, c.wasCount)
             or string.format("Not sent: %s now goes to %s%s. Check the list, then press Send again.", name,

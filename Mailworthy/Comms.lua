@@ -73,22 +73,13 @@ function Comms.Steps(professions)
     return table.concat(out, ",")
 end
 
-local call = ns.Util.Call
+local Util = ns.Util
+local call = Util.Call
 
 local function now() return call(GetTime) or 0 end
-local function serverTime() return call(GetServerTime) or time() end
+local serverTime = Util.Now
 
-local function realmKey()
-    local _, realm, faction = ns.Characters.Current()
-    return tostring(realm) .. "|" .. tostring(faction)
-end
-
-local function store()
-    MailworthyDB.peers = type(MailworthyDB.peers) == "table" and MailworthyDB.peers or {}
-    local key = realmKey()
-    MailworthyDB.peers[key] = type(MailworthyDB.peers[key]) == "table" and MailworthyDB.peers[key] or {}
-    return MailworthyDB.peers[key]
-end
+local function store() return Util.Store(MailworthyDB, "peers", (Util.RealmKey())) end
 
 function Comms.On() return ns.Features.On("comms") end
 
@@ -378,8 +369,8 @@ function Comms.Peers()
 end
 
 function Comms.Peer(name)
-    name = ns.Routes.Clean(name)
-    return name and store()[name:lower()] or nil
+    local key = Util.NameKey(name)
+    return key and store()[key] or nil
 end
 
 -- The Mailworthy mark (operator, 2026-11-08: "a mailworthy icon or some sort of indicator on the
@@ -447,11 +438,7 @@ end
 local function marksChanged(old, new)
     if markNames(old) == markNames(new) or markPending then return end
     markPending = true
-    if C_Timer and type(C_Timer.After) == "function" then
-        C_Timer.After(Comms.MARK_DELAY, notifyMarks)
-    else
-        notifyMarks()
-    end
+    Util.After(Comms.MARK_DELAY, notifyMarks)
 end
 
 --- `text` (default: the name) with the Mailworthy mark after it when `name` runs Mailworthy, and
