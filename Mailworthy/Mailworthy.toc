@@ -53,6 +53,7 @@ SettingsUI.lua
 RoutesUI.lua
 LedgerUI.lua
 LocksUI.lua
+PinsUI.lua
 PinWarning.lua
 MinimapButton.lua
 MailWindow.lua

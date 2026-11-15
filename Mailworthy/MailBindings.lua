@@ -79,9 +79,12 @@ function S.FillBindings()
     local shown = 0
     for i, row in ipairs(S.routeRows) do
         local r = list[i]
-        -- Another binding on this row now: a "Sure?" armed for the one before is cancelled (the
-        -- ConfirmButton disarms when hidden), so a second press never removes a binding not asked for.
-        if (r and r.key) ~= row.key then row.remove:Hide() end
+        -- Another binding on this row now: a "Sure?" armed for the one before is cancelled
+        -- (Widgets.Disarm), so a second press never removes a binding not asked for.
+        if (r and r.key) ~= row.key then
+            row.remove:Hide()
+            W.Disarm(row.remove)
+        end
         row.key = r and r.key or nil
         if r and i == UI.ROUTE_ROWS and #list > UI.ROUTE_ROWS then
             row.text:SetText(UI.MoreText(#list - UI.ROUTE_ROWS + 1, r.scope == "guild"))

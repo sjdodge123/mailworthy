@@ -162,6 +162,14 @@ local wraps = setmetatable({}, { __mode = "k" })
 --- row lands on Send, Down from the bottom row goes back to the top).
 function Nav.SetWrap(frame, fn) wraps[frame] = fn end
 
+--- Every window without a wrap of its own (UX review U5, 2026-11-15): Down from the bottom row goes
+--- back to the top-left button (Settings was about 14 Downs to Done and stopped there). Only from
+--- the bottom row itself (Nav.AtEdge): a button in the middle with nothing below in its cone stays.
+function Nav.DefaultWrap(dir)
+    if dir == "down" and Nav.AtEdge("down") then return true end
+    return nil
+end
+
 function Nav.Move(dir)
     local candidates = Nav.Candidates()
     local from = current and entryFor(current, candidates)
@@ -169,7 +177,7 @@ function Nav.Move(dir)
     local nextEntry = Nav.Pick(from, candidates, dir)
     if nextEntry then return Nav.Select(nextEntry.button) end
     local root = Nav.Root()
-    local wrap = root and wraps[root]
+    local wrap = root and (wraps[root] or Nav.DefaultWrap)
     if not wrap then return end
     local ok, target = pcall(wrap, dir, current)
     if not ok then return ns.Log.Add("nav", "wrap error: %s", tostring(target)) end

@@ -94,6 +94,62 @@ describe("widgets and labels", function()
         assert.equal(20, c3[1].wasCount)
     end)
 
+    describe("two presses (Widgets.ConfirmButton; UX review U7)", function()
+        local W, b, done
+        before_each(function()
+            W = ns.Widgets
+            done = 0
+            b = W.ConfirmButton(ns.RoutesUI.Frame(), "Remove", "Sure?", 80, function() done = done + 1 end,
+                "MailworthyTestConfirm")
+        end)
+
+        it("the first press asks, the second within 3 seconds acts", function()
+            b:Click()
+            assert.equal(0, done)
+            assert.equal("Sure?", b:GetText())
+            assert.is_true(W.Armed(b))
+            WowStub.state.now = WowStub.state.now + 2
+            b:Click()
+            assert.equal(1, done)
+            assert.equal("Remove", b:GetText())
+            assert.is_false(W.Armed(b))
+        end)
+
+        it("too late: the second press asks again; the timer puts the label back", function()
+            b:Click()
+            WowStub.state.now = WowStub.state.now + 4
+            b:Click()
+            assert.equal(0, done, "past 3 seconds: a new first press")
+            assert.equal("Sure?", b:GetText())
+            WowStub.runTimers(3)
+            assert.equal("Remove", b:GetText())
+            assert.is_false(W.Armed(b))
+        end)
+
+        it("the highlight moving to another button or the window closing cancels it", function()
+            b:Click()
+            ns.Nav.Select(_G.MailworthyFriendsDone)
+            assert.is_false(W.Armed(b))
+            assert.equal("Remove", b:GetText())
+            b:Click()
+            ns.Nav.Select(b) -- moving onto itself keeps it
+            assert.is_true(W.Armed(b))
+            ns.RoutesUI.Frame():Hide()
+            assert.is_false(W.Armed(b))
+            b:Click()
+            b:Click()
+            assert.equal(1, done)
+        end)
+
+        it("a new label waits until the button is not asking", function()
+            b:Click()
+            W.SetConfirmText(b, "Send again")
+            assert.equal("Sure?", b:GetText())
+            W.Disarm(b)
+            assert.equal("Send again", b:GetText())
+        end)
+    end)
+
     it("the settings' Guild button says where the guild rules stand", function()
         local text = ns.SettingsUI.GuildButtonText
         assert.equal("Guild...", text(false, nil))

@@ -89,13 +89,17 @@ describe("pin mode and tags", function()
 
         it("the Settings button flips it and says where pins go, in the tag's letters", function()
             ns.SettingsUI.Show()
-            assert.truthy(_G.MailworthySettingsPins:GetText():find("BA|r mail to your bank alt", 1, true))
+            -- a short label; the explanation (its old label) in the tooltip (UX review U8)
+            local tip = function() return ns.Widgets.TipText(_G.MailworthySettingsPins) end
+            assert.truthy(_G.MailworthySettingsPins:GetText():find("BA|r to bank alt", 1, true))
+            assert.truthy(tip():find("BA|r mail to your bank alt", 1, true))
             _G.MailworthySettingsPins:Click()
             assert.equal(ns.Pins.HERE, ns.Pins.Mode())
-            assert.truthy(_G.MailworthySettingsPins:GetText():find("BH|r bank here, on this character", 1, true))
+            assert.truthy(_G.MailworthySettingsPins:GetText():find("BH|r bank here", 1, true))
+            assert.truthy(tip():find("BH|r bank here, on this character", 1, true))
             MailworthyDB.bankAlts = {}
             ns.SettingsUI.Refresh()
-            assert.truthy(_G.MailworthySettingsPins:GetText():find("(no bank alt)", 1, true))
+            assert.truthy(tip():find("(no bank alt)", 1, true))
         end)
 
         it("a bank-here pin keeps the item, past the hard keeps, and is not a hard keep itself", function()

@@ -183,6 +183,7 @@ describe("guild template", function()
             ns.Guild.DraftAdd(MEMBER, ENCHANTING)
             assert.equal(GEAR, ns.Guild.Draft()[2].gear)
             WowStub.state.addonMessages = {}
+            _G.MailworthyFriendsPublish:Click() -- two presses (UX review U7)
             _G.MailworthyFriendsPublish:Click()
             assert.equal("333=Plain Member:1001", WowStub.state.addonMessages[2].message:match("|([^|]+)$"))
             assert.equal(GEAR, ns.Guild.Template().rules[2].gear)
@@ -496,6 +497,9 @@ describe("guild template", function()
             assert.equal("Rettana Quilwrit", ns.Guild.Draft()[2].to)
             assert.equal("Publish to guild", _G.MailworthyFriendsPublish:GetText())
             WowStub.state.addonMessages = {}
+            _G.MailworthyFriendsPublish:Click() -- two presses (UX review U7): the first sends nothing
+            assert.equal(0, #WowStub.state.addonMessages)
+            assert.equal("Sure?", _G.MailworthyFriendsPublish:GetText())
             _G.MailworthyFriendsPublish:Click()
             assert.equal(2, #WowStub.state.addonMessages)
             local head = "T2|" .. WowStub.state.serverTime .. "|Rettana Quilwrit|"
@@ -536,6 +540,11 @@ describe("guild template", function()
             WowStub.state.gamepadUI = true
             ns.Guild.DraftAdd(BOB, ENCHANTING)
             ns.SettingsUI.Show()
+            _G.MailworthyPadWatcher.scripts.OnUpdate(_G.MailworthyPadWatcher, 0.2)
+            ns.Nav.Select(_G.MailworthySettingsTabMore)
+            WowStub.state.now = WowStub.state.now + 1
+            _G.MailworthyPadCross:Click() -- Bags and more (UX review U2: the windows are on that tab)
+            assert.equal("more", ns.SettingsUI.Tab())
             local function reachable(button)
                 for _, c in ipairs(ns.Nav.Candidates()) do if c.button == button then return true end end
                 return false

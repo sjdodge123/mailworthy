@@ -2,9 +2,9 @@
 -- ("Keep my professions' materials" would keep it). The pin wins (operator, 2026-11-13: "a bank pin
 -- is a hard decision by the user and needs to be honored"), but the player hears it once, with a
 -- quick way to reduce the conflict: bank this character's pins here (BH), or unpin the item.
--- "Don't show this again" turns it off for the account (/mw pinwarning on brings it back; /mw report
--- says which). The Mailworthy window's row and the bag tooltip say it every time, so turning the
--- window off loses nothing.
+-- "Don't show this again" turns it off for the account (Settings > Bags and more > "Pin warning: off"
+-- brings it back, so does /mw pinwarning on; /mw report says which). The Mailworthy window's row and
+-- the bag tooltip say it every time, so turning the window off loses nothing.
 --
 -- Our own window (created at login, Nav + PadKey "settings" set): every control is a button.
 local _, ns = ...
@@ -14,7 +14,8 @@ ns.PinWarning = UI
 
 local W = ns.Widgets
 local WIDTH = 440
-local frame, text, legend
+local win, frame, text
+local BOTTOM = -178 -- the second row of buttons
 local current -- { itemID, link, profession } the window is about
 
 function UI.Frame() return frame end
@@ -44,10 +45,9 @@ function UI.Show(itemID, link, profession)
     if not frame then UI.Create() end
     current = { itemID = itemID, link = link, profession = profession }
     text:SetText(UI.Message(link, profession))
-    legend:SetText(W.Footer(ns.MailButton.GamepadUI(), false))
     frame:Show()
     frame:Raise()
-    ns.Nav.Revalidate()
+    win.Finish(BOTTOM, false)
     ns.Log.Add("pin", "warning: %s pinned to the bank alt, %s uses it", tostring(link), tostring(profession))
 end
 
@@ -55,12 +55,9 @@ local function close() if frame then frame:Hide() end end
 
 function UI.Create()
     if frame then return frame end
-    frame = W.Window("MailworthyPinWarningFrame", WIDTH, 250)
-    frame:SetFrameStrata("FULLSCREEN_DIALOG")
-    frame:SetPoint("CENTER")
-    local title = W.Label(frame, "GameFontNormalLarge")
-    title:SetPoint("TOP", 0, -18)
-    title:SetText("Pinned, but your profession uses it")
+    win = W.Shell({ name = "MailworthyPinWarningFrame", width = WIDTH, height = 250,
+        title = "Pinned, but your profession uses it", log = "pin warning window" })
+    frame = win.frame
     text = W.Label(frame, "GameFontHighlight")
     text:SetPoint("TOPLEFT", 28, -48)
     text:SetWidth(WIDTH - 56)
@@ -79,17 +76,15 @@ function UI.Create()
     end, "MailworthyPinWarningUnpin"):SetPoint("TOPRIGHT", -24, -150)
     W.Button(frame, "Bank pins here (BH)", 186, function()
         if ns.Pins.SetMode(ns.Pins.HERE, "pin warning") then close() end
-    end, "MailworthyPinWarningHere"):SetPoint("TOPLEFT", 24, -178)
+    end, "MailworthyPinWarningHere"):SetPoint("TOPLEFT", 24, BOTTOM)
     W.Button(frame, "Don't show this again", 186, function()
         ns.Config.Set("hidePinWarning", true)
-        ns.Print("Pin warning off. The Mailworthy window and the tooltip still say it. /mw pinwarning on brings it back.")
+        -- The button that brings it back, by name (UX review U6, U3).
+        ns.Print("Pin warning off. The Mailworthy window and the tooltip still say it."
+            .. " Settings > Bags and more > \"Pin warning: off\" brings it back.")
         close()
-    end, "MailworthyPinWarningHide"):SetPoint("TOPRIGHT", -24, -178)
-    legend = W.Label(frame, "GameFontHighlightSmall")
-    legend:SetPoint("BOTTOM", 0, 14)
-    ns.Nav.Attach(frame)
+    end, "MailworthyPinWarningHide"):SetPoint("TOPRIGHT", -24, BOTTOM)
     frame:Hide()
-    ns.Log.Add("ui", "pin warning window created")
     return frame
 end
 

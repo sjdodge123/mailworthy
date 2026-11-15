@@ -175,6 +175,7 @@ describe("the locked items window", function()
         it("\"Locked items (N)...\" counts the locks, opens the window beside Settings, and follows", function()
             WowStub.state.layout = true
             ns.SettingsUI.Show()
+            _G.MailworthySettingsTabMore:Click() -- the windows are on Bags and more (UX review U2)
             local button = _G.MailworthySettingsLocks
             assert.is_true(button:IsShown())
             assert.equal("Locked items (2)...", button:GetText())

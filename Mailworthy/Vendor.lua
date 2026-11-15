@@ -36,7 +36,7 @@ Vendor.ROWS = Vendor.BATCH
 
 local W = ns.Widgets
 local WIDTH = 420
-local button, frame, sub, listText, sellButton, closeButton, legend
+local button, win, frame, listText, sellButton, doneButton
 local open = false      -- a merchant window is open (MERCHANT_SHOW .. MERCHANT_CLOSED)
 local selling = false
 local batch = {}        -- the stacks the window lists: what Sell sells
@@ -191,16 +191,10 @@ end
 
 function Vendor.Create()
     if frame then return frame end
-    frame = W.Window("MailworthyVendorFrame", WIDTH, 200)
-    frame:SetFrameStrata("FULLSCREEN_DIALOG")
-    frame:SetPoint("CENTER")
-    local title = W.Label(frame, "GameFontNormalLarge")
-    title:SetPoint("TOP", 0, -18)
-    title:SetText("Sell to this vendor")
-    sub = W.Label(frame, "GameFontHighlightSmall")
-    sub:SetPoint("TOPLEFT", 28, -44)
-    sub:SetWidth(WIDTH - 56)
-    sub:SetJustifyH("LEFT")
+    win = W.Shell({ name = "MailworthyVendorFrame", width = WIDTH, height = 200, title = "Sell to this vendor",
+        sub = "These are tagged V: a vendor pays more than the auction house or disenchanting would bring."
+            .. " Lock an item (Alt+click) to keep it off this list." })
+    frame = win.frame
     listText = W.Label(frame, "GameFontHighlight")
     listText:SetPoint("TOPLEFT", 28, -78)
     listText:SetWidth(WIDTH - 56)
@@ -208,10 +202,7 @@ function Vendor.Create()
     sellButton = W.Button(frame, "", 220, function()
         if #batch > 0 and Vendor.Sell(batch) then Vendor.Refresh() end
     end, "MailworthyVendorSell")
-    closeButton = W.Button(frame, "Close", 100, function() frame:Hide() end, "MailworthyVendorClose")
-    legend = W.Label(frame, "GameFontHighlightSmall")
-    legend:SetPoint("BOTTOM", 0, 14)
-    ns.Nav.Attach(frame)
+    doneButton = win.Done("MailworthyVendorDone") -- "Done", like every window (UX review U6)
     -- The way in at the merchant: created on UIParent, then parented (MailButton's reason).
     local merchant = rawget(_G, "MerchantFrame")
     if type(merchant) == "table" and ns.Features.On("vendorButton") and not InCombatLockdown() then
@@ -255,19 +246,13 @@ function Vendor.Refresh()
             heldForReturn == 1 and "it" or "them")
     end
     if status then lines[#lines + 1] = "|cffffd100" .. status .. "|r" end
-    sub:SetText("These are tagged V: a vendor pays more than the auction house or disenchanting would bring."
-        .. " Lock an item (Alt+click) to keep it off this list.")
     listText:SetText(table.concat(lines, "\n"))
     sellButton:SetText(selling and "Selling..." or #batch > 0
         and string.format("Sell %d for %s", #batch, money(total)) or "Nothing to sell")
     local y = -78 - 16 * #lines - 14
-    sellButton:ClearAllPoints()
-    sellButton:SetPoint("TOPLEFT", frame, "TOPLEFT", 24, y)
-    closeButton:ClearAllPoints()
-    closeButton:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -24, y)
-    frame:SetHeight(-y + 24 + 40)
-    legend:SetText(W.Footer(ns.MailButton.GamepadUI(), false))
-    ns.Nav.Revalidate()
+    win.at(sellButton, 24, y)
+    win.at(doneButton, -24, y, "TOPRIGHT")
+    win.Finish(y, false)
 end
 
 --- The merchant button, Triangle at the merchant, or /mw vendor: open or close the window.
