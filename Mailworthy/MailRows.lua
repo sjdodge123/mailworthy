@@ -4,7 +4,8 @@
 -- A row is one button: a press locks the item (it stays in the bags) or unlocks it. The pick button
 -- (Routes.Pick; operator, 2026-11-14) says where the item goes this mailbox visit, cycling Me (its
 -- own verdict) -> each friend binding that takes it -> each guild rule that takes it. Mouse: click
--- it. Controller: the D-pad reaches it (Right from the row), Cross presses it.
+-- it. Controller: one D-pad stop per row (UX review U4): Square on the highlighted row moves its pick
+-- on (UI.PadPick, PadKey "window" set); the pick button is not a D-pad stop of its own (Nav.Skip).
 local _, ns = ...
 
 local UI = ns.MailWindow
@@ -121,7 +122,7 @@ local function rowButton(name, parent, height)
     return b, bg
 end
 
--- A row's pick moves on (its button). Never during a send.
+-- A row's pick moves on (its button by mouse, Square on the row by controller). Never during a send.
 local function cyclePick(row)
     local item = row.item
     if not item or ns.Mailer.Busy() or #(item.choices or {}) == 0 then return false end
@@ -142,6 +143,58 @@ function UI.PickFor(itemID)
     return nil
 end
 
+--- The shown row button holding `itemID` (either list), or nil.
+function UI.RowFor(itemID)
+    for _, rows in ipairs({ S.mailRows, S.stayRows }) do
+        for _, row in ipairs(rows) do
+            if row.button:IsShown() and row.item and row.item.itemID == itemID then return row.button end
+        end
+    end
+    return nil
+end
+
+--- Is a pick button showing on any row (the controller legend then says what Square does)?
+function S.AnyPick()
+    for button, row in pairs(S.pickOf) do
+        if button:IsShown() and row.button:IsShown() then return true end
+    end
+    return false
+end
+
+-- The row now showing the item with `link`, its list turned to the page that holds it (a pick
+-- can move an item from Staying to Mailing), or nil.
+local function rowShowing(link)
+    local lists = { { page = "mail", items = "mail", rows = S.mailRows }, { page = "stay", items = "keep", rows = S.stayRows } }
+    for _, list in ipairs(lists) do
+        for _, row in ipairs(list.rows) do
+            if row.button:IsShown() and row.item and row.item.link == link then return row.button end
+        end
+    end
+    for _, list in ipairs(lists) do
+        for i, item in ipairs(S.result and S.result[list.items] or {}) do
+            if item.link == link then
+                S.pages[list.page] = math.floor((i - 1) / #list.rows) + 1
+                UI.Refresh(true)
+                return list.rows[(i - 1) % #list.rows + 1].button
+            end
+        end
+    end
+    return nil
+end
+
+--- Square on the controller's highlighted row (PadKey "window" set, switch padPick): its pick moves
+--- on, as a click on the row's pick button does, and the highlight follows the item to its row.
+--- Nothing on a row without a pick, nor while a send runs. Returns true when it picked.
+function UI.PadPick()
+    local row = S.rowOf[ns.Nav.Current()]
+    if not (row and row.item and S.frame and S.frame:IsVisible()) then return false end
+    local link = row.item.link
+    if not cyclePick(row) then return false end
+    local now = rowShowing(link)
+    if now and now:IsVisible() then ns.Nav.Select(now) end
+    return true
+end
+
 local function pickButton(row, parent, name, height)
     row.pick = W.Button(parent, "Me", 56, function() cyclePick(row) end, name)
     row.pick:SetHeight(height)
@@ -150,6 +203,8 @@ local function pickButton(row, parent, name, height)
         if type(GameTooltip) == "table" and GameTooltip:GetOwner() == row.pick then GameTooltip:Hide() end
     end)
     row.pick:Hide()
+    -- One D-pad stop per row: Square picks on the row (switch padPick; off, the button is a stop again).
+    if ns.Features.On("padPick") then ns.Nav.Skip(row.pick) end
     S.pickOf[row.pick] = row
 end
 

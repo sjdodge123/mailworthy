@@ -1,6 +1,7 @@
 -- The mail window's row tooltips (MailWindow.lua): the item's own tooltip plus where it stands and
 -- what a press does, for the mouse over a row and for the controller's highlight on it (Nav.OnSelect,
--- with "Press" for "Click"); and the pick button's lines (its tooltip, mouse or highlight). Our own rows and GameTooltip only.
+-- with "Press" for "Click" and, on a row with a pick, what Square does); and the pick button's
+-- lines. Our own rows and GameTooltip only.
 local _, ns = ...
 
 local UI = ns.MailWindow
@@ -25,23 +26,27 @@ end
 --- What a row's tooltip adds under the item's own (operator, 2026-11-09: "add a click to
 --- lock tooltip to the rows of items being mailed"): where the item stands, then what a press
 --- does. `item` is a row's item (a scan entry), `staying` its list, `pad` the controller ("Press"
---- for "Click"), `bankAlt` the saved bank alt. Returns the two lines. `busy`: a send is running,
+--- for "Click"), `bankAlt` the saved bank alt. Returns the two lines, and with the controller on a
+--- row with a pick a third: what Square does (UX review U4). `busy`: a send is running,
 --- when a press changes nothing (toggleLock), so the second line says that instead of promising
 --- a lock on an item already on its way (Codex review, 2026-11-09).
 UI.BUSY_LINE = "Sending: locks can't change until it's done."
 function UI.TooltipLines(item, staying, pad, bankAlt, busy)
     local r = item.result or {}
     local verb = pad and "Press" or "Click"
+    local pick = pad and not busy and #(item.choices or {}) > 0 and ns.Features.On("padPick")
+        and (ns.Gamepad.Glyph(ns.Gamepad.FACE_LEFT) .. " " .. nextPickText(item) .. ": where it goes this visit.")
+        or nil
     if staying then
         if ns.Valuation.Is(r, ns.Valuation.K.locked) then
             return "Locked in Mailworthy: it stays in your bags and is never mailed.",
-                busy and UI.BUSY_LINE or (verb .. " to unlock.")
+                busy and UI.BUSY_LINE or (verb .. " to unlock."), pick
         end
         local where = (UI.PinnedHere(r) and "BH: it stays, to bank here: you pinned it, and "
                 .. tostring(ns.Pins.ModeText()) .. ".")
             or (ns.Valuation.BankForCraft(r) and ("BH: bank it here: " .. UI.WhyKept(r) .. "."))
             or ("It stays: " .. UI.StayReason(r) .. ".")
-        return where, busy and UI.BUSY_LINE or (verb .. " to lock it, so it always stays.")
+        return where, busy and UI.BUSY_LINE or (verb .. " to lock it, so it always stays."), pick
     end
     local to = r.to or bankAlt
     local where = to and ((r.route == "return" and "Going back to " or "Mailing to ") .. S.firstName(to)
@@ -51,7 +56,7 @@ function UI.TooltipLines(item, staying, pad, bankAlt, busy)
         where = where .. string.format(" Your %s uses it, but the pin wins (Settings > Pinned items: Bank here keeps it).",
             tostring(r.pinConflict))
     end
-    return where, busy and UI.BUSY_LINE or (verb .. " to lock: it stays in your bags and is never mailed.")
+    return where, busy and UI.BUSY_LINE or (verb .. " to lock: it stays in your bags and is never mailed."), pick
 end
 
 -- The row whose tooltip shows (the mouse over it, or the controller's highlight on it), and
@@ -77,7 +82,7 @@ function UI.TooltipItem(tooltip)
 end
 
 local function addLines(tooltip)
-    local where, press = UI.TooltipLines(tipRow.item, tipRow.staying, tipPad, ns.Config.BankAlt(),
+    local where, press, pick = UI.TooltipLines(tipRow.item, tipRow.staying, tipPad, ns.Config.BankAlt(),
         ns.Mailer.Busy())
     local r = tipRow.item.result or {}
     -- A pin's line in its destination's colour (BA when mailed, BH when it stays), like its glow and tag.
@@ -86,6 +91,7 @@ local function addLines(tooltip)
     tooltip:AddLine(" ")
     tooltip:AddLine(where, c[1], c[2], c[3], true)
     tooltip:AddLine(press, 1, 0.82, 0, true)
+    if pick then tooltip:AddLine(pick, 1, 0.82, 0, true) end
 end
 
 local function onTooltipData(tooltip, data)
@@ -144,14 +150,10 @@ function S.refreshTooltip()
 end
 
 -- The controller's highlight (Nav) on an item row shows the tooltip the mouse gets there, with
--- "Press" for "Click"; on a row's pick button, the pick's lines; anywhere else it goes away.
+-- "Press" for "Click"; anywhere else it goes away. A row's pick button is not a D-pad stop (Square
+-- picks on the row): its mouse tooltip goes away too.
 function S.OnNavSelect(button)
     local row = button and S.rowOf[button]
-    local picked = button and S.pickOf[button]
-    if picked and picked.item then
-        S.showPickTip(picked, true)
-        return
-    end
     if type(GameTooltip) == "table" and S.pickOf[GameTooltip:GetOwner()] then GameTooltip:Hide() end
     if row and row.item and ns.Features.On("tooltipLines") then
         UI.stats.padTips = UI.stats.padTips + 1
@@ -180,12 +182,12 @@ function UI.PickLines(item, pad, busy)
     return lines
 end
 
---- The pick button's tooltip (the mouse over it, or the controller's highlight: `pad`).
-function S.showPickTip(row, pad)
+--- The pick button's tooltip (the mouse over it).
+function S.showPickTip(row)
     if not row.item or type(GameTooltip) ~= "table" then return end
     S.hideTooltip()
     GameTooltip:SetOwner(row.pick, "ANCHOR_RIGHT")
-    for i, text in ipairs(UI.PickLines(row.item, pad, ns.Mailer.Busy())) do
+    for i, text in ipairs(UI.PickLines(row.item, false, ns.Mailer.Busy())) do
         if i == 1 then GameTooltip:SetText(text) else GameTooltip:AddLine(text, 1, 1, 1, true) end
     end
     GameTooltip:Show()

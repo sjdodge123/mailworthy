@@ -67,6 +67,11 @@ function Nav.TopLeft(candidates)
     return best
 end
 
+-- Buttons the D-pad passes over: still there for the mouse, done another way with the controller
+-- (the mail window's row pick buttons: Square on the row picks; UX review U4). Ours only.
+local skipped = setmetatable({}, { __mode = "k" })
+function Nav.Skip(button) if button then skipped[button] = true end end
+
 --- Visible buttons under the window, with their centres. The window's own X (Widgets.Window's
 --- CloseButton) is left out: it sits above every other button, so the top-left start landed on it
 --- and the first Cross closed the window (UX pass, 2026-11-15). Circle closes it with a controller.
@@ -77,7 +82,7 @@ function Nav.Candidates()
     local function walk(frame)
         for _, child in ipairs({ frame:GetChildren() }) do
             if child:IsVisible() and child ~= close then
-                if child:IsObjectType("Button") then
+                if child:IsObjectType("Button") and not skipped[child] then
                     local x, y = child:GetCenter()
                     if x and y then list[#list + 1] = { button = child, x = x, y = y } end
                 end

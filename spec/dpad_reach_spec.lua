@@ -106,6 +106,12 @@ describe("D-pad reach in every view", function()
         assert.truthy(ns.MailWindow.PickFor(10940), "a Mailing row's pick button")
         assert.truthy(ns.MailWindow.PickFor(4338), "a Staying row's pick button")
         assertNavigable("mailbox window, pick buttons on both lists", 10)
+        -- One D-pad stop per row (UX review U4): Square picks on the row, the button is for the mouse.
+        for _, c in ipairs(ns.Nav.Candidates()) do
+            local name = tostring(c.button:GetName())
+            assert.is_nil(name:find("Pick%d"), "a pick button is a D-pad stop: " .. name)
+        end
+        assert.truthy(ns.MailWindow.RowFor(10940) and ns.MailWindow.RowFor(4338))
         WowStub.state.professions = professions
         WowStub.setBag(0, 8, nil)
         WowStub.setBag(0, 9, nil)

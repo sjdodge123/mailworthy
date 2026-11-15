@@ -1,7 +1,7 @@
 -- The Mailworthy window at the mailbox (media/ux-pass-prototype.png): who the mail
 -- goes to, the bindings in force (only when there are any: a profession's materials
 -- to a friend, with Skip once and Remove), what goes and why, what stays and why,
--- the total gain, and Send / Settings. One press of Send mails everything (Mailer).
+-- the total gain, and Send / Settings... One press of Send mails everything (Mailer).
 -- The window grows and shrinks to the rows it shows (UI.Layout); the X, Escape and
 -- the controller's Circle close it.
 --
@@ -10,28 +10,28 @@
 -- Inbox, Send is greyed out and says "Click Send Mail"; on Send Mail it is "Send to ...".
 --
 -- Mouse: click. Controller: Triangle at the mail window opens it, then the D-pad
--- moves Mailworthy's own highlight, Cross presses, Circle closes (PadKey "window"
--- set, Nav). Every row is a button: pressing an item locks it (it stays in the
+-- moves Mailworthy's own highlight, Cross presses, Square moves a row's pick on, Circle closes
+-- (PadKey "window" set, Nav). Every row is a button: pressing an item locks it (it stays in the
 -- bags) or unlocks it, so the controller can change the list without a menu.
 -- A row's tooltip (the mouse over it, or the controller's highlight on it) is the item's own plus
 -- where it stands and what a press does ("Click to lock ...", "Press to unlock."; switch
 -- tooltipLines). Everything it says is also on the row itself.
 --
--- Return to sender (operator, 2026-11-08; Returns.lua): a toggle beside Settings, on every
+-- Return to sender (operator, 2026-11-08; Returns.lua): a toggle beside Settings..., on every
 -- character. While it is on (lit green, like every toggle that is on), what other characters
 -- mailed this one joins the Mailing list, to go back to them; pressed again, the list is back to
 -- normal. On the bank alt the window works too ("bank alt view should still allow mail
--- automation"): its own share stays (it sells it), bindings and returns mail, and a Summary
--- button opens the old summary (switch bankAltMail off: the button opens only the summary).
+-- automation"): its own share stays (it sells it), bindings and returns mail, and a Bank alt
+-- summary... button opens the old summary (switch bankAltMail off: the button opens only the summary).
 --
 -- The window is split over several files (loaded in .toc order, all on this one ns.MailWindow
 -- table; UX review A5):
 --   MailWindow.lua      this file: the frame, Create, Layout, Refresh (one call per block), Show
 --   MailTooltip.lua     the row tooltips (mouse and the controller's highlight), the pick's lines
---   MailRows.lua        the Mailing / Staying rows, their pick buttons, the pagers
+--   MailRows.lua        the Mailing / Staying rows, their pick buttons (and Square), the pagers
 --   MailRecipients.lua  "To:" and its lines, Skip once / Choose bank alt..., Return to sender
 --   MailBanners.lua     the notices over the bindings: stale prices, pay back, a crafter on offer
---   MailBindings.lua    the bindings block (Skip once, Remove)
+--   MailBindings.lua    the bindings block (Skip once, Remove asks "Sure?")
 --   MailTotals.lua      the total box: gain, fees, postage, the last run's receipt
 --   MailSend.lua        Send / Stop and "what was previewed is what is sent" (UI.Changed)
 --   MailTabs.lua        the tab watcher: Inbox or Send Mail, opening by itself, re-reading
@@ -205,9 +205,12 @@ function UI.Layout(n)
 end
 
 --- The footer under the buttons: a newer Mailworthy, the Mailworthy mark's key, the controller
---- legend; returns how many lines it takes.
+--- legend (with "Square pick" while a row has a pick); returns how many lines it takes.
 local function fillFooter(ctx)
     local footer, notice = W.Footer(ctx.pad, S.marked, "\n"), ns.Version.Text() -- notice: a newer Mailworthy is out
+    if ctx.pad and not ctx.busy and ns.Features.On("padPick") and S.AnyPick() then
+        footer = footer .. "    " .. ns.Gamepad.Glyph(ns.Gamepad.FACE_LEFT) .. " pick"
+    end
     if notice then footer = footer ~= "" and (notice .. "\n" .. footer) or notice end
     S.legend:SetText(footer)
     return (S.marked and 1 or 0) + (ctx.pad and 1 or 0) + (notice and 1 or 0)

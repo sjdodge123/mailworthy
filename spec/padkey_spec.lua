@@ -61,6 +61,39 @@ describe("controller bindings", function()
         assert.equal(click("MailworthyPadTriangle"), b.PAD4)
     end)
 
+    it("Square is the mailbox window's pick key (UX review U4); its own switch gives it back", function()
+        WowStub.state.activeFrame = MailFrame
+        tick()
+        _G.MailworthyPadTriangle:Click()
+        tick()
+        assert.equal(click("MailworthyPadSquare"), WowStub.state.bindings.PAD3)
+        WowStub.state.activeFrame = nil
+        tick()
+        assert.is_nil(WowStub.state.bindings.PAD3, "cleared with the rest")
+        MailworthyDB.features.padPick = false
+        WowStub.state.activeFrame = MailFrame
+        tick()
+        assert.equal(click("MailworthyPadCross"), WowStub.state.bindings.PAD1)
+        assert.is_nil(WowStub.state.bindings.PAD3, "padPick off: Square stays Blizzard's")
+    end)
+
+    it("padPick off (then /reload): a row's pick button is a D-pad stop again", function()
+        ns = loadAddon()
+        MailworthyDB.features.padPick = false
+        WowStub.state.gamepadUI = true
+        ns.Fire("PLAYER_LOGIN")
+        ns.Config.SetBankAlt("Roknua Themicrulah")
+        MailFrame:Show()
+        SendMailFrame:Show()
+        WowStub.setBag(0, 1, WowStub.item(10940, "Strange Dust", { count = 10, sell = 2, class = 7, subclass = 12 }))
+        ns.Routes.Add("Bob Surname", 333)
+        ns.MailWindow.Show("send")
+        local pick, stop = ns.MailWindow.PickFor(10940), false
+        assert.truthy(pick)
+        for _, c in ipairs(ns.Nav.Candidates()) do stop = stop or c.button == pick end
+        assert.is_true(stop)
+    end)
+
     it("re-applies when Blizzard replaces a binding", function()
         WowStub.state.activeFrame = MailFrame
         tick()

@@ -9,7 +9,8 @@
 --
 --   mail    mail window focused, Mailworthy window closed:  Triangle opens it
 --   window  mail window focused, Mailworthy window open:    Triangle closes,
---           D-pad moves Mailworthy's highlight (Nav), Cross presses, Circle closes
+--           D-pad moves Mailworthy's highlight (Nav), Cross presses, Circle closes, Square
+--           moves the highlighted row's pick on (switch padPick)
 --   bags    bags focused:  L3 locks / unlocks the selected item (Locks), R3 moves its pin on
 --           (Pins); each key has its own switch (padLock, padPin)
 --   merchant  merchant window focused:  Triangle opens / closes the vendor window (Vendor)
@@ -33,6 +34,7 @@ PadKey.SETS = {
     mail = { PAD4 = "MailworthyPadTriangle" },
     window = {
         PAD4 = "MailworthyPadTriangle", PAD1 = "MailworthyPadCross", PAD2 = "MailworthyPadCircle",
+        PAD3 = "MailworthyPadSquare",
         PADDUP = "MailworthyPadUp", PADDDOWN = "MailworthyPadDown",
         PADDLEFT = "MailworthyPadLeft", PADDRIGHT = "MailworthyPadRight",
     },
@@ -47,7 +49,7 @@ PadKey.SETS = {
 
 local NAVIGATES = { window = true, settings = true }
 -- A key with a switch of its own (/mw feature): bound only while its feature is on.
-PadKey.KEY_FEATURE = { PADLSTICK = "padLock", PADRSTICK = "padPin" }
+PadKey.KEY_FEATURE = { PADLSTICK = "padLock", PADRSTICK = "padPin", PAD3 = "padPick" }
 
 local watcher, active, elapsed = nil, nil, 0
 PadKey.stats = { applies = 0, clears = 0, presses = 0, sets = {} }
@@ -179,6 +181,8 @@ function PadKey.Create()
     watcher:SetScript("OnHide", function() clear("interface hidden") end)
     padButton("MailworthyPadTriangle", function() ns.MailButton.Activate("Triangle") end)
     padButton("MailworthyPadCross", function() ns.Nav.Press() end)
+    -- Square on a highlighted mailbox row: its pick moves on (Me / Friend / Guild; UX review U4).
+    padButton("MailworthyPadSquare", function() ns.MailWindow.PadPick() end)
     padButton("MailworthyPadCircle", function()
         local closed = ns.Nav.CloseTop()
         ns.Log.Add("pad", "Circle closed %s", closed and tostring(closed:GetName()) or "nothing")
