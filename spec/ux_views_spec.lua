@@ -99,7 +99,15 @@ describe("window views", function()
         end
         assert.is_nil(r.MailworthySettingsFriendsGuild)
         assertNoBlankButtons()
+        -- Widgets.Views knows each view's buttons: every one that shows is a D-pad stop.
+        for _, name in ipairs(ns.SettingsUI.Views().Buttons("more")) do
+            if _G[name]:IsVisible() then assert.truthy(r[name], "Bags and more: " .. name .. " shows but can't be reached") end
+        end
         press(_G.MailworthySettingsTabMailing)
+        r = reachable()
+        for _, name in ipairs(ns.SettingsUI.Views().Buttons("mailing")) do
+            assert.truthy(r[name], "Mailing: " .. name .. " can't be reached")
+        end
 
         press(_G.MailworthySettingsChange)
         assert.equal("pick", ns.SettingsUI.View())
