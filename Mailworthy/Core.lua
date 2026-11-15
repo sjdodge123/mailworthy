@@ -170,6 +170,24 @@ function ns.HandleSlash(msg)
     end
 end
 
+-- Key bindings (Bindings.xml; UX pass U9, 2026-11-15): Options > Keybindings > AddOns, so a controller
+-- player can open Settings or the report away from a mailbox. Only Mailworthy's own windows.
+BINDING_NAME_MAILWORTHY_SETTINGS = "Mailworthy: settings"
+BINDING_NAME_MAILWORTHY_REPORT = "Mailworthy: bug report"
+ns.BINDINGS = { settings = true, report = true }
+
+--- A key binding pressed (Bindings.xml): "settings" toggles the Settings window, "report" opens the report.
+function MailworthyBinding(which)
+    if not ns.BINDINGS[which] then return end
+    ns.lastCommand = "binding " .. tostring(which)
+    if which == "settings" then
+        if ns.SettingsUI.Frame() and ns.SettingsUI.Frame():IsShown() then ns.SettingsUI.Frame():Hide()
+        else ns.SettingsUI.Show() end
+    else
+        ns.HandleSlash(which)
+    end
+end
+
 SLASH_MAILWORTHY1 = "/mw"
 SLASH_MAILWORTHY2 = "/mailworthy"
 SlashCmdList.MAILWORTHY = function(msg) ns.HandleSlash(msg) end
