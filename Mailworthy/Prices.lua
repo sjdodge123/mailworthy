@@ -250,6 +250,88 @@ function Prices.Lookup(link)
     }
 end
 
+-- Auctionator's quiet price writes (operator, 2026-11-16: a green tagged DE at a 24s auction price,
+-- another tagged AH at 15s, while Auctionator's own tooltip showed those prices). API.v1's
+-- RegisterForDBUpdate fires only after a scan (IncrementalScan / Search PricesProcessed, FullScan
+-- ScanComplete). Selecting an item in the Selling tab searches it and saves its lowest price with
+-- Auctionator.Database:SetPrice, and fires nothing (Source_ModernAH/Tabs/Selling/Mixins/SaleItem.lua
+-- ProcessItemResults / ProcessCommodityResults; posting and the legacy Buy list do the same), so the
+-- tags kept the price from before. Read from Auctionator's source (Source/Database/Mixin.lua,
+-- Source/Variables/Main.lua): its database is CreateAndInitFromMixin(Auctionator.DatabaseMixin, ...),
+-- built at Auctionator's PLAYER_LOGIN, which copies the mixin's SetPrice into it. So a post-hook on
+-- the database when it exists, else on the mixin (copied in when Auctionator builds it), sees every
+-- write. Not Auctionator's public API: every step is guarded, a write only schedules a redraw (a full
+-- scan writes thousands: one redraw WRITE_DELAY after them), and the switch is /mw feature priceWatch.
+Prices.WRITE_DELAY = 0.2
+local watch = { hooked = false, why = "not installed yet", writes = 0, fired = 0, pending = false, callbacks = {} }
+
+--- Run `fn` (no arguments) once after Auctionator writes prices: WRITE_DELAY after a write, one call
+--- for a burst of them.
+function Prices.OnWrite(fn)
+    if type(fn) == "function" then watch.callbacks[#watch.callbacks + 1] = fn end
+end
+
+local function fire()
+    watch.pending = false
+    watch.fired = watch.fired + 1
+    for _, fn in ipairs(watch.callbacks) do
+        local ok, err = pcall(fn)
+        if not ok then ns.Log.Add("error", "price write callback: %s", tostring(err)) end
+    end
+end
+
+--- The post-hook: Auctionator saved a price.
+function Prices.OnAuctionatorWrite()
+    watch.writes = watch.writes + 1
+    if watch.pending then return end
+    watch.pending = true
+    ns.Util.After(Prices.WRITE_DELAY, fire)
+end
+
+--- Hook Auctionator's price writes (see above). True when hooked.
+function Prices.WatchWrites()
+    if watch.hooked then return true end
+    if not ns.Features.On("priceWatch") then
+        watch.why = "off (/mw feature priceWatch on, then /reload)"
+        ns.Log.Add("prices", "price watch %s", watch.why)
+        return false
+    end
+    local atr = rawget(_G, "Auctionator")
+    local target, name
+    if type(atr) == "table" and type(atr.Database) == "table" and type(atr.Database.SetPrice) == "function" then
+        target, name = atr.Database, "Auctionator.Database"
+    elseif type(atr) == "table" and type(atr.DatabaseMixin) == "table"
+        and type(atr.DatabaseMixin.SetPrice) == "function" then
+        target, name = atr.DatabaseMixin, "Auctionator.DatabaseMixin"
+    end
+    if not target then
+        watch.why = type(atr) == "table" and "Auctionator loaded, but no Database.SetPrice" or "Auctionator not loaded"
+        ns.Log.Add("prices", "no price watch: %s", watch.why)
+        return false
+    end
+    local ok, err = pcall(hooksecurefunc, target, "SetPrice", function()
+        local okWrite, errWrite = pcall(Prices.OnAuctionatorWrite)
+        if not okWrite then ns.Log.Add("error", "price watch: %s", tostring(errWrite)) end
+    end)
+    if not ok then
+        watch.why = "hook failed: " .. tostring(err)
+        ns.Log.Add("prices", "price watch %s", watch.why)
+        return false
+    end
+    watch.hooked, watch.why = true, name .. ".SetPrice hooked"
+    ns.Log.Add("prices", "price watch: %s", watch.why)
+    return true
+end
+
+--- /mw report: what to look for in game.
+function Prices.ReportLines()
+    return { string.format("price watch: %s; %d Auctionator price write(s), %d redraw(s) (check: at the auction house, "
+        .. "select an item in Auctionator's Selling tab: its tag and Mailworthy's tooltip line follow the price "
+        .. "Auctionator's tooltip shows)", watch.why, watch.writes, watch.fired) }
+end
+
+ns.On("PLAYER_LOGIN", function() Prices.WatchWrites() end)
+
 --- Prices.Lookup with TradeSkillMaster as the source (nil without TSM).
 function Prices.LookupTSM(link)
     if not Prices.TSM() then return nil end

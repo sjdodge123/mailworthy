@@ -76,7 +76,7 @@ function. Specs: the module's own spec first; `critical_path` = `spec/critical_p
 | `Palette.lua` | One colour and label per destination (AH, DE, V, BA, BH, F, R, ...) | entries, `ORDER`, `LEGEND`, `Hex`, `Letters` | border, bank_alt |
 | `Pins.lua` | Account-wide pins (bank / vendor) and the per-character BA/BH mode | `Pins.Effective`, `Set`, `Toggle`, `SetMode`, `Mode`, `Kind`, `OnChanged`, `ToggleSelectedBagSlot` (from `Locks.BagClick`) | pins, pin_mode |
 | `Border.lua` | Lock/pin glow on item buttons; the shared per-button draw pipeline; glow tooltip line | `Border.RefreshButton`, `DrawBagSlot`, `AddDecorator`, `AddRefresher`, `RefreshAll`, `Clear`, `Install` | border |
-| `Prices.lua` | Price-source adapter: Auctionator first, else TSM; disenchant value; vendor price | `Prices.Source`, `Lookup`, `LookupTSM`, `MaterialPrice`, `Vendor`, `DisenchantValueFor`, `ClassID`, `History` | prices |
+| `Prices.lua` | Price-source adapter: Auctionator first, else TSM; disenchant value; vendor price | `Prices.Source`, `Lookup`, `LookupTSM`, `MaterialPrice`, `Vendor`, `DisenchantValueFor`, `ClassID`, `History`, `WatchWrites` / `OnWrite` / `OnAuctionatorWrite` (Auctionator's quiet price writes), `ReportLines` | prices |
 | `Disenchant.lua` | Era disenchant tables and expected value (port of Disenchantry 1.1.5) | `Disenchant.Outcomes`, `ExpectedValue` (pure), `Value` | disenchant |
 | `Tiers.lua` | Material tiers: the skill at which a profession is done with a material | `Tiers.Threshold`, `Outgrown`, `OutgrownNames`, `PastText`, `Step`, `WorthConverting` (pure) | tiers |
 | `TierData.lua` | **Generated** tier tables (`tools/tiers/build.py` from `tools/tiers/data.py`; edit those) | `Tiers.DONE`, `Tiers.KEEP`, `Tiers.CONVERT` | tiers (indirect) |
@@ -231,7 +231,9 @@ naming this character, or Return to sender.
 1. `BankAlt.Refresh` runs `Bags.Evaluate(BankAlt.Settings())` and stores
    `BankAlt.Verdict(item)` (AH / DE / V / BA / BH / F / R) per slot, link and item ID. The
    cache is redrawn on lock/pin changes, `Mailer.OnSent`, Settings closing, Auctionator's
-   `RegisterForDBUpdate`, and on `BAG_UPDATE_DELAYED` only when `Bags.Fingerprint()` changed
+   `RegisterForDBUpdate` (after a scan), any other Auctionator price write (`Prices.OnWrite`:
+   the Selling tab saves the posted item's price without that callback; one redraw 0.2 s after a
+   burst), and on `BAG_UPDATE_DELAYED` only when `Bags.Fingerprint()` changed
    or `BankAlt.Waiting()` (an item's data or vendor price not loaded, or a failed price
    call). A bag update that changed only an ammo stack's size (each shot of a bow or gun)
    just marks the cache stale (`BankAlt.Invalidate`), read again at the next hover or bag
@@ -295,7 +297,7 @@ Every `ns.On` handler, by event. `Blocked.lua` registers `ADDON_ACTION_FORBIDDEN
 | Event | Modules |
 |---|---|
 | `ADDON_LOADED` | Core (`ns.Init`), BagAddons, MailButton (`Blizzard_MailFrame`) |
-| `PLAYER_LOGIN` | Core (first), Characters, Locks, Pins, Border, Config, Quests, Comms, Guild, Stale, Mailer, Ledger (owner index), LedgerHooks (prune, install), Contributions, PadKey, MailButton, SettingsUI, RoutesUI, LedgerUI, LocksUI, PinsUI, PinWarning, Widgets (tooltips and disarming on `Nav.OnSelect`), Bags (Locks / Pins changes into `Bags.InputsChanged`), MinimapButton, MailWindow, BankAlt, Vendor, BagAddons, AuctionatorTags, Report |
+| `PLAYER_LOGIN` | Core (first), Characters, Locks, Pins, Border, Config, Quests, Comms, Guild, Stale, Mailer, Ledger (owner index), LedgerHooks (prune, install), Contributions, PadKey, MailButton, SettingsUI, RoutesUI, LedgerUI, LocksUI, PinsUI, PinWarning, Widgets (tooltips and disarming on `Nav.OnSelect`), Bags (Locks / Pins changes into `Bags.InputsChanged`), MinimapButton, MailWindow, BankAlt, Vendor, BagAddons, AuctionatorTags, Prices (`WatchWrites`), Report |
 | `MAIL_SHOW` | Conjured, Recipes, Comms, Stale, Mailer, Trip, MailButton, Report |
 | `MAIL_CLOSED` | Border, Routes, Bags, Mailer, LedgerHooks, Contributions, Returns, Trip, MailWindow |
 | `MAIL_SEND_SUCCESS` | Mailer, LedgerHooks |
@@ -329,6 +331,7 @@ FOREVER-UI-NOTES.md; `spec/no_gamepad_taint_spec.lua` guards them.
 | `TooltipDataProcessor.AddTooltipPostCall(Item)` | tooltip post-call | Border (`slotBorder`), BankAlt (`tooltipLines`), MailWindow (`tooltipLines`) |
 | `AuctionatorGroupsViewItemMixin.SetItemInfo` | `hooksecurefunc` on the mixin | AuctionatorTags (`auctionatorTags`) |
 | Auctionator `API.v1` (prices, age, exact, disenchant, `RegisterForDBUpdate`) | API calls | Prices, Stale, BankAlt |
+| `Auctionator.Database.SetPrice` (else `Auctionator.DatabaseMixin.SetPrice`, before Auctionator builds its database) | `hooksecurefunc` (not its public API) | Prices (`priceWatch`), for BankAlt's redraw |
 | `TSM_API` (`ToItemString`, `GetCustomPriceValue`, `IsCustomPriceValid`) | API calls | Prices |
 | `DisenchantValueAPI.GetValue`; Disenchantry detected only | API calls | Prices |
 | `Baganator.API.RegisterCornerWidget`, `CallbackRegistry` "ViewComplete" | addon API | BagAddons (`baganatorTags`) |
@@ -422,6 +425,7 @@ All default on (`ns.Features.DEFAULTS` in `Core.lua`; the help line there lists 
 | `tripNudge` | Trip |
 | `baganatorTags`, `bagnonTags`, `arkInventoryTags`, `betterBagsTags` | BagAddons (`BagAddons.FEATURE`) |
 | `auctionatorTags` | AuctionatorTags |
+| `priceWatch` | Prices (`WatchWrites`) |
 
 `/mw` (or `/mailworthy`), in `ns.HandleSlash`: (none) / `settings` → SettingsUI; `report` →
 Report; `feature <name> on|off`; `locks` → LocksUI; `pins` → PinsUI;

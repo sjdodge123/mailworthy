@@ -321,8 +321,20 @@ local function tagText(verdict, item, settings)
     elseif verdict == "return" then
         return string.format("Goes back to %s at the mailbox: they mailed it to you, and Return to sender is on.",
             tostring(r.to))
+    elseif verdict == "de" and r.deHere then
+        -- An enchanter's cheap piece (Valuation.DisenchantsHere): kept to level Enchanting, not for its price.
+        return "Disenchant it here: your Enchanting levels on it." .. (p.de
+            and string.format(" Disenchanting today: %s.", money(p.de)) or "")
     elseif verdict == "de" then
-        return string.format("Disenchanting today: %s, %s more than a vendor.", money(p.de), money(r.gain))
+        -- The auction price it beat, so the line can be checked against the auction tooltip (operator,
+        -- 2026-11-16: "explain this math to me. i AH this one for 24s, DE for 15s").
+        local text = string.format("Disenchanting today: %s, %s more than a vendor.", money(p.de), money(r.gain))
+        if not r.ahNet then return text .. " No current auction price to compare." end
+        local ahGain = r.ahNet - (r.vendor or 0)
+        return text .. string.format(" The auction house brings less: %s each%s%s, %s after the %d%% cut and the "
+            .. "%dh deposit.", money(unit), basis, ageText(p.age),
+            ahGain > 0 and (money(ahGain) .. " more than a vendor") or "no more than a vendor",
+            math.floor(settings.cut * 100 + 0.5), ns.Valuation.DURATION_HOURS[settings.duration])
     elseif p.ah then
         return string.format("Auction price today: %s each%s%s. After the %d%% cut and the deposit that's %s, "
             .. "so sell it to a vendor (%s).", money(unit), basis, ageText(p.age), math.floor(settings.cut * 100 + 0.5),
@@ -567,6 +579,8 @@ ns.On("PLAYER_LOGIN", function()
     if api and type(api.RegisterForDBUpdate) == "function" then
         pcall(api.RegisterForDBUpdate, ns.Prices.CALLER, redraw)
     end
+    -- RegisterForDBUpdate misses the Selling tab's price for the item being posted (Prices.WatchWrites).
+    ns.Prices.OnWrite(redraw)
     redraw()
 end)
 --- Did the last valuation leave something to read again: an item whose data wasn't loaded yet

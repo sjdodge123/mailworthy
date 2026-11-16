@@ -35,6 +35,7 @@ ns.Features = { DEFAULTS = {
     tiers = true, tierCheck = true, guildTemplate = true, ledger = true, questNeeds = true, autoOpen = true,
     returnToSender = true, bankAltMail = true, peerMark = true, versionNotice = true, tripNudge = true,
     baganatorTags = true, bagnonTags = true, arkInventoryTags = true, betterBagsTags = true, auctionatorTags = true,
+    priceWatch = true, -- Prices.WatchWrites: a post-hook on Auctionator's price writes (tags follow the Selling tab)
 } }
 
 function ns.Features.Describe()
@@ -128,7 +129,7 @@ local HELP = {
         .. "|minimapButton|bankAltTags"
         .. "|tooltipLines|comms|staleNudge|tiers|tierCheck|guildTemplate|ledger|questNeeds|autoOpen|returnToSender|bankAltMail"
         .. "|peerMark|versionNotice|tripNudge|crafterOffer"
-        .. "|baganatorTags|bagnonTags|arkInventoryTags|betterBagsTags|auctionatorTags> on|off"
+        .. "|baganatorTags|bagnonTags|arkInventoryTags|betterBagsTags|auctionatorTags|priceWatch> on|off"
         .. " - isolate a problem (then /reload)",
     "/mw report - a copyable report for bug reports",
     "/mw help - this list",

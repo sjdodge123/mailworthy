@@ -164,6 +164,42 @@ describe("bank alt view", function()
         assert.is_nil(text:find("Mailed for", 1, true), "never mailed: no such line")
     end)
 
+    -- Operator, 2026-11-16: a green tagged DE at a 24s auction price. Auctionator's Selling tab saves the
+    -- price of the item being posted without a RegisterForDBUpdate callback (Prices.WatchWrites).
+    it("a price Auctionator saves quietly redraws the tags; DE says the auction price it beat", function()
+        local ring = WowStub.link(6360, "Green Ring")
+        _G.Auctionator.Database = { SetPrice = function(_, _, price) prices[ring].ah = price end }
+        assert.is_true(ns.Prices.WatchWrites())
+        combined:UpdateItems()
+        assert.equal("DE", tagOf(combined.Items[3]))
+        assert.truthy(hover(ring, 6360):find("Disenchanting today: 10s, 9s 50c more than a vendor. "
+            .. "No current auction price to compare.", 1, true))
+        -- 9s listed: 855 - 50 (half the 1s minimum deposit) = 8s 05c, under the 10s disenchant.
+        _G.Auctionator.Database:SetPrice("6360", 900)
+        combined:UpdateItems()
+        assert.truthy(hover(ring, 6360):find("No current auction price", 1, true), "not before the delay")
+        WowStub.runTimers()
+        combined:UpdateItems()
+        assert.equal("DE", tagOf(combined.Items[3]))
+        local text = hover(ring, 6360)
+        assert.truthy(text:find("Disenchanting today: 10s, 9s 50c more than a vendor. The auction house brings less: "
+            .. "9s each (scanned today), 7s 55c more than a vendor after the 5% cut and the 24h deposit.", 1, true), text)
+        -- 24s listed: the auction house wins.
+        _G.Auctionator.Database:SetPrice("6360", 2400)
+        WowStub.runTimers()
+        combined:UpdateItems()
+        assert.equal("AH", tagOf(combined.Items[3]))
+    end)
+
+    it("an enchanter's disenchant-here piece says why, not a price race", function()
+        local item = { advice = "de", price = { de = 400 }, result = { action = "keep", deHere = true, vendor = 50 } }
+        local lines = ns.BankAlt.TooltipLines(item, nil, ns.BankAlt.Settings(), "full")
+        assert.equal("Disenchant it here: your Enchanting levels on it. Disenchanting today: 4s.", lines[2][1])
+        item.price = {}
+        lines = ns.BankAlt.TooltipLines(item, nil, ns.BankAlt.Settings(), "full")
+        assert.equal("Disenchant it here: your Enchanting levels on it.", lines[2][1])
+    end)
+
     -- A CurseForge request, 2026-11-14: "make the item tooltip text either reduced or hidden".
     it("Settings' Item tooltips: short is the tag in one line, off is nothing, full is everything", function()
         MailworthyDB.mailed = { [2589] = { route = "ah", gain = 821, at = WowStub.state.serverTime,
