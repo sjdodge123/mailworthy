@@ -303,4 +303,75 @@ describe("prices", function()
             assert.equal(11, P.MaterialPrice(10940), "Auctionator's while it is the source")
         end)
     end)
+
+    -- Auctionator's quiet price writes (operator, 2026-11-16): its Selling tab saves the price of the
+    -- item being posted with Database:SetPrice and fires no RegisterForDBUpdate callback.
+    describe("price watch", function()
+        it("hooks the price database's SetPrice: one callback a delay after a burst of writes", function()
+            local saved = {}
+            auctionator({})
+            _G.Auctionator.Database.SetPrice = function(_, key, price) saved[key] = price end
+            local calls = 0
+            P.OnWrite(function() calls = calls + 1 end)
+            assert.is_true(P.WatchWrites())
+            assert.is_true(P.WatchWrites(), "once")
+            _G.Auctionator.Database:SetPrice("2589", 30)
+            _G.Auctionator.Database:SetPrice("g:2589:5", 30)
+            assert.same({ ["2589"] = 30, ["g:2589:5"] = 30 }, saved, "Auctionator's write still happens")
+            assert.equal(0, calls, "not at once")
+            assert.equal(1, #WowStub.timers, "one redraw for the burst")
+            WowStub.runTimers()
+            assert.equal(1, calls)
+            _G.Auctionator.Database:SetPrice("2589", 28)
+            WowStub.runTimers()
+            assert.equal(2, calls, "a later write calls again")
+            assert.truthy(P.ReportLines()[1]:find("price watch: Auctionator.Database.SetPrice hooked; 3 Auctionator "
+                .. "price write(s), 2 redraw(s)", 1, true), P.ReportLines()[1])
+        end)
+
+        it("before Auctionator builds its database, hooks the mixin it is copied from", function()
+            local mixinCalls = 0
+            _G.Auctionator = { DatabaseMixin = { SetPrice = function() mixinCalls = mixinCalls + 1 end } }
+            local calls = 0
+            P.OnWrite(function() calls = calls + 1 end)
+            assert.is_true(P.WatchWrites())
+            -- CreateAndInitFromMixin: the mixin's functions copied into the new database.
+            local db = {}
+            for k, v in pairs(_G.Auctionator.DatabaseMixin) do db[k] = v end
+            db:SetPrice("2589", 30)
+            WowStub.runTimers()
+            assert.equal(1, mixinCalls)
+            assert.equal(1, calls)
+        end)
+
+        it("nothing without Auctionator or its database, and nothing with the switch off", function()
+            assert.is_false(P.WatchWrites())
+            assert.truthy(P.ReportLines()[1]:find("price watch: Auctionator not loaded", 1, true))
+            _G.Auctionator = { API = { v1 = {} } }
+            assert.is_false(P.WatchWrites())
+            assert.truthy(P.ReportLines()[1]:find("Auctionator loaded, but no Database.SetPrice", 1, true))
+            auctionator({})
+            local original = function() end
+            _G.Auctionator.Database.SetPrice = original
+            MailworthyDB.features.priceWatch = false
+            assert.is_false(P.WatchWrites())
+            assert.equal(original, _G.Auctionator.Database.SetPrice, "not hooked")
+            assert.truthy(P.ReportLines()[1]:find("off (/mw feature priceWatch on", 1, true))
+        end)
+
+        it("a callback that errors is logged, and the others still run", function()
+            auctionator({})
+            _G.Auctionator.Database.SetPrice = function() end
+            local calls = 0
+            P.OnWrite(function() error("boom") end)
+            P.OnWrite(function() calls = calls + 1 end)
+            P.WatchWrites()
+            _G.Auctionator.Database:SetPrice("2589", 30)
+            WowStub.runTimers()
+            assert.equal(1, calls)
+            local logged = false
+            for _, line in ipairs(ns.Log.Lines()) do logged = logged or line:find("price write callback", 1, true) ~= nil end
+            assert.is_true(logged)
+        end)
+    end)
 end)
