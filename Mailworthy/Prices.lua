@@ -278,14 +278,22 @@ function Prices.MaterialPrice(itemID)
     if Prices.Source() == "TSM" then return (Prices.TSMUnit(tsmString)) end
     local api = Prices.Auctionator()
     if not api then return nil end
-    local price
+    local id = tonumber(itemID)
+    local price, age
     if type(api.GetAuctionPriceByItemID) == "function" then
-        price = copper(call(api.GetAuctionPriceByItemID, Prices.CALLER, tonumber(itemID)))
+        price = copper(call(api.GetAuctionPriceByItemID, Prices.CALLER, id))
+        age = tonumber((call(api.GetAuctionAgeByItemID, Prices.CALLER, id)))
     else
-        price = copper(call(api.GetAuctionPriceByItemLink, Prices.CALLER, "item:" .. tonumber(itemID)))
+        price = copper(call(api.GetAuctionPriceByItemLink, Prices.CALLER, "item:" .. id))
+        age = tonumber((call(api.GetAuctionAgeByItemLink, Prices.CALLER, "item:" .. id)))
     end
-    -- With TSM installed too, it prices a material Auctionator has none for (2026-11-17).
-    if price == nil and Prices.TSM() then price = (Prices.TSMUnit(tsmString)) end
+    -- With TSM installed too, the fresher of the two, as Prices.Lookup (2026-11-17; Codex review: an old
+    -- Auctionator material price beat today's TSM data in the disenchant value).
+    if not Prices.TSM() then return price end
+    local a, maxAge, tsmAge = { ah = price, age = age }, Prices.MaxAgeDays(), Prices.TSMAge()
+    if Prices.Fresher(a, { ah = 0 }, tsmAge, maxAge) == "Auctionator" then return price end
+    local unit, failed = Prices.TSMUnit(tsmString)
+    if Prices.Fresher(a, { ah = unit, failed = failed or nil }, tsmAge, maxAge) == "TSM" then return unit end
     return price
 end
 

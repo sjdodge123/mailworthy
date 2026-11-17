@@ -424,6 +424,27 @@ describe("prices", function()
             _G.Auctionator.API.v1.GetAuctionPriceByItemID = function() return nil end
             assert.equal(25, P.MaterialPrice(10940), "TSM's where Auctionator has none (2026-11-17)")
         end)
+
+        it("prices materials by the fresher source too, as Lookup does (Codex review, 2026-11-17)", function()
+            tsm()
+            auctionator({})
+            local api = _G.Auctionator.API.v1
+            api.GetAuctionPriceByItemID = function() return 10000 end
+            local age = 6
+            api.GetAuctionAgeByItemID = function() return age end
+            values["DBMinBuyout i:10940"] = 10
+            assert.equal(10000, P.MaterialPrice(10940), "TSM's age unknown: Auctionator's 6-day price still counts")
+            _G.TSM_APPHELPER_LOAD_DATA = function() end
+            P.WatchTSMData()
+            _G.TSM_APPHELPER_LOAD_DATA("AUCTIONDB_NON_COMMODITY_DATA", GetRealmName(),
+                "return {downloadTime=" .. os.time() .. ",fields={},data={}}")
+            assert.equal(10, P.MaterialPrice(10940), "TSM's data from today beats a 6-day-old scan")
+            age = 0
+            assert.equal(10000, P.MaterialPrice(10940), "both today: Auctionator's")
+            age = 8
+            _G.TSM_API.GetCustomPriceValue = function() error("boom") end
+            assert.equal(10000, P.MaterialPrice(10940), "TSM failing: Auctionator's, as without TSM")
+        end)
     end)
 
     -- Auctionator's quiet price writes (operator, 2026-11-16): its Selling tab saves the price of the

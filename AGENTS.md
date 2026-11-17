@@ -58,7 +58,8 @@ SavedVariables, feature switches, where each Safety rule is enforced) before rea
   shouldnt be a fixed rule, it should be whichever addon has the most up to date scan data";
   replaces "Auctionator + TSM: unpriced stays, never priced by TSM"), so it goes to the bank alt
   unpriced only when neither has a current price; a failed Auctionator call is never replaced by
-  TSM's price. Grey junk stays, an item whose price call failed stays, and the hard keeps above come first.
+  TSM's price, and a TSM call that fails counts as TSM not installed (Auctionator's own result
+  stands, as before 2026-11-17; operator chose "a TSM failure ... leaves today's result"). Grey junk stays, an item whose price call failed stays, and the hard keeps above come first.
   A **bank pin** (`Pins.lua`, Ctrl+Alt+click / R3) mails the pinned item to the bank alt whatever
   its price or quality, grey junk too and without a price source (operator, 2026-11-13: "Pins
   override them"); never past a hard keep, item data not loaded yet or a failed price call, and
