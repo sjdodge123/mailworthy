@@ -99,7 +99,7 @@ local function useTSM(prices)
         IsCustomPriceValid = function(source) return source == "DBMinBuyout" or source == "DBMarket" end,
         GetCustomPriceValue = function(source, itemString)
             assert(type(itemString) == "string" and itemString:find("^i:%d+$"), "not a TSM item string")
-            calls[#calls + 1] = source
+            calls[#calls + 1] = { source = source, id = itemString:match("^i:(%d+)$") }
             if source == "DBMinBuyout" and byID[itemString] then return byID[itemString] end
             return nil, "No value was returned by the custom price for the specified item."
         end,
@@ -186,7 +186,7 @@ describe("critical path: mailing", function()
     end)
     after_each(function()
         assertQuiet(ns)
-        _G.Auctionator, _G.TSM_API, _G.DisenchantValueAPI = nil, nil, nil
+        _G.Auctionator, _G.TSM_API, _G.DisenchantValueAPI, _G.TSM_APPHELPER_LOAD_DATA = nil, nil, nil, nil
     end)
 
     it("the .toc loads every addon file and only files that exist", function()
@@ -483,24 +483,62 @@ describe("critical path: mailing", function()
         _G.DisenchantValueAPI = nil
     end)
 
-    it("Auctionator and TradeSkillMaster both installed: Auctionator's prices decide", function()
+    -- operator, 2026-11-17 (rule changed on purpose; was: Auctionator's prices decide, TSM never asked):
+    -- "it shouldnt be a fixed rule, it should be whichever addon has the most up to date scan data", per item.
+    it("Auctionator and TradeSkillMaster both installed: each item priced by the fresher of the two", function()
         local tsmPrices = {}
         for l in pairs(prices) do tsmPrices[l] = 1 end -- TSM would call everything worthless
-        tsmPrices[WowStub.link(858, "Lesser Healing Potion")] = 90000 -- and the potion a fortune
+        local potion = WowStub.link(858, "Lesser Healing Potion")
+        tsmPrices[potion] = 90000 -- and the potion, which Auctionator has no price for, a fortune
         local calls = useTSM(tsmPrices)
         mailbox()
         _G.MailworthyMailButton:Click()
         local preview = previewed(ns)
-        assert.truthy(preview[6515], "Auctionator's price for the green")
-        -- operator, 2026-11-08 (rule changed on purpose; was: stays): unpriced in Auctionator, whatever TSM says
-        assert.equal(BANK_ALT, preview[858], "unpriced in Auctionator: to the bank alt, whatever TSM says")
+        assert.truthy(preview[6515], "Auctionator's price for the green, scanned today")
+        assert.equal(BANK_ALT, preview[858], "TSM's price for what Auctionator has none for")
         for _, it in ipairs(ns.MailWindow.Result().mail) do
-            if it.itemID == 858 then assert.equal("noprice", it.result.route, "not TSM's price") end
+            if it.itemID == 858 then assert.equal("ah", it.result.route, "priced by TSM") end
+        end
+        local pricedToday = {}
+        for l in pairs(prices) do pricedToday[l:match("item:(%d+)")] = true end
+        assert.is_true(#calls > 0, "TSM asked for the potion")
+        for _, c in ipairs(calls) do
+            assert.is_nil(pricedToday[c.id], "TSM asked for " .. c.id .. ", which Auctionator priced today")
         end
         _G.MailworthyMailSend:Click()
         deliver(ns)
         assertSafeAndComplete(ns, preview, { [BANK_ALT] = true })
-        assert.same({}, calls, "TSM isn't asked")
+    end)
+
+    it("both installed: TSM's realm data, fresher than an old Auctionator scan, prices the item; a failing TSM changes nothing", function()
+        local api = _G.Auctionator.API.v1
+        api.GetAuctionAgeByItemLink = function() return 12 end -- Auctionator last scanned 12 days ago
+        _G.TSM_APPHELPER_LOAD_DATA = function() end
+        assert.is_true(ns.Prices.WatchTSMData())
+        _G.TSM_APPHELPER_LOAD_DATA(ns.Prices.TSM_REALM_TAG, GetRealmName() .. "-" .. UnitFactionGroup("player"),
+            "return {downloadTime=" .. (os.time() - 86400) .. ",fields={},data={}}")
+        local tsmPrices = {}
+        for l, v in pairs(prices) do tsmPrices[l] = v end
+        useTSM(tsmPrices)
+        mailbox()
+        _G.MailworthyMailButton:Click()
+        local preview = previewed(ns)
+        assert.truthy(preview[6515], "the green goes on TSM's day-old price")
+        for _, it in ipairs(ns.MailWindow.Result().mail) do
+            if it.itemID == 6515 then
+                assert.equal("ah", it.result.route, "not 'auction price too old'")
+                assert.equal("TSM", it.price.source)
+            end
+        end
+        _G.TSM_API.GetCustomPriceValue = function() error("boom") end
+        ns.MailWindow.Refresh()
+        for _, it in ipairs(ns.MailWindow.Result().mail) do
+            assert.equal("Auctionator", it.price.source, "TSM failing: Auctionator's old prices, as without TSM")
+        end
+        preview = previewed(ns)
+        _G.MailworthyMailSend:Click()
+        deliver(ns)
+        assertSafeAndComplete(ns, preview, { [BANK_ALT] = true })
     end)
 
     it("a binding: the friend gets their profession's materials, the bank alt the rest, nobody else", function()

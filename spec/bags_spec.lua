@@ -144,6 +144,22 @@ describe("bag scan", function()
         assert.truthy(report:find("AH 30c each (3-day median; last scan 40c), 0 days old", 1, true), report)
     end)
 
+    it("with TSM too, the workings say when TSM's price beat Auctionator's (2026-11-17)", function()
+        finally(function() _G.TSM_API = nil end)
+        WowStub.setBag(2, 2, WowStub.item(858, "Lesser Healing Potion", { count = 5, sell = 5, class = 0 }))
+        _G.TSM_API = {
+            ToItemString = function(l) return "i:" .. l:match("item:(%d+)") end,
+            IsCustomPriceValid = function() return true end,
+            GetCustomPriceValue = function(source, itemString)
+                if source == "DBMinBuyout" and itemString == "i:858" then return 900 end
+            end,
+        }
+        ns.Prices.ResetTSM()
+        local report = ns.Bags.Report(ns.Bags.Evaluate())
+        assert.truthy(report:find("AH 9s each (TSM; Auctionator: no price)", 1, true), report)
+        assert.truthy(report:find("AH 50c each, 0 days old;", 1, true), "Copper Ore: Auctionator's, scanned today")
+    end)
+
     it("no auction price yet: to the bank alt (operator, 2026-11-08), a staple trade good as a common item", function()
         -- "going to the bank alt on no data is better than holding on the main"
         WowStub.setBag(2, 2, WowStub.item(858, "Lesser Healing Potion", { count = 5, sell = 5, class = 0 }))

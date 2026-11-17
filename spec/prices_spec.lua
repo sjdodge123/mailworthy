@@ -28,7 +28,10 @@ describe("prices", function()
         ns = loadAddon()
         P = ns.Prices
     end)
-    after_each(function() _G.Auctionator, _G.DisenchantValueAPI, _G.DisenchantryDB, _G.TSM_API = nil, nil, nil, nil end)
+    after_each(function()
+        _G.Auctionator, _G.DisenchantValueAPI, _G.DisenchantryDB, _G.TSM_API = nil, nil, nil, nil
+        _G.TSM_APPHELPER_LOAD_DATA = nil
+    end)
 
     describe("disenchant addon", function()
         it("is Siz DisenchantValue by its API table, Disenchantry by its saved variables, else none", function()
@@ -168,7 +171,9 @@ describe("prices", function()
             return api
         end
 
-        it("is the source only when Auctionator isn't installed; Auctionator wins when both are", function()
+        -- operator, 2026-11-17 (rule changed on purpose; was: Auctionator wins, TSM never asked): with
+        -- both, each item is priced by whichever has the more up-to-date data.
+        it("is the source only when Auctionator isn't installed; with both, not asked while Auctionator is current", function()
             assert.is_nil(P.Source())
             assert.is_nil(P.SourceText())
             assert.is_nil(P.Lookup(link), "no source: the no-Auctionator rule")
@@ -179,12 +184,127 @@ describe("prices", function()
             assert.equal("TradeSkillMaster", P.SourceText())
             auctionator({})
             assert.equal("Auctionator", P.Source())
-            assert.equal("Auctionator (TSM installed, not used)", P.SourceText())
+            assert.equal("Auctionator + TSM (whichever is fresher per item)", P.SourceText())
             values["DBMinBuyout i:2589"] = 9999
             local p = P.Lookup(link)
             assert.equal("Auctionator", p.source)
-            assert.equal(40, p.ah, "Auctionator's price, not TSM's")
-            assert.same({}, calls, "TSM isn't asked while Auctionator is the source")
+            assert.equal(40, p.ah, "Auctionator's day-old price, TSM's age unknown")
+            assert.is_nil(p.over)
+            assert.same({}, calls, "TSM isn't asked when nothing it says could win")
+        end)
+
+        it("with both: TSM prices what Auctionator has no price for, or only one past the age limit", function()
+            tsm()
+            auctionator({})
+            local api = _G.Auctionator.API.v1
+            values["DBMinBuyout i:2589"] = 55
+            api.GetAuctionPriceByItemLink = function() return nil end
+            api.GetAuctionAgeByItemLink = function() return nil end
+            local p = P.Lookup(link)
+            assert.equal("TSM", p.source)
+            assert.equal(55, p.ah)
+            assert.same({ ah = nil, age = nil }, p.over, "what it replaced: no Auctionator price")
+            assert.is_nil(p.age, "TSM's data age unknown")
+            api.GetAuctionPriceByItemLink = function() return 40 end
+            api.GetAuctionAgeByItemLink = function() return 8 end
+            p = P.Lookup(link)
+            assert.equal("TSM", p.source, "Auctionator's price is past the 7-day limit")
+            assert.same({ ah = 40, age = 8 }, p.over)
+            api.GetAuctionAgeByItemLink = function() return 7 end
+            assert.equal("Auctionator", P.Lookup(link).source, "at the limit it still counts")
+            api.GetAuctionAgeByItemLink = function() return 8 end
+            values["DBMinBuyout i:2589"] = nil
+            p = P.Lookup(link)
+            assert.equal("Auctionator", p.source, "TSM has no price either: Auctionator's stale one, as before")
+            assert.equal(8, p.age)
+            _G.TSM_API.GetCustomPriceValue = function() error("boom") end
+            p = P.Lookup(link)
+            assert.equal("Auctionator", p.source, "TSM failing: as if it weren't installed")
+            assert.is_nil(p.failed)
+            api.GetAuctionPriceByItemLink = function() error("boom") end
+            tsm()
+            values["DBMinBuyout i:2589"] = 55
+            p = P.Lookup(link)
+            assert.is_true(p.failed, "Auctionator's call failed: never priced by TSM instead (AGENTS safety)")
+            assert.equal("Auctionator", p.source)
+        end)
+
+        it("Fresher: the younger price wins, a tie Auctionator's; an unknown age only beats a stale one", function()
+            local t = { ah = 50 }
+            assert.equal("Auctionator", P.Fresher({ ah = 40, age = 2 }, t, 2, 7), "a tie")
+            assert.equal("TSM", P.Fresher({ ah = 40, age = 2 }, t, 1, 7))
+            assert.equal("Auctionator", P.Fresher({ ah = 40, age = 1 }, t, 2, 7))
+            assert.equal("TSM", P.Fresher({ ah = 40, age = 12 }, t, 9, 7), "both stale: the younger")
+            assert.equal("Auctionator", P.Fresher({ ah = 40, age = 9 }, t, 12, 7))
+            assert.equal("Auctionator", P.Fresher({ ah = 40, age = 3 }, t, nil, 7), "TSM's age unknown")
+            assert.equal("TSM", P.Fresher({ ah = 40, age = 8 }, t, nil, 7))
+            assert.equal("Auctionator", P.Fresher({ ah = 40 }, t, 0, 7), "Auctionator's age unknown")
+            assert.equal("TSM", P.Fresher({ age = 1 }, t, 30, 7), "no Auctionator price")
+            assert.equal("Auctionator", P.Fresher({ ah = 40, failed = true }, t, 0, 7))
+            assert.equal("Auctionator", P.Fresher({ failed = true }, t, 0, 7), "a failed call stays failed")
+            assert.equal("Auctionator", P.Fresher({}, { failed = true }, 0, 7))
+            assert.equal("Auctionator", P.Fresher({}, {}, 0, 7), "TSM has no price")
+        end)
+
+        it("reads TSM's realm data age from its AppHelper loader, for this realm and faction only", function()
+            tsm()
+            assert.is_nil(P.TSMAge())
+            assert.equal("TSM data age unknown (TSM's AppHelper loader not found)", P.TSMAgeText())
+            local loaded = {}
+            _G.TSM_APPHELPER_LOAD_DATA = function(tag) loaded[#loaded + 1] = tag end
+            assert.is_true(P.WatchTSMData())
+            assert.is_true(P.WatchTSMData(), "once")
+            assert.equal("TSM data age unknown (no TSM realm data loaded)", P.TSMAgeText())
+            local now = os.time()
+            _G.TSM_APPHELPER_LOAD_DATA("AUCTIONDB_NON_COMMODITY_DATA", "Some Other Realm-Alliance",
+                "return {downloadTime=" .. now .. ",fields={},data={}}")
+            _G.TSM_APPHELPER_LOAD_DATA("AUCTIONDB_REGION_STAT", "US", "return {downloadTime=" .. now .. "}")
+            assert.equal(2, #loaded, "TSM's own loader still runs")
+            assert.equal("TSM data age unknown (no TSM data for this realm)", P.TSMAgeText())
+            _G.TSM_APPHELPER_LOAD_DATA("AUCTIONDB_NON_COMMODITY_DATA", GetRealmName() .. "-" .. UnitFactionGroup("player"),
+                "return {downloadTime=" .. (now - 3 * 86400) .. ",fields={},data={}}")
+            assert.equal(3, P.TSMAge())
+            assert.equal("TSM realm data 3 days old", P.TSMAgeText())
+            _G.TSM_APPHELPER_LOAD_DATA("AUCTIONDB_NON_COMMODITY_DATA", GetRealmName(),
+                "return {downloadTime=" .. now .. ",fields={},data={}}")
+            assert.equal(0, P.TSMAge(), "the newest of the realm's blocks")
+            _G.TSM_APPHELPER_LOAD_DATA("AUCTIONDB_NON_COMMODITY_DATA", GetRealmName(), "garbage")
+            _G.TSM_APPHELPER_LOAD_DATA(nil, nil, nil)
+            assert.equal(0, P.TSMAge(), "odd blocks are ignored")
+            values["DBMinBuyout i:2589"] = 45
+            assert.equal(0, P.Lookup(link).age, "TSM's price carries its data's age")
+            MailworthyDB.features = { tsmAge = false }
+            assert.is_nil(P.TSMAge())
+            assert.is_nil(P.Lookup(link).age)
+            assert.equal("TSM data age unknown (off (/mw feature tsmAge on, then /reload))", P.TSMAgeText())
+        end)
+
+        it("with both and TSM's age known: an Auctionator scan older than TSM's data loses to it", function()
+            tsm()
+            auctionator({})
+            _G.TSM_APPHELPER_LOAD_DATA = function() end
+            P.WatchTSMData()
+            _G.TSM_APPHELPER_LOAD_DATA("AUCTIONDB_NON_COMMODITY_DATA", GetRealmName(),
+                "return {downloadTime=" .. os.time() .. ",fields={},data={}}")
+            values["DBMinBuyout i:2589"] = 55
+            local p = P.Lookup(link)
+            assert.equal("TSM", p.source, "Auctionator's price is a day old, TSM's from today")
+            assert.equal(0, p.age)
+            assert.same({ ah = 40, age = 1 }, p.over)
+            _G.Auctionator.API.v1.GetAuctionAgeByItemLink = function() return 0 end
+            assert.equal("Auctionator", P.Lookup(link).source, "both today: Auctionator's")
+        end)
+
+        it("TSM's price past the age limit is stale, like Auctionator's", function()
+            tsm()
+            _G.TSM_APPHELPER_LOAD_DATA = function() end
+            P.WatchTSMData()
+            _G.TSM_APPHELPER_LOAD_DATA("AUCTIONDB_NON_COMMODITY_DATA", GetRealmName(),
+                "return {downloadTime=" .. (os.time() - 10 * 86400) .. ",fields={},data={}}")
+            values["DBMinBuyout i:2589"] = 500
+            local item = { itemID = 858, link = WowStub.link(858, "Lesser Healing Potion"), count = 1, quality = 1, vendor = 10 }
+            local r = ns.Valuation.Evaluate(item, P.Lookup(link), ns.Valuation.DEFAULTS)
+            assert.equal(ns.Valuation.NO_PRICE, r.route, "auction price too old: to the bank alt")
         end)
 
         it("prices an item by its TSM item string: the lower of DBMinBuyout and DBMarket", function()
@@ -301,6 +421,29 @@ describe("prices", function()
             auctionator({})
             _G.Auctionator.API.v1.GetAuctionPriceByItemID = function() return 11 end
             assert.equal(11, P.MaterialPrice(10940), "Auctionator's while it is the source")
+            _G.Auctionator.API.v1.GetAuctionPriceByItemID = function() return nil end
+            assert.equal(25, P.MaterialPrice(10940), "TSM's where Auctionator has none (2026-11-17)")
+        end)
+
+        it("prices materials by the fresher source too, as Lookup does (Codex review, 2026-11-17)", function()
+            tsm()
+            auctionator({})
+            local api = _G.Auctionator.API.v1
+            api.GetAuctionPriceByItemID = function() return 10000 end
+            local age = 6
+            api.GetAuctionAgeByItemID = function() return age end
+            values["DBMinBuyout i:10940"] = 10
+            assert.equal(10000, P.MaterialPrice(10940), "TSM's age unknown: Auctionator's 6-day price still counts")
+            _G.TSM_APPHELPER_LOAD_DATA = function() end
+            P.WatchTSMData()
+            _G.TSM_APPHELPER_LOAD_DATA("AUCTIONDB_NON_COMMODITY_DATA", GetRealmName(),
+                "return {downloadTime=" .. os.time() .. ",fields={},data={}}")
+            assert.equal(10, P.MaterialPrice(10940), "TSM's data from today beats a 6-day-old scan")
+            age = 0
+            assert.equal(10000, P.MaterialPrice(10940), "both today: Auctionator's")
+            age = 8
+            _G.TSM_API.GetCustomPriceValue = function() error("boom") end
+            assert.equal(10000, P.MaterialPrice(10940), "TSM failing: Auctionator's, as without TSM")
         end)
     end)
 

@@ -169,11 +169,21 @@ function Stale.ChatText(nudge)
         .. "for up-to-date verdicts.", ageText(nudge.age), firstName(nudge.peer), agoText(nudge.peerAgo))
 end
 
+--- Pure: the age the nudge goes by: Auctionator's (OwnAge), or TSM's realm data age when that is
+--- younger (Prices.TSMAge, 2026-11-17: with both, each item is priced by the fresher, so a player who
+--- never scans with Auctionator but whose TSM data is current isn't told to scan). nil without Auctionator.
+function Stale.EffectiveAge(ownAge, tsmAge)
+    if ownAge == nil then return nil end
+    if tsmAge ~= nil and tsmAge < ownAge then return tsmAge end
+    return ownAge
+end
+
 --- The nudge right now, or nil (switched off, no Auctionator, prices fresh).
 function Stale.Current()
     if not Stale.On() then return nil end
     local at = serverTime()
-    return Stale.Nudge(Stale.OwnAge(), Stale.Freshest(store(), at), Stale.Day(at), ns.Config.Values().maxAgeDays)
+    return Stale.Nudge(Stale.EffectiveAge(Stale.OwnAge(), ns.Prices.TSMAge()), Stale.Freshest(store(), at),
+        Stale.Day(at), ns.Config.Values().maxAgeDays)
 end
 
 --- For /mw report.

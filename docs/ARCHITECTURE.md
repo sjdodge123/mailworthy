@@ -76,7 +76,7 @@ function. Specs: the module's own spec first; `critical_path` = `spec/critical_p
 | `Palette.lua` | One colour and label per destination (AH, DE, V, BA, BH, F, R, ...) | entries, `ORDER`, `LEGEND`, `Hex`, `Letters` | border, bank_alt |
 | `Pins.lua` | Account-wide pins (bank / vendor) and the per-character BA/BH mode | `Pins.Effective`, `Set`, `Toggle`, `SetMode`, `Mode`, `Kind`, `OnChanged`, `ToggleSelectedBagSlot` (from `Locks.BagClick`) | pins, pin_mode |
 | `Border.lua` | Lock/pin glow on item buttons; the shared per-button draw pipeline; glow tooltip line | `Border.RefreshButton`, `DrawBagSlot`, `AddDecorator`, `AddRefresher`, `RefreshAll`, `Clear`, `Install` | border |
-| `Prices.lua` | Price-source adapter: Auctionator first, else TSM; disenchant value; vendor price | `Prices.Source`, `Lookup`, `LookupTSM`, `MaterialPrice`, `Vendor`, `DisenchantValueFor`, `ClassID`, `History`, `WatchWrites` / `OnWrite` / `OnAuctionatorWrite` (Auctionator's quiet price writes), `ReportLines` | prices |
+| `Prices.lua` | Price-source adapter: Auctionator, TSM, or with both the fresher per item (`Fresher`; TSM's data age from its AppHelper, `WatchTSMData`); disenchant value; vendor price | `Prices.Source`, `SourceText`, `Lookup`, `LookupAuctionator`, `LookupTSM`, `Fresher` (pure), `MaxAgeDays`, `TSMAge`, `TSMDataTime`, `TSMAgeText`, `WatchTSMData` / `OnTSMData`, `ScanDay`, `MaterialPrice`, `Vendor`, `DisenchantValueFor`, `ClassID`, `History`, `WatchWrites` / `OnWrite` / `OnAuctionatorWrite` (Auctionator's quiet price writes), `ReportLines` | prices |
 | `Disenchant.lua` | Era disenchant tables and expected value (port of Disenchantry 1.1.5) | `Disenchant.Outcomes`, `ExpectedValue` (pure), `Value` | disenchant |
 | `Tiers.lua` | Material tiers: the skill at which a profession is done with a material | `Tiers.Threshold`, `Outgrown`, `OutgrownNames`, `PastText`, `Step`, `WorthConverting` (pure) | tiers |
 | `TierData.lua` | **Generated** tier tables (`tools/tiers/build.py` from `tools/tiers/data.py`; edit those) | `Tiers.DONE`, `Tiers.KEEP`, `Tiers.CONVERT` | tiers (indirect) |
@@ -91,7 +91,7 @@ function. Specs: the module's own spec first; `critical_path` = `spec/critical_p
 | `Routes.lua` | **Bindings**: a profession's materials (or a class's items) to a player; skip once; row picks | `Routes.Divert`, `Divertible`, `Matches`, `Before`, `Force`, `Choices`, `Pick/Picked/ClearPicks`, `Active`, `List`, `Add/Remove`, `Crafter`, `Recipient`, `ClassPriced`, `PriceKeep`, `GearBeaten`, `Takers` (the binding filter Divert and Choices share), `Skill(route, cache)` (one roster read per scan); every change of a binding, skip or pick fires `Bags.InputsChanged` | routes |
 | `Comms.lua` | Addon messages between Mailworthys (prefix `Mailworthy`); peers; the name mark | `Comms.Register(letter, def)` (each module registers and owns its message kinds: decode, hear, channels, afterHello), `Kinds`, `RegisterPrefix`, `Announce` (the hello, then each kind's `afterHello` in registration order), `Ask`, `Hear` (dispatches through the registry; a skills or hello message marks the bag tags stale: `BankAlt.Invalidate`), `UpdatePeer(name, fields, create)`, `OnPeersChanged` (synchronous), `OnHeard`, `Assembler()` (multipart messages, per guild key + sender), `SendGuild`, `Whisper`, `Peers/Peer`, `Skill`, `Mark`, `OnMarksChanged` | peer_mark, routes, comms_wire |
 | `Guild.lua` | **Guild template**: GM/officer rules, shared on GUILD, opted into per player | `Guild.Rules`, `Offer`, `Hear`, `Broadcast`, `Ask`, `CanPublish`, `InUse/SetUse/ToggleUse`, `Draft*`, `Publish` | guild |
-| `Stale.lua` | Stale-price nudge; peers' scan days (display only) | `Stale.OwnAge`, `Nudge` (pure), `Hear`, `Message`, `Current` | stale |
+| `Stale.lua` | Stale-price nudge (Auctionator's age, or TSM's data age when younger); peers' scan days (display only) | `Stale.OwnAge`, `EffectiveAge` (pure), `Nudge` (pure), `Hear`, `Message`, `Current` | stale |
 | `Version.lua` | "Your Mailworthy is out of date" from peers' release versions | `Version.Parse/Newer` (pure), `Hear`, `Message`, `Outdated`, `OnChanged` | version |
 | `Bags.lua` | **The scan**: bag slots into items, each valued; the preview list (`Evaluate` in named steps: prepare settings, facts, decide, file, return split, sort); the shared last-moment re-check; the scan-inputs signal | `Bags.Evaluate`, `PrepareSettings`, `Settings(opts)` (the one settings builder: window, tags, report, trip), `SettingsLine`, `StillThere(stack, how)` + `RECHECKS`, `OnInputsChanged` / `InputsChanged(why, lazy)`, `Slots`, `Fingerprint` / `FingerprintOf` (pure; bag contents without ammo stack sizes), `Group`, `CurrentSettings`, `ApplySendSwitches`, `SkipBankAlt/BankAltSkipped`, `HoldReason`, `ProfessionKeep`, `Scan` | bags, send_switches |
 | `Mailer.lua` | **The send**: plan 12 stacks per mail, re-check, attach, send, chain | `Mailer.Start`, `Plan` (pure), `Blocker`, `Short` (the list's postage + `RESERVE` against `GetMoney`), `Affords` (pure: postage + the 5s `RESERVE`), `ReserveText`, `PER_MAIL` (the one per-mail count), `StillThere` (`Bags.StillThere` with the mailer's words; ammo of a weapon equipped since the preview stays; so does a stack already attached), `Stop`, `RequestStop`, `Busy`, `Status`, `OnChanged`, `OnSent` | mailer |
@@ -333,6 +333,7 @@ FOREVER-UI-NOTES.md; `spec/no_gamepad_taint_spec.lua` guards them.
 | Auctionator `API.v1` (prices, age, exact, disenchant, `RegisterForDBUpdate`) | API calls | Prices, Stale, BankAlt |
 | `Auctionator.Database.SetPrice` (else `Auctionator.DatabaseMixin.SetPrice`, before Auctionator builds its database) | `hooksecurefunc` (not its public API) | Prices (`priceWatch`), for BankAlt's redraw |
 | `TSM_API` (`ToItemString`, `GetCustomPriceValue`, `IsCustomPriceValid`) | API calls | Prices |
+| `TSM_APPHELPER_LOAD_DATA` (TSM's AppHelper data loader; not its public API) | `hooksecurefunc` on the global, when `Prices.lua` loads | Prices (`tsmAge`), TSM's realm data `downloadTime` for `TSMAge` |
 | `DisenchantValueAPI.GetValue`; Disenchantry detected only | API calls | Prices |
 | `Baganator.API.RegisterCornerWidget`, `CallbackRegistry` "ViewComplete" | addon API | BagAddons (`baganatorTags`) |
 | `Bagnon.ContainerItem:Update` | `hooksecurefunc` | BagAddons (`bagnonTags`) |
@@ -426,6 +427,7 @@ All default on (`ns.Features.DEFAULTS` in `Core.lua`; the help line there lists 
 | `baganatorTags`, `bagnonTags`, `arkInventoryTags`, `betterBagsTags` | BagAddons (`BagAddons.FEATURE`) |
 | `auctionatorTags` | AuctionatorTags |
 | `priceWatch` | Prices (`WatchWrites`) |
+| `tsmAge` | Prices (`TSMDataTime`: off = TSM's data age unknown) |
 
 `/mw` (or `/mailworthy`), in `ns.HandleSlash`: (none) / `settings` → SettingsUI; `report` →
 Report; `feature <name> on|off`; `locks` → LocksUI; `pins` → PinsUI;
@@ -459,6 +461,7 @@ against them.
 | Re-check each slot right before attaching | `Bags.StillThere` (shared with the vendor) via `Mailer.StillThere` in `sendNext`; attached-count check in `sendMail` |
 | No price source: only whites and `Valuation.STAPLES` (recipes only to their binding) | `Prices.Source`; `Valuation` local `evaluate`; `Routes.Matches` + `Valuation.RecipeProfession` |
 | Priced but no or stale price → bank alt, never a class binding; failed price call stays; grey stays | `Valuation.Unpriced`; `Prices.Lookup` / `TSMUnit` (`failed`); `Routes.PriceKeep`, `Routes.ClassPriced` |
+| Auctionator + TSM: the fresher price per item; a failed Auctionator call never replaced by TSM's | `Prices.Fresher` (from `Prices.Lookup`) |
 | Bank pin mails to the bank alt (never past a hard keep, unloaded data or a failed call; never to a binding) | `Pins.Effective` → `Valuation.Evaluate` pin branch; `Routes.Divertible` (pinned) |
 | A profession binding mails its materials and recipes whatever the price, under its cap | `Routes.Matches`, `Routes.Force` |
 | A binding naming this character keeps the item here (not a recipe it already knows: regular rules) | `Routes.Force` (`forMe`), `Routes.Divertible`, `Mailer.Blocker`; `Routes.Divert` + `Recipes.Known` |

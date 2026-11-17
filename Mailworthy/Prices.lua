@@ -17,9 +17,12 @@
 -- -> copper or nil, errorMessage (nil + message both for "no data" and for an invalid
 -- source, so TSM_API.IsCustomPriceValid(source) tells them apart). Sources read: this realm's
 -- AuctionDB "DBMinBuyout" (lowest buyout at TSM's last data) and "DBMarket" (its market
--- value). Never region sources: the item sells on this realm's AH. Auctionator wins when both
--- are installed (Prices.Source): its scans carry an age, exactness and a daily history that the
--- decision rule uses, and TSM's public API has none of those.
+-- value). Never region sources: the item sells on this realm's AH. With both installed, each item
+-- is priced by whichever has the more up-to-date data for it (operator, 2026-11-17: "it shouldnt be
+-- a fixed rule, it should be whichever addon has the most up to date scan data"; per item; was:
+-- Auctionator always, TSM never asked): Auctionator's age for that item against the age of TSM's
+-- realm data (Prices.TSMAge), a tie to Auctionator (its exactness and daily history feed the rule).
+-- TSM's public API gives no age: it is read from the realm data TSM's AppHelper loads (WatchTSMData).
 local _, ns = ...
 
 local Prices = {}
@@ -54,7 +57,8 @@ end
 
 Prices.SOURCE_NAME = { Auctionator = "Auctionator", TSM = "TradeSkillMaster" }
 
---- The auction price source in use: "Auctionator" (wins when both are installed), "TSM", or nil.
+--- The auction price source in use: "Auctionator" (first when both are installed: TSM prices an
+--- item only where its data is fresher, Prices.Lookup), "TSM", or nil.
 --- Any source counts as "with Auctionator" in the AGENTS.md Safety rules: an item it has no
 --- price for goes to the bank alt (2026-11-08); with none, only unlocked, tradeable white items
 --- and the staple trade goods are mailed.
@@ -65,13 +69,94 @@ function Prices.Source()
 end
 
 --- What to call the source in the settings, `/mw scan` and `/mw report`: "Auctionator",
---- "TradeSkillMaster", "Auctionator (TSM installed, not used)", or nil.
+--- "TradeSkillMaster", "Auctionator + TSM (whichever is fresher per item)", or nil.
 function Prices.SourceText()
     local source = Prices.Source()
     if not source then return nil end
-    local text = Prices.SOURCE_NAME[source]
-    if source == "Auctionator" and Prices.TSM() then text = text .. " (TSM installed, not used)" end
-    return text
+    if source == "Auctionator" and Prices.TSM() then return "Auctionator + TSM (whichever is fresher per item)" end
+    return Prices.SOURCE_NAME[source]
+end
+
+-- TSM's data age (2026-11-17). TSM_API has no scan time (TSM 4.14 Core/API.lua). TSM keeps it
+-- privately: TradeSkillMaster_AppHelper's AppData.lua, written by TSM's desktop app, hands each
+-- block to the global TSM_APPHELPER_LOAD_DATA(tag, realmOrRegion, data), the realm's prices under
+-- tag "AUCTIONDB_NON_COMMODITY_DATA" as "return {downloadTime=<unix time>,fields=...,data=...}"
+-- (LibTSMApp/Source/Service/AppHelper.lua; Core/Service/AuctionDB/Core.lua keeps that time as
+-- realmUpdateTime). A post-hook on that global sees the blocks when it is installed before AppHelper
+-- loads: TradeSkillMaster is in our OptionalDeps, so its global exists when this file runs, and
+-- AppHelper (which needs TradeSkillMaster, not us) loads after "Mailworthy" alphabetically. How
+-- AppHelper calls the global is not verified (README "Beta unknowns"): without a time, TSM's age
+-- is unknown and TSM prices only what Auctionator has no current price for. Switch: /mw feature tsmAge.
+Prices.TSM_REALM_TAG = "AUCTIONDB_NON_COMMODITY_DATA"
+local tsmData = { hooked = false, why = "TSM not loaded", times = {} } -- times: lower-case realm -> unix time
+
+--- The hook: one AppHelper data block. Only the realm price blocks' download time is kept.
+function Prices.OnTSMData(tag, realmOrRegion, data)
+    if tag ~= Prices.TSM_REALM_TAG or type(realmOrRegion) ~= "string" or type(data) ~= "string" then return end
+    local at = tonumber(data:sub(1, 200):match("downloadTime%s*=%s*(%d+)"))
+    if not at then return end
+    local key = realmOrRegion:lower()
+    if not tsmData.times[key] or at > tsmData.times[key] then tsmData.times[key] = at end
+end
+
+--- Post-hook TSM_APPHELPER_LOAD_DATA (see above). Runs when this file loads; true when hooked.
+function Prices.WatchTSMData()
+    if tsmData.hooked then return true end
+    if type(rawget(_G, "TSM_APPHELPER_LOAD_DATA")) ~= "function" then
+        tsmData.why = "TSM's AppHelper loader not found"
+        return false
+    end
+    local ok, err = pcall(hooksecurefunc, "TSM_APPHELPER_LOAD_DATA", function(...)
+        pcall(Prices.OnTSMData, ...)
+    end)
+    if not ok then
+        tsmData.why = "hook failed: " .. tostring(err)
+        return false
+    end
+    tsmData.hooked, tsmData.why = true, "watching TSM's AppHelper data"
+    return true
+end
+
+--- Auctionator's scan day for a unix time: whole days since its SCAN_DAY_0 (local midnight, Jan 1
+--- 2020), the count its item ages are in, so an age from TSM compares with one from Auctionator.
+function Prices.ScanDay(at)
+    local a = rawget(_G, "Auctionator")
+    local day0 = type(a) == "table" and type(a.Constants) == "table" and tonumber(a.Constants.SCAN_DAY_0)
+        or call(time, { year = 2020, month = 1, day = 1, hour = 0 }) or 0
+    return math.floor(((tonumber(at) or 0) - day0) / 86400)
+end
+
+--- This realm's TSM data time (unix) or nil, and why not.
+function Prices.TSMDataTime()
+    if not ns.Features.On("tsmAge") then return nil, "off (/mw feature tsmAge on, then /reload)" end
+    if not tsmData.hooked then return nil, tsmData.why end
+    local realm = call(GetRealmName)
+    if type(realm) ~= "string" then return nil, "realm name not known yet" end
+    -- TSM names a realm "Realm", or "Realm-Faction" where each faction has its own auction house.
+    local faction = call(UnitFactionGroup, "player")
+    local at = tsmData.times[realm:lower()]
+    local own = type(faction) == "string" and tsmData.times[(realm .. "-" .. faction):lower()]
+    if own and (not at or own > at) then at = own end
+    if not at then return nil, next(tsmData.times) and "no TSM data for this realm" or "no TSM realm data loaded" end
+    return at
+end
+
+--- Days since TSM's realm data was downloaded, in Auctionator's scan days; nil when unknown.
+function Prices.TSMAge()
+    local at = Prices.TSMDataTime()
+    if not at then return nil end
+    local now = call(time)
+    if not now or at > now + 86400 then return nil end -- a time from the future: don't trust it
+    return math.max(0, Prices.ScanDay(now) - Prices.ScanDay(at))
+end
+
+--- /mw report: TSM's data age, or why it isn't known (nil without TSM).
+function Prices.TSMAgeText()
+    if not Prices.TSM() then return nil end
+    local age = Prices.TSMAge()
+    if age then return string.format("TSM realm data %d day%s old", age, age == 1 and "" or "s") end
+    local _, why = Prices.TSMDataTime()
+    return "TSM data age unknown (" .. tostring(why) .. ")"
 end
 
 --- TSM's item string for a link ("i:12345", with its bonus / random parts when TSM keeps
@@ -189,13 +274,27 @@ end
 --- TradeSkillMaster's (Prices.TSMUnit) when it is the source.
 function Prices.MaterialPrice(itemID)
     if not tonumber(itemID) then return nil end
-    if Prices.Source() == "TSM" then return (Prices.TSMUnit("i:" .. math.floor(tonumber(itemID)))) end
+    local tsmString = "i:" .. math.floor(tonumber(itemID))
+    if Prices.Source() == "TSM" then return (Prices.TSMUnit(tsmString)) end
     local api = Prices.Auctionator()
     if not api then return nil end
+    local id = tonumber(itemID)
+    local price, age
     if type(api.GetAuctionPriceByItemID) == "function" then
-        return copper(call(api.GetAuctionPriceByItemID, Prices.CALLER, tonumber(itemID)))
+        price = copper(call(api.GetAuctionPriceByItemID, Prices.CALLER, id))
+        age = tonumber((call(api.GetAuctionAgeByItemID, Prices.CALLER, id)))
+    else
+        price = copper(call(api.GetAuctionPriceByItemLink, Prices.CALLER, "item:" .. id))
+        age = tonumber((call(api.GetAuctionAgeByItemLink, Prices.CALLER, "item:" .. id)))
     end
-    return copper(call(api.GetAuctionPriceByItemLink, Prices.CALLER, "item:" .. tonumber(itemID)))
+    -- With TSM installed too, the fresher of the two, as Prices.Lookup (2026-11-17; Codex review: an old
+    -- Auctionator material price beat today's TSM data in the disenchant value).
+    if not Prices.TSM() then return price end
+    local a, maxAge, tsmAge = { ah = price, age = age }, Prices.MaxAgeDays(), Prices.TSMAge()
+    if Prices.Fresher(a, { ah = 0 }, tsmAge, maxAge) == "Auctionator" then return price end
+    local unit, failed = Prices.TSMUnit(tsmString)
+    if Prices.Fresher(a, { ah = unit, failed = failed or nil }, tsmAge, maxAge) == "TSM" then return unit end
+    return price
 end
 
 --- Quality, item level and class of an item from its info (nil while not loaded).
@@ -226,10 +325,49 @@ end
 ---   (Prices.DisenchantValueFor), history = Prices.History(link),
 ---   available = units listed at the last scanned day, source = "Auctionator" / "TSM" }; any may be nil.
 --- With TradeSkillMaster as the source: ah = Prices.TSMUnit, with minBuyout and market beside
---- it; age, exact and history are nil (its public API doesn't give them).
+--- it; age = Prices.TSMAge (nil when unknown); exact and history are nil (its public API doesn't
+--- give them). With both installed, the fresher one for this item (Prices.Fresher); when TSM's
+--- wins, `over` = { ah, age } of the Auctionator price it replaced (ah nil: Auctionator had none).
 function Prices.Lookup(link)
     local source = Prices.Source()
     if source == "TSM" then return Prices.LookupTSM(link) end
+    local a = Prices.LookupAuctionator(link)
+    if not a or not Prices.TSM() then return a end
+    local maxAge, tsmAge = Prices.MaxAgeDays(), Prices.TSMAge()
+    -- Don't ask TSM when nothing it says could win: Auctionator's call failed, or its price is
+    -- current and at least as fresh as TSM's data.
+    if Prices.Fresher(a, { ah = 0 }, tsmAge, maxAge) == "Auctionator" then return a end
+    local t = Prices.LookupTSM(link)
+    if Prices.Fresher(a, t, tsmAge, maxAge) == "Auctionator" then return a end
+    t.over = { ah = a.ah, age = a.age }
+    return t
+end
+
+--- The age limit the verdicts use (Valuation's maxAgeDays, as the player set it).
+function Prices.MaxAgeDays()
+    local values = ns.Config and ns.Config.Values and call(ns.Config.Values)
+    return tonumber(type(values) == "table" and values.maxAgeDays)
+        or (ns.Valuation and ns.Valuation.DEFAULTS.maxAgeDays) or 7
+end
+
+--- Pure: which of two lookups for one item has the more up-to-date price, "Auctionator" or "TSM".
+--- `a` = Auctionator's (its age per item), `t` = TSM's, `tsmAge` = TSM's data age in days (nil:
+--- unknown). Auctionator's stays when its call failed (never "no price yet"; AGENTS safety) or TSM
+--- has no price (nor when TSM's call failed: then it is as if TSM weren't installed). TSM's wins
+--- when Auctionator has no price; when both ages are known, the younger wins, a tie Auctionator;
+--- with an age unknown, TSM's wins only over an Auctionator price past the age limit.
+function Prices.Fresher(a, t, tsmAge, maxAge)
+    if type(a) ~= "table" or a.failed then return "Auctionator" end
+    if type(t) ~= "table" or t.failed or t.ah == nil then return "Auctionator" end
+    if a.ah == nil then return "TSM" end
+    local age = tonumber(a.age)
+    if age ~= nil and tsmAge ~= nil then return tsmAge < age and "TSM" or "Auctionator" end
+    if age ~= nil and age > (maxAge or 7) then return "TSM" end
+    return "Auctionator"
+end
+
+--- Auctionator's data for one item link (Prices.Lookup's table, source "Auctionator"), or nil without it.
+function Prices.LookupAuctionator(link)
     local api = Prices.Auctionator()
     if not api then return nil end
     local exact = call(api.IsAuctionDataExactByItemLink, Prices.CALLER, link)
@@ -325,12 +463,20 @@ end
 
 --- /mw report: what to look for in game.
 function Prices.ReportLines()
-    return { string.format("price watch: %s; %d Auctionator price write(s), %d redraw(s) (check: at the auction house, "
+    local lines = {}
+    local tsm = Prices.TSMAgeText()
+    if tsm then
+        lines[#lines + 1] = "TSM: " .. tsm .. (Prices.Auctionator() and ("; with Auctionator, each item is priced by "
+            .. "the fresher of the two (check: /mw scan names TSM on items Auctionator has no current price for)") or "")
+    end
+    lines[#lines + 1] = string.format("price watch: %s; %d Auctionator price write(s), %d redraw(s) (check: at the auction house, "
         .. "select an item in Auctionator's Selling tab: its tag and Mailworthy's tooltip line follow the price "
-        .. "Auctionator's tooltip shows)", watch.why, watch.writes, watch.fired) }
+        .. "Auctionator's tooltip shows)", watch.why, watch.writes, watch.fired)
+    return lines
 end
 
 ns.On("PLAYER_LOGIN", function() Prices.WatchWrites() end)
+Prices.WatchTSMData() -- now, before TSM's AppHelper loads its data (see Prices.TSMDataTime)
 
 --- Prices.Lookup with TradeSkillMaster as the source (nil without TSM).
 function Prices.LookupTSM(link)
@@ -340,6 +486,7 @@ function Prices.LookupTSM(link)
     return {
         ah = unit,
         failed = failed or nil, -- the price call itself failed: never "no price yet" (AGENTS safety)
+        age = unit ~= nil and Prices.TSMAge() or nil, -- its realm data's age: past the limit, stale
         minBuyout = minBuyout,
         market = market,
         de = de,

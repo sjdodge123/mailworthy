@@ -187,6 +187,22 @@ describe("stale prices", function()
             assert.equal("Mailworthy", _G.MailworthyMailButton:GetText())
         end)
 
+        it("TSM's realm data fresher than Auctionator's scans: no nudge (2026-11-17)", function()
+            finally(function() _G.TSM_API, _G.TSM_APPHELPER_LOAD_DATA = nil, nil end)
+            ages[2770] = math.huge
+            _G.TSM_API = { GetCustomPriceValue = function() end }
+            _G.TSM_APPHELPER_LOAD_DATA = function() end
+            ns.Prices.WatchTSMData()
+            assert.equal("self", ns.Stale.Current().level, "TSM's age unknown: Auctionator's goes")
+            _G.TSM_APPHELPER_LOAD_DATA("AUCTIONDB_NON_COMMODITY_DATA", GetRealmName(),
+                "return {downloadTime=" .. os.time() .. ",fields={},data={}}")
+            assert.is_nil(ns.Stale.Current(), "TSM's data is from today")
+            assert.equal(2, ns.Stale.EffectiveAge(9, 2))
+            assert.equal(1, ns.Stale.EffectiveAge(1, 2))
+            assert.is_nil(ns.Stale.EffectiveAge(nil, 0), "no Auctionator: no nudge, as before")
+            assert.equal(5, ns.Stale.EffectiveAge(5, nil))
+        end)
+
         it("/mw feature staleNudge off: nothing shows", function()
             ns.Fire("CHAT_MSG_ADDON", "Mailworthy", "F2|" .. today(), "GUILD", "Bob Surname")
             ns.HandleSlash("feature staleNudge off")

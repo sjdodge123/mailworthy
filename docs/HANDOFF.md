@@ -388,6 +388,17 @@ call `SendMail` anyway. Every Mailer timer checks the run id and `busy`.
   no price age, so no "price too old" keep and no stale nudge. Critical path: TSM alone, TSM with a
   failing call, and both installed (TSM never asked). Not changed: `BankAlt.lua` / `MailWindow.lua`
   texts that say "Auctionator" for the no-source case (other sessions were editing them).
+- Auctionator + TSM: the fresher per item (2026-11-17; a user keeps Auctionator for its Selling tab
+  and never scans, so everything went to the bank alt "no price" while TSM had prices). Operator:
+  "it shouldnt be a fixed rule, it should be whichever addon has the most up to date scan data";
+  per item, workings + report say which, no setting. `Prices.Lookup` = `LookupAuctionator`, then
+  `Prices.Fresher` against `LookupTSM` (TSM asked only when it could win; `over` = what it
+  replaced). TSM's API has no scan time: `Prices.WatchTSMData` post-hooks `TSM_APPHELPER_LOAD_DATA`
+  at file load for the realm block's `downloadTime` (README "Beta unknowns"; `/mw feature tsmAge`);
+  unknown age = TSM only fills where Auctionator has no current price. A TSM price with a known age
+  past the limit is stale (TSM alone too). `MaterialPrice` falls back to TSM. Critical path: both
+  installed (TSM prices what Auctionator lacks, never asked for what it priced today), a stale
+  Auctionator beaten by fresher TSM data, a failing TSM changes nothing.
 - No auction price yet = to the bank alt (operator, 2026-11-08, a screenshot of "Plans: Iridescent
   Hammer" tagged "[Keep] Stays in your bags: no auction price yet": "going to the bank alt on no data
   is better than holding on the main"). `Valuation.Unpriced`: with a price source and no auction
