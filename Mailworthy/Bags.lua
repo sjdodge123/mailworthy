@@ -601,6 +601,11 @@ local function workings(item, settings)
         end
         if p.age then text = text .. ", " .. p.age .. " days old" end
         if p.exact == false then text = text .. " (not exact, -10%)" end
+        -- TSM's price beat Auctionator's for this item (Prices.Lookup: the fresher one, 2026-11-17).
+        if type(p.over) == "table" then
+            text = text .. " (TSM; Auctionator: " .. (p.over.ah == nil and "no price"
+                or tonumber(p.over.age) and (p.over.age .. " days old") or "older") .. ")"
+        end
         parts[#parts + 1] = text
     end
     local L = r.liquidity

@@ -7,4 +7,5 @@ over the wiki's, commit, push, then empty this folder in a follow-up.
 
 Last published: v0.37.0's pages (PRs #95 and #96: Pins, Selling at a Vendor, tag colours, Send by
 tag, materials per character; wiki commit `52347b1`, 2026-11-13), on top of Mailworthy-Talks-to-Mailworthy
-for guild contributions (PR #74, wiki `1dcf7df`). Nothing is waiting here now.
+for guild contributions (PR #74, wiki `1dcf7df`). Waiting here: Price Sources (Auctionator + TSM,
+the fresher per item).

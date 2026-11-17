@@ -98,8 +98,9 @@ Notes:
 5. **Vendor the rest.** Whatever stays in your bags is worth more at the vendor
    (or has no price data, or is locked).
 
-Prices come from Auctionator's own scans, or from TradeSkillMaster's AuctionDB when
-Auctionator isn't installed (2026-11-08). Mailworthy never scans the AH itself.
+Prices come from Auctionator's own scans, or from TradeSkillMaster's AuctionDB (2026-11-08);
+with both, each item from whichever has the more up-to-date data for it (2026-11-17).
+Mailworthy never scans the AH itself.
 
 ## Settings panel
 
@@ -219,10 +220,16 @@ listing it today would bring. The bank alt tags it **B**.
 The full research, sources and ranking: [ALGORITHM-RESEARCH.md](ALGORITHM-RESEARCH.md).
 
 "With Auctionator" in this rule and in AGENTS.md Safety means with an auction price source:
-Auctionator, else TradeSkillMaster (`Prices.Source`, 2026-11-08). TSM alone follows every
+Auctionator or TradeSkillMaster (`Prices.Source`, 2026-11-08). TSM alone follows every
 price rule the same way (an item it has no price for goes to the bank alt; a failed call never
-counts as "no price yet"); what it can't give is a price age, exactness or history, so with TSM alone
-the age limit, the 3-day median, the glut check and the stale nudge don't apply.
+counts as "no price yet"); what it can't give is exactness or history, so with TSM alone the 3-day
+median, the glut check and the stale nudge don't apply. Its data's age is read from the realm data
+TSM's AppHelper loads (`Prices.TSMAge`, 2026-11-17): when known, a TSM price past the age limit is
+stale like Auctionator's. With both installed, each item is priced by the fresher of the two
+(`Prices.Fresher`; operator, 2026-11-17: "whichever addon has the most up to date scan data"):
+Auctionator's age for that item against TSM's data age, a tie to Auctionator; with TSM's age
+unknown, TSM prices only what Auctionator has no current price for. A failed Auctionator call
+stays failed; a failing TSM is as if it weren't installed.
 
 **Without Auctionator** (no price source) there's nothing to compare, so the rule
 is simple: mail every tradeable **white (common, quality 1)** item that isn't
@@ -271,7 +278,7 @@ the bank alt's recorded skill.
 | Auctionator | `Auctionator.API.v1.GetAuctionPriceByItemLink(callerID, link)`, `GetAuctionAgeByItemLink`, `IsAuctionDataExactByItemLink`, `GetDisenchantPriceByItemLink`, `RegisterForDBUpdate` | **confirmed** on Forever (Auctionator 340, 2026-10-13); prices themselves still to see after a scan |
 | Siz DisenchantValue | `DisenchantValueAPI.GetValue(linkOrID)` = copper per item (learned from the player's disenchants, else the era tables, priced from Auctionator), nil when not disenchantable / no price; `GetEraValue` | the disenchant price source since 2026-10-22 (Auctionator's own disenchant call is the fallback); its presence switches the disenchant checkbox on. Forever addon, CurseForge slug `siz-disenchantvalue` |
 | Disenchantry | none it exports (everything lives in its private namespace, checked in its 1.1.5 source), so `Disenchant.lua` ports its era tables (MIT) and formula: expected value = sum of chance x average quantity x Auctionator material price (`GetAuctionPriceByItemID`, else the link form); nil when a material has no price | **the disenchant source since 2026-10-26** when Siz DisenchantValue isn't there (labelled "Disenchantry" with it installed, "tables" without); switches the disenchant checkbox on by default; CurseForge project 1704637 is back (relation restored) |
-| TSM | `TSM_API.ToItemString(link)`, `TSM_API.GetCustomPriceValue("DBMinBuyout" / "DBMarket", itemString)` (unit = the lower of the two, else either), `TSM_API.IsCustomPriceValid(source)` | **the auction source when Auctionator isn't installed** (2026-11-08, CurseForge user Warki7); Auctionator wins when both are (its age, exactness and history feed the rule; TSM's API has none). Realm AuctionDB sources only, never region. Materials for the disenchant tables and leather conversions priced the same way (`Prices.MaterialPrice`). Read in TSM 4.x's `Core/API.lua`; not yet seen in game (README "Beta unknowns"); CurseForge slug `tradeskill-master` |
+| TSM | `TSM_API.ToItemString(link)`, `TSM_API.GetCustomPriceValue("DBMinBuyout" / "DBMarket", itemString)` (unit = the lower of the two, else either), `TSM_API.IsCustomPriceValid(source)` | **the auction source when Auctionator isn't installed** (2026-11-08, CurseForge user Warki7); with both, the fresher per item (2026-11-17; `Prices.Fresher`), its data age read from `TSM_APPHELPER_LOAD_DATA` (`Prices.WatchTSMData`). Realm AuctionDB sources only, never region. Materials for the disenchant tables and leather conversions priced the same way (`Prices.MaterialPrice`). Read in TSM 4.x's `Core/API.lua`; not yet seen in game (README "Beta unknowns"); CurseForge slug `tradeskill-master` |
 | Vendor | `C_Item.GetItemInfo` / `GetItemInfo` 11th return | **confirmed** |
 
 Each adapter returns copper per unit or `nil`, plus its source name. The
