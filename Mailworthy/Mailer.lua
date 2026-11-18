@@ -27,9 +27,8 @@ ns.Mailer = Mailer
 Mailer.PER_MAIL = 12 -- stacks per mail (ATTACHMENTS_MAX_SEND, measured); Bags.Evaluate counts mails by it too
 Mailer.DELAY = 0.5
 Mailer.TIMEOUT = 10
-Mailer.SUBJECT = "Mailworthy %d/%d"
-Mailer.FRIEND_SUBJECT = "Mailworthy %d/%d: %s"
-Mailer.RETURN_SUBJECT = "Mailworthy %d/%d: returned to you"
+Mailer.SUBJECT = "Mailworthy"
+Mailer.RETURN_WHAT = "returned to you"
 Mailer.KEEP_DAYS = 30
 Mailer.RESERVE = 500 -- copper the player keeps after postage: 5s
 
@@ -338,6 +337,31 @@ local function waitFor(index)
     end)
 end
 
+--- The subject of mails[index], numbered among the mails to the same recipient only
+--- (operator, 2026-11-18): the bank alt's 1/3 next to two friends' 2/3 and 3/3 read as mail
+--- missing. "Mailworthy 2/3" when that player gets three, plain "Mailworthy" when one; a
+--- binding's mail adds what it carries ("Mailworthy: Enchanting materials"), a return
+--- "returned to you". Pure.
+function Mailer.Subject(mails, index)
+    local mail = mails[index]
+    -- The name as mail wants it (Util.NameKey): a bank alt saved with its realm and a binding
+    -- without it are one player (Codex review, 2026-11-18).
+    local function key(to) return Util.NameKey(to) or tostring(to):lower() end
+    local who = key(mail.to)
+    local nth, of = 0, 0
+    for i, other in ipairs(mails) do
+        if key(other.to) == who then
+            of = of + 1
+            if i <= index then nth = of end
+        end
+    end
+    local subject = Mailer.SUBJECT
+    if of > 1 then subject = string.format("%s %d/%d", subject, nth, of) end
+    local what = mail.returning and Mailer.RETURN_WHAT or mail.what
+    if what then subject = subject .. ": " .. tostring(what) end
+    return subject
+end
+
 local function sendMail(index)
     local mail = state.mails[index]
     if not sendTabShown() then return Mailer.Stop("the Send Mail tab closed") end
@@ -379,12 +403,7 @@ local function sendMail(index)
     ns.lastCommand = string.format("Mailworthy send %d/%d", index, #state.mails)
     -- No body (operator, 2026-11-11): a mail with text keeps a letter to take after its items,
     -- so the recipient had to delete every one; with none it goes away once emptied.
-    local subject = string.format(Mailer.SUBJECT, index, #state.mails)
-    if mail.returning then
-        subject = string.format(Mailer.RETURN_SUBJECT, index, #state.mails)
-    elseif mail.what then
-        subject = string.format(Mailer.FRIEND_SUBJECT, index, #state.mails, mail.what)
-    end
+    local subject = Mailer.Subject(state.mails, index)
     mail.subject = subject
     local ok, err = pcall(SendMail, mail.to, subject, "")
     ns.Log.Add("mailer", "SendMail %q to %s with %d stacks: %s", subject, tostring(mail.to), n, ok and "called" or tostring(err))

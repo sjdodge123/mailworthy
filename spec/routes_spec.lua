@@ -597,9 +597,10 @@ describe("bindings", function()
             local sent = WowStub.state.sent
             assert.equal(2, #sent)
             assert.equal("Roknua Themicrulah", sent[1].name)
-            assert.equal("Mailworthy 1/2", sent[1].subject)
+            -- Numbered per recipient (operator, 2026-11-18): each gets one, so neither says "1/2".
+            assert.equal("Mailworthy", sent[1].subject)
             assert.equal(BOB, sent[2].name)
-            assert.equal("Mailworthy 2/2: Enchanting materials", sent[2].subject)
+            assert.equal("Mailworthy: Enchanting materials", sent[2].subject)
             -- No body (operator, 2026-11-11): text leaves a letter the recipient must delete.
             assert.equal("", sent[2].body)
             assert.equal(0, sent[2].money)

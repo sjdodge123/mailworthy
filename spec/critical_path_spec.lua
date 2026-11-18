@@ -1298,7 +1298,7 @@ describe("critical path: mailing", function()
         end
     end
 
-    --- Every mail that went back carries the return subject (Mailer.RETURN_SUBJECT).
+    --- Every mail that went back carries the return subject (Mailer.Subject, Mailer.RETURN_WHAT).
     local function assertReturnSubjects(to)
         for _, mail in ipairs(WowStub.state.sent) do
             if to[mail.name] then

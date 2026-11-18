@@ -78,7 +78,10 @@ end
 -- Receiving -----------------------------------------------------------------------------
 
 local pendingTakes = {} -- takes waiting for MAIL_SUCCESS / MAIL_FAILED, oldest first
-local taken = {}        -- this session: what was already queued (a second click on the same item)
+-- What is queued and still waiting for the server (a second click on the same item before it
+-- answers). Freed once it answers: a later mail with the same header (Mailworthy's subjects repeat,
+-- "Mailworthy: Enchanting materials"; Codex review, 2026-11-18), or a retry after MAIL_FAILED, counts.
+local taken = {}
 local chat = {}         -- sender -> { items, total, unpriced } waiting for the chat line
 
 local function header(i)
@@ -98,7 +101,7 @@ local function queueItem(i, a)
     local key = table.concat({ h.sender, tostring(h.subject), h.expires, a, itemID, tostring(count) }, "|")
     if taken[key] then return end
     taken[key] = true
-    pendingTakes[#pendingTakes + 1] = { h = h, itemID = tonumber(itemID), item = { itemID = tonumber(itemID), name = name,
+    pendingTakes[#pendingTakes + 1] = { key = key, h = h, itemID = tonumber(itemID), item = { itemID = tonumber(itemID), name = name,
         count = tonumber(count) or 1, link = call(rawget(_G, "GetInboxItemLink"), i, a) } }
 end
 
@@ -108,7 +111,7 @@ local function queueMoney(i)
     local key = table.concat({ h.sender, tostring(h.subject), h.expires, "money", h.money }, "|")
     if taken[key] then return end
     taken[key] = true
-    pendingTakes[#pendingTakes + 1] = { h = h, money = h.money }
+    pendingTakes[#pendingTakes + 1] = { key = key, h = h, money = h.money }
 end
 
 local function chatLine(sender)
@@ -173,13 +176,15 @@ local function settle(itemID, ok)
         local match = (itemID == nil and take.money ~= nil) or (itemID ~= nil and take.itemID == itemID)
         if match then
             table.remove(pendingTakes, i)
+            taken[take.key] = nil
             if ok then commit(take) end
             return true
         end
     end
     if ok and pendingTakes[1] then -- confirmed without a match: the oldest one
         local take = table.remove(pendingTakes, 1)
-        if ok then commit(take) end
+        taken[take.key] = nil
+        commit(take)
         return true
     end
     return false
