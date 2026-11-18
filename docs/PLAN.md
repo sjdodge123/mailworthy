@@ -573,7 +573,7 @@ has a highlight when toggled on. same with any other toggled button."
   a hard keep (locked, soulbound, quest, a quest needs it, in use, a tool). A return beats a binding
   and the bank alt. The rest of the list is the usual one.
 - **How:** shown under Mailing with a "back to <name>" chip and its own "To:" line ("Returned
-  items"); Send mails them in their own mails, "Mailworthy 1/2: returned to you". The Send-time check
+  items"); Send mails them in their own mails, "Mailworthy: returned to you" (numbered "1/2" only when that player gets more than one). The Send-time check
   (`UI.Changed`) and the slot re-check apply as for any mail.
 - **B (bank)** (2026-10-20): the fourth tag and summary row, for items the rule says to
   hold for a later phase (decision rule above); the tooltip says why and what listing

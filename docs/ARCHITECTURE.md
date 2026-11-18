@@ -167,7 +167,7 @@ function. Specs: the module's own spec first; `critical_path` = `spec/critical_p
    - `sendNext(i)`: `ClearSendMail`; each stack must pass `Mailer.StillThere` before
      `C_Container.UseContainerItem`; failures are skipped and listed as stayed.
    - `sendMail(i)`: attached count must match, `SetSendMailCOD(0)`, `SetSendMailMoney(0)`,
-     postage check (`GetSendMailPrice` + `Mailer.RESERVE` against `GetMoney`, `Mailer.Affords`), `SendMail(to, subject, "")`, 10 s watchdog.
+     postage check (`GetSendMailPrice` + `Mailer.RESERVE` against `GetMoney`, `Mailer.Affords`), `SendMail(to, subject, "")` (`Mailer.Subject`: numbered among the mails to that recipient only, "Mailworthy 2/3", plain "Mailworthy" for one; a binding's adds what it carries, a return "returned to you"), 10 s watchdog.
    - `MAIL_SEND_SUCCESS`: credit (`MailworthyDB.mailed`, `Contributions.Tag/Count`,
      `Ledger.RecordSent` with exactly what was attached), then the next mail.
    - Stops on `MAIL_FAILED`, `MAIL_CLOSED`, `PLAYER_REGEN_DISABLED`, tab hidden, timeout,

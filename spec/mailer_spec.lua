@@ -40,6 +40,27 @@ describe("mailer", function()
         assert.equal(2, #plan[2].stacks)
     end)
 
+    it("numbers each subject among the mails to the same recipient only (operator, 2026-11-18)", function()
+        local mails = {
+            { to = "Roknua Themicrulah" },
+            { to = "Bob Surname", what = "Enchanting materials" },
+            { to = "Ann Herbal", what = "Herbalism materials" },
+            { to = "Bob Surname", returning = true },
+            { to = "Ann Herbal", what = "Herbalism materials" },
+            { to = "ann herbal", returning = true },
+        }
+        local subjects = {}
+        for i = 1, #mails do subjects[i] = ns.Mailer.Subject(mails, i) end
+        assert.same({
+            "Mailworthy",
+            "Mailworthy 1/2: Enchanting materials",
+            "Mailworthy 1/3: Herbalism materials",
+            "Mailworthy 2/2: returned to you",
+            "Mailworthy 2/3: Herbalism materials",
+            "Mailworthy 3/3: returned to you",
+        }, subjects)
+    end)
+
     it("one press sends every mail to the bank alt, chained on MAIL_SEND_SUCCESS, with no money", function()
         fillBags(14)
         WowStub.state.money = 12345 -- e.g. typed into the mail window earlier
