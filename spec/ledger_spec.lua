@@ -119,6 +119,44 @@ describe("mail ledger", function()
         assert.truthy(ns.Ledger.ExportText():find("capped at 3x my price", 1, true))
     end)
 
+    describe("two mails with the same header in one visit (Codex review, 2026-11-18)", function()
+        local function linenTaken()
+            local n = 0
+            for _, e in ipairs(ns.Ledger.Store().log) do
+                if e.dir == "received" then
+                    for _, it in ipairs(e.items or {}) do if it.itemID == LINEN.id then n = n + it.count end end
+                end
+            end
+            return n
+        end
+
+        it("both count: Mailworthy's subjects repeat from run to run", function()
+            inboxMail(LINEN, 20, { subject = "Mailworthy: Tailoring materials" })
+            take(LINEN.id)
+            inboxMail(LINEN, 20, { subject = "Mailworthy: Tailoring materials" })
+            take(LINEN.id)
+            assert.equal(40, linenTaken())
+        end)
+
+        it("a second click before the server answers still counts once", function()
+            inboxMail(LINEN, 20)
+            TakeInboxItem(1, 1)
+            TakeInboxItem(1, 1)
+            ns.Fire("MAIL_SUCCESS", LINEN.id)
+            WowStub.runTimers(2)
+            assert.equal(20, linenTaken())
+            assert.equal(0, (ns.Ledger.Pending()))
+        end)
+
+        it("a take the server refused counts when it is taken again", function()
+            inboxMail(LINEN, 20)
+            TakeInboxItem(1, 1)
+            ns.Fire("MAIL_FAILED", LINEN.id)
+            take(LINEN.id)
+            assert.equal(20, linenTaken())
+        end)
+    end)
+
     describe("the more up-to-date scan at the time of send wins (operator, 2026-11-07)", function()
         local ages, rows
 

@@ -344,10 +344,13 @@ end
 --- "returned to you". Pure.
 function Mailer.Subject(mails, index)
     local mail = mails[index]
-    local who = tostring(mail.to):lower()
+    -- The name as mail wants it (Util.NameKey): a bank alt saved with its realm and a binding
+    -- without it are one player (Codex review, 2026-11-18).
+    local function key(to) return Util.NameKey(to) or tostring(to):lower() end
+    local who = key(mail.to)
     local nth, of = 0, 0
     for i, other in ipairs(mails) do
-        if tostring(other.to):lower() == who then
+        if key(other.to) == who then
             of = of + 1
             if i <= index then nth = of end
         end

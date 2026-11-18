@@ -48,6 +48,8 @@ describe("mailer", function()
             { to = "Bob Surname", returning = true },
             { to = "Ann Herbal", what = "Herbalism materials" },
             { to = "ann herbal", returning = true },
+            { to = "Cid Smith-Classic Beta PvP" },
+            { to = "Cid Smith", what = "Blacksmithing materials" },
         }
         local subjects = {}
         for i = 1, #mails do subjects[i] = ns.Mailer.Subject(mails, i) end
@@ -58,6 +60,8 @@ describe("mailer", function()
             "Mailworthy 2/2: returned to you",
             "Mailworthy 2/3: Herbalism materials",
             "Mailworthy 3/3: returned to you",
+            "Mailworthy 1/2",                                -- a realm suffix is the same player
+            "Mailworthy 2/2: Blacksmithing materials",
         }, subjects)
     end)
 
