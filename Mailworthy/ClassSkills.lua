@@ -26,7 +26,8 @@
 -- state is counted per kind of lockbox over all the bags (ClassSkills.Count, Bags' gatherFacts), and
 -- both ways are the careful one: a binding takes a kind only while every one of its boxes is known to
 -- be locked, a rogue keeps it while any is locked or can't be told. The slots' tooltips are read once
--- per scan, only for a lockbox and only where Lockpicking matters (a rogue, or a binding for one).
+-- per scan, only for a lockbox and only where Lockpicking matters (a rogue, or a binding for one);
+-- /mw report reads them whoever asks, to say what it found.
 local _, ns = ...
 
 local ClassSkills = {}
