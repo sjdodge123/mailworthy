@@ -491,8 +491,11 @@ function UI.Options(candidate, forGuild)
     local class = candidate and ns.Classes.Token(candidate.class)
     if class and not forGuild then
         local name = ns.Classes.Name(class)
+        -- With the class's own skill items (ClassSkills.lua): "Rogue items (lockboxes, and what only a rogue can use)".
+        local skillItems = ns.ClassSkills.ItemsText(class)
         list[#list + 1] = { class = class, suggested = true,
-            text = string.format("%s items (only a %s can use them)", name, name:lower()) }
+            text = skillItems and string.format("%s items (%s, and what only a %s can use)", name, skillItems, name:lower())
+                or string.format("%s items (only a %s can use them)", name, name:lower()) }
     end
     local suggested = {}
     for _, p in ipairs(candidate and ns.Routes.Suggested(candidate) or {}) do suggested[p.id] = true end

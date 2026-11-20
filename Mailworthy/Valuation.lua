@@ -525,6 +525,7 @@ end
 --- profession needs it, it should recommend Banking"). Not one to convert: that's crafted now.
 function Valuation.BankForCraft(r)
     return type(r) == "table" and r.action == "keep" and r.neededBy ~= nil and not r.convert and not r.deHere
+        and not r.classSkill -- a rogue's lockbox, a mage's scroll: picked or read from the bags, not banked
 end
 
 --- Pure: the tag for a valued item (`item.result`, Valuation.Evaluate's verdict after Bags.Evaluate's
@@ -583,7 +584,8 @@ end
 Valuation.ProfessionKeep = professionKeep
 
 --- item: { link, itemID, count, stacks, quality, classID, vendor (copper per unit; nil = not
----   loaded yet), bound, quest, conjured (Conjured.Is), questFor (the title of an active quest
+---   loaded yet), bound, quest, conjured (Conjured.Is), ownSkill / classSkill (this character's class
+---   skill that levels on it: ClassSkills), questFor (the title of an active quest
 ---   that needs it), inUse (locked by the game), locked (Mailworthy lock), pin ("bank" / "here" / "vendor": Pins.Effective) }
 --- price: nil when there's no price source at all (no Auctionator); else
 ---   { ah = copper per unit or nil, age = days or nil, de = copper per item or nil }
@@ -653,7 +655,8 @@ function Valuation.Evaluate(item, price, settings)
         -- window and the tooltip say so (and PinWarning offers a way out).
         return { action = "mail", route = "bank", listRoute = "common", reason = "bank: you pinned it", pinned = true,
             -- With "on my bank alt" the materials go there anyway: no conflict to report.
-            pinConflict = not settings.matsToBankAlt and (professionKeep(item, settings)) or nil,
+            pinConflict = (not settings.matsToBankAlt and (professionKeep(item, settings)))
+                or (settings.keepProfessionMats and item.ownSkill) or nil,
             vendor = (item.vendor or 0) * (item.count or 1), postage = (settings.postage or 0) * (item.stacks or 1) }
     end
     local profession, _, untilSkill, convert, window = professionKeep(item, settings)
@@ -672,6 +675,14 @@ function Valuation.Evaluate(item, price, settings)
         end
         return keep(K.profession, { untilSkill = untilSkill, convert = convert,
             window = window, neededBy = profession }, profession)
+    end
+    -- This character's class has a skill of its own that levels on the item (item.ownSkill, set by
+    -- Bags from ClassSkills.lua: a rogue's locked lockbox "Lockpicking", a mage's scroll
+    -- "Comprehension"): it stays like a profession's material (operator, 2026-11-20: "Yes, they
+    -- stay"), in the bags even with "on my bank alt" (it is picked or read here). Me first: no binding
+    -- takes it (Routes.Divert), the row's pick and a bank pin still do.
+    if settings.keepProfessionMats and item.ownSkill then
+        return keep(K.profession, { neededBy = item.ownSkill, classSkill = item.classSkill }, item.ownSkill)
     end
     local r = evaluate(item, price, settings)
     -- Level my professions (operator, 2026-11-14: "when i see something with low sale price like that and

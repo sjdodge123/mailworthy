@@ -31,6 +31,7 @@ Ammo.lua
 Valuation.lua
 Config.lua
 Classes.lua
+ClassSkills.lua
 Routes.lua
 Comms.lua
 Guild.lua

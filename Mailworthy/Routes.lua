@@ -24,7 +24,9 @@
 -- A class binding (operator, 2026-11-08: "this is a mage only item, id like to be able to friend
 -- mail these types of items too"): { to, class = "MAGE" } instead of a profession. It takes
 -- items only that class may use (the tooltip's "Classes: Mage", Classes.lua) and this character
--- can't, with the same hard keeps and price cap; the mail goes to the player named.
+-- can't, with the same hard keeps and price cap; the mail goes to the player named. It also takes
+-- what that class's own skill levels on (ClassSkills.lua, 2026-11-20): locked lockboxes for a rogue,
+-- Comprehension scrolls for a mage, like a profession's materials (Routes.SkillItem).
 --
 -- Who can be bound: the party / raid (unit tokens), the guild (C_Club member
 -- info, which carries each member's two professions and presence, as Blizzard's
@@ -163,6 +165,18 @@ function Routes.KeyOf(r)
     return Routes.Key(r.class and ("class:" .. tostring(r.class)) or r.profession, r.to)
 end
 
+--- Pure: the class skill (ClassSkills.SKILLS' entry) whose item a class binding takes like a profession
+--- binding takes its materials: a locked lockbox for a rogue's binding, a Comprehension scroll for a
+--- mage's (`item.classSkill`, Bags from ClassSkills.lua; a CurseForge comment and the operator,
+--- 2026-11-20: "Lock boxes can route to rouges for training ... comprehension items to mages"). Nil for
+--- anything else. Whatever its price, under the cap when there is one (operator: "Like profession
+--- mats"): Routes.Takers skips the class binding's price rule for it. On a rogue or a mage itself the
+--- item stays first (Valuation: `neededBy`), as a profession's material does.
+function Routes.SkillItem(route, item)
+    local skill = route.class and item.classSkill and ns.ClassSkills.SKILLS[item.classSkill] or nil
+    return skill and skill.class == route.class and skill or nil
+end
+
 --- Pure: the item is one of the binding's profession's primary materials: a trade good of its
 --- own subclasses (cloth for Tailoring, herbs for Alchemy), or, for Enchanting, a green or
 --- blue weapon or armor piece to disenchant; or a recipe the profession learns. What a profession uses on the side (Tiers.KEEP:
@@ -173,7 +187,8 @@ end
 --- (Tiers.WorthConverting with `priceOf`: the friend converts it); the second return is then true.
 function Routes.Matches(route, item, tiers, priceOf)
     if route.class then -- a class binding: what only that class may use, and this character can't
-        return ns.Classes.ForOther(item.classes, route.class, item.myClass) == true
+        return Routes.SkillItem(route, item) ~= nil
+            or ns.Classes.ForOther(item.classes, route.class, item.myClass) == true
     end
     if Routes.TakesGear(route) and Routes.IsGear(item) then return true end
     -- A recipe its profession learns (operator, 2026-11-08: "recipes should go to their respective
@@ -344,13 +359,17 @@ end
 --- one filter): its profession's materials or its class's items (Routes.Matches, with `tiers` and
 --- `priceOf`); a class binding only with a current auction price when there is a price source (the cap is
 --- checked against it: an item without one goes to the bank alt, whatever its route; a disenchant value
---- alone isn't one; Codex review, 2026-11-08); with `notMe`, never a binding whose recipient is this
---- character. Second return: the first binding whose player's skill is past the material (Tiers).
+--- alone isn't one; Codex review, 2026-11-08), except its class skill's items (Routes.SkillItem: a
+--- lockbox, a Comprehension scroll), which go whatever their price like a profession's materials;
+--- with `notMe`, never a binding whose recipient is this character. Second return: the first binding whose player's skill is past the material (Tiers).
 function Routes.Takers(item, verdict, price, unit, routes, tiers, priceOf, notMe)
     local list, outgrown = {}, nil
     for _, r in ipairs(routes or {}) do
         local matches, past = Routes.Matches(r, item, tiers, priceOf)
-        if matches and r.class and not Routes.ClassPriced(verdict, price, unit) then matches = false end
+        if matches and r.class and not Routes.SkillItem(r, item)
+            and not Routes.ClassPriced(verdict, price, unit) then
+            matches = false
+        end
         if matches and notMe and Routes.IsMe((Routes.Recipient(r))) then matches = false end
         if past then outgrown = outgrown or r end
         if matches then list[#list + 1] = r end
@@ -411,10 +430,16 @@ function Routes.Force(item, route, unit, settings)
         return ns.Valuation.Keep(ns.Valuation.K.forMe, { forMe = route.key }, Routes.What(route))
     end
     local n = item.count or 1
+    local skill = Routes.SkillItem(route, item)
+    local reason = Routes.What(route) .. " go to " .. tostring(to)
+    if skill then -- "Lockboxes go to Bob"
+        reason = skill.items:sub(1, 1):upper() .. skill.items:sub(2) .. " go to " .. tostring(to)
+    elseif ns.Valuation.RecipeProfession(item) and not route.class then
+        reason = Routes.ProfessionName(route.profession) .. " recipe goes to " .. tostring(to)
+    end
     return {
         action = "mail", route = Routes.ROUTE, to = to, crafter = crafter, key = route.key, what = Routes.What(route),
-        reason = ns.Valuation.RecipeProfession(item) and (Routes.ProfessionName(route.profession) .. " recipe goes to "
-            .. tostring(to)) or (Routes.What(route) .. " go to " .. tostring(to)),
+        reason = reason,
         vendor = (item.vendor or 0) * n, postage = (settings and settings.postage or 30) * (item.stacks or 1),
         ahUnit = unit,
         -- A guild template rule's mail (Guild.Rules): the mail log tags it and the guild contributions
