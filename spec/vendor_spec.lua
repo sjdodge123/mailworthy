@@ -153,6 +153,15 @@ describe("selling V items at a vendor", function()
         assert.is_false(ns.Vendor.Busy())
     end)
 
+    -- Operator, 2026-11-20: grey items the merchant's own sell-trash button takes are V, never AH.
+    it("vendor trash is on the list whatever the auction house lists it for", function()
+        prices[WowStub.link(4865, "Ruined Pelt")] = 9000
+        merchant()
+        local listed = false
+        for _, s in ipairs(ns.Vendor.Stacks()) do listed = listed or s.itemID == 4865 end
+        assert.is_true(listed, "the priced grey pelt is a V stack")
+    end)
+
     it("sells at most 12 stacks a press, and says how many are left", function()
         WowStub.state.numSlots[2] = 16
         for i = 1, 15 do put(2, i, WowStub.item(5000 + i, "Junk " .. i, { quality = 0, sell = 10, class = 15 })) end

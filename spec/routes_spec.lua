@@ -237,6 +237,20 @@ describe("bindings", function()
             assert.equal(BOB, ns.Routes.Divert(robe, { action = "mail", route = "ah" }, { ah = 900, age = 0 }, D, { mage }).to)
         end)
 
+        it("a class binding never takes vendor trash, whatever its auction price (operator, 2026-11-20)", function()
+            local warrior = { to = BOB, class = "WARRIOR", key = "w", cap = 50000 }
+            local sword = { itemID = 2, classID = 2, quality = 0, count = 1, stacks = 1, vendor = 50,
+                classes = { WARRIOR = true }, myClass = "MAGE" }
+            local D = ns.Valuation.DEFAULTS
+            local price = { ah = 900, age = 0 }
+            local trash = ns.Valuation.Evaluate(sword, price, D)
+            assert.is_true(ns.Valuation.Is(trash, ns.Valuation.K.trash))
+            assert.is_nil(ns.Routes.Divert(sword, trash, price, D, { warrior }), "a grey sword stays for the vendor")
+            sword.quality = 1
+            assert.equal(BOB, ns.Routes.Divert(sword, ns.Valuation.Evaluate(sword, price, D), price, D, { warrior }).to,
+                "the same sword in white goes to the warrior")
+        end)
+
         it("the price cap: at or above it the normal rule applies; unknown or stale prices don't count", function()
             local route = { to = BOB, profession = ENCHANTING, key = "k", cap = 50000 }
             local item = { classID = 7, subclassID = 12, count = 20, stacks = 1, vendor = 2 }

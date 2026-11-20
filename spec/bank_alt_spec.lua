@@ -191,6 +191,17 @@ describe("bank alt view", function()
         assert.equal("AH", tagOf(combined.Items[3]))
     end)
 
+    -- Operator, 2026-11-20: grey items the vendor's sell-trash button takes were tagged AH.
+    it("vendor trash says to vendor it, not what the auction house lists it for", function()
+        local item = { advice = "v", quality = 0, vendor = 12, price = { ah = 9000, age = 0 },
+            result = ns.Valuation.Evaluate({ quality = 0, vendor = 12, count = 5, stacks = 1 }, { ah = 9000, age = 0 },
+                ns.BankAlt.Settings()) }
+        local lines = ns.BankAlt.TooltipLines(item, nil, ns.BankAlt.Settings(), "full")
+        assert.equal("Mailworthy  |cffffffff[V: Vendor]|r", lines[1][1])
+        assert.equal("Vendor trash: sell it to a vendor (60c). Grey items don't sell at the auction house, whatever "
+            .. "they are listed for there.", lines[2][1])
+    end)
+
     it("an enchanter's disenchant-here piece says why, not a price race", function()
         local item = { advice = "de", price = { de = 400 }, result = { action = "keep", deHere = true, vendor = 50 } }
         local lines = ns.BankAlt.TooltipLines(item, nil, ns.BankAlt.Settings(), "full")
@@ -466,6 +477,11 @@ describe("vendor tags on a main after sending", function()
         assert.equal("V", tagOf(combined.Items[2]), "Linen Cloth: the window kept it for the vendor")
         assert.equal("V", tagOf(combined.Items[3]), "grey junk: no auction price, a vendor buys it")
         assert.is_nil(tagOf(combined.Items[4]), "soulbound: nothing to say")
+        -- Vendor trash (operator, 2026-11-20): an auction price, however good, doesn't make it AH.
+        prices[WowStub.link(4865, "Ruined Pelt")] = 9000
+        ns.BankAlt.Redraw()
+        combined:UpdateItems()
+        assert.equal("V", tagOf(combined.Items[3]), "grey junk the auction house lists at 90s: still V")
         assert.equal("sent", ns.BankAlt.Mode())
         assert.is_true(MailworthyCharDB.tagsAfterSend, "saved for this character")
     end)

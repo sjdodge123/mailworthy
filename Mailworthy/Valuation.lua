@@ -468,6 +468,7 @@ Valuation.KINDS = {
     priceFailed = { text = "no price", priceKeep = true }, -- the price call failed (also `failed = true`)
     noPrice = { text = "no price", priceKeep = true },     -- unpriced gear while UNPRICED_GEAR is off
     junk = { text = "junk (no price data)", priceKeep = true },
+    trash = { text = "vendor trash", priceKeep = true }, -- grey with a sell price, whatever its auction price
     uncommon = { text = "uncommon or better (no price data)", priceKeep = true }, -- no price source
     profession = { text = "your %s needs it" },
     deHere = { text = "disenchant it here: your Enchanting levels on it" },
@@ -557,8 +558,9 @@ function Valuation.Verdict(item, banksHere)
         return (r.route == "ah" or r.route == "de") and r.route or nil
     end
     if Valuation.Is(r, K.notWorth) and (r.vendor or 0) > 0 then return "v" end
-    -- Grey junk: no auction price, but a vendor buys it.
+    -- Grey junk a vendor buys, with an auction price (vendor trash) or without.
     local unpriced = Valuation.Is(r, K.noPrice) or Valuation.Is(r, K.priceFailed) or Valuation.Is(r, K.junk)
+        or Valuation.Is(r, K.trash)
     if item.quality == 0 and unpriced and (item.vendor or 0) > 0 then return "v" end
     return nil
 end
@@ -733,6 +735,12 @@ function Valuation.DisenchantsHere(item, price, settings)
     return worth < (tonumber(settings.deHereCap) or Valuation.DEFAULT_CAP)
 end
 
+--- Pure: is `item` what the merchant's Sell All Junk button sells: grey (quality Poor) with a sell
+--- price? (item.vendor nil = not loaded yet: not known to be.)
+function Valuation.IsVendorTrash(item)
+    return type(item) == "table" and item.quality == 0 and (tonumber(item.vendor) or 0) > 0
+end
+
 -- Evaluate past the hard keeps and the profession keep: price against vendor.
 evaluate = function(item, price, settings)
     if item.vendor == nil then return keep(K.notLoaded) end
@@ -772,6 +780,14 @@ evaluate = function(item, price, settings)
     if r.ahNet == nil and r.deNet == nil then
         return Valuation.Unpriced(item, price, vendor, postage, settings, stale and price.age or nil)
     end
+    -- Vendor trash (operator, 2026-11-20: "there is a build in button on the vendor to 'sell trash' ...
+    -- Those items shouldnt be suggested to AH even if the price is favorable. those dont sell"): what
+    -- the merchant's Sell All Junk button sells, a grey item with a sell price (Blizzard's
+    -- ContainerFrameItemButtonMixin:UpdateJunkItem: quality Poor and not noValue), stays for the
+    -- vendor whatever the auction house lists it for. Without a current price it is junk already
+    -- (Valuation.Unpriced, above); a grey no vendor buys isn't that button's junk, and is priced
+    -- like anything else below.
+    if Valuation.IsVendorTrash(item) then return keep(K.trash, { vendor = vendor }) end
 
     local best, route = r.ahNet, "ah"
     if r.deNet ~= nil and (best == nil or r.deNet > best) then best, route = r.deNet, "de" end

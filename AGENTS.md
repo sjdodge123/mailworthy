@@ -59,7 +59,10 @@ SavedVariables, feature switches, where each Safety rule is enforced) before rea
   replaces "Auctionator + TSM: unpriced stays, never priced by TSM"), so it goes to the bank alt
   unpriced only when neither has a current price; a failed Auctionator call is never replaced by
   TSM's price, and a TSM call that fails counts as TSM not installed (Auctionator's own result
-  stands, as before 2026-11-17; operator chose "a TSM failure ... leaves today's result"). Grey junk stays, an item whose price call failed stays, and the hard keeps above come first.
+  stands, as before 2026-11-17; operator chose "a TSM failure ... leaves today's result"). Grey junk stays, with an auction price too when a vendor buys it
+  (vendor trash: what the merchant's Sell All Junk button sells, `Valuation.IsVendorTrash`; operator,
+  2026-11-20: "Those items shouldnt be suggested to AH even if the price is favorable. those dont
+  sell"), an item whose price call failed stays, and the hard keeps above come first.
   A **bank pin** (`Pins.lua`, Ctrl+Alt+click / R3) mails the pinned item to the bank alt whatever
   its price or quality, grey junk too and without a price source (operator, 2026-11-13: "Pins
   override them"); never past a hard keep, item data not loaded yet or a failed price call, and
@@ -115,7 +118,7 @@ textures / font strings on Blizzard frames kept in our own tables, read-only
 ## Critical path (STRICT)
 
 `spec/critical_path_spec.lua` is the shipping gate: a mailbox visit with a realistic
-bag, by mouse and by controller, with and without Auctionator, with a binding, with a bank pin, with a hunter's
+bag, by mouse and by controller, with and without Auctionator, with a binding, with a bank pin, with vendor trash, with a hunter's
 ammo, with a guild
 template (on and off), with Return to sender (on a main and on the bank alt), with the 5s
 money reserve (before Send and mid-run), and on

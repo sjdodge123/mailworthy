@@ -85,7 +85,7 @@ function. Specs: the module's own spec first; `critical_path` = `spec/critical_p
 | `Conjured.lua` | Conjured items (ID list, else the tooltip's "Conjured Item" line) | `Conjured.Is`, `Known` (pure), `How` | conjured |
 | `Recipes.lua` | Recipes this character already knows (the tooltip's "Already known" line, `ITEM_SPELL_KNOWN`); per visit | `Recipes.Known`, `IsKnownLine` (pure), `Forget`, `ReportLines` | recipes |
 | `Ammo.lua` | The ammo the equipped ranged weapon fires (bow / crossbow: arrows, gun: bullets): a hard keep, reason `"ammo"` | `Ammo.Is(item or link, fires)`, `Equipped`, `Fires`, `Matches` (pure), `RangedItem`, `ReportLines`, `REASON` | ammo, critical_path |
-| `Valuation.lua` | **The decision rule** (pure): mail or keep, and the route, for one item; **verdict kinds** (`KINDS`: each keep's `kind`, display text and flags `hard` / `unmailable` / `priceKeep` / `quiet`; code reads the kind, never the reason text: `verdict_kinds_spec`) | `Valuation.Evaluate`, `KINDS`, `K`, `Keep`, `Is`, `Flag`, `HardKeep`, `Verdict(item, banksHere)` (the bag tag for a valued item), `DEFAULT_CAP`, `Unpriced`, `Unmailable`, `NeededBy`, `ProfessionKeep`, `DisenchantsHere`, `Settings`, `DEFAULTS`, `STAPLES`, `SEND*`, `Money` | valuation |
+| `Valuation.lua` | **The decision rule** (pure): mail or keep, and the route, for one item; **verdict kinds** (`KINDS`: each keep's `kind`, display text and flags `hard` / `unmailable` / `priceKeep` / `quiet`; code reads the kind, never the reason text: `verdict_kinds_spec`) | `Valuation.Evaluate`, `KINDS`, `K`, `Keep`, `Is`, `Flag`, `HardKeep`, `Verdict(item, banksHere)` (the bag tag for a valued item), `DEFAULT_CAP`, `Unpriced`, `IsVendorTrash` (grey with a sell price: kind `trash`), `Unmailable`, `NeededBy`, `ProfessionKeep`, `DisenchantsHere`, `Settings`, `DEFAULTS`, `STAPLES`, `SEND*`, `Money` | valuation |
 | `Config.lua` | Saved settings over `Valuation.DEFAULTS`; bank alt per realm/faction; flags | `Config.Values/Get/Set/Step/Flag`, `Tooltips` / `CycleTooltips` (item tooltips: full / short / off), `BankAlt`, `SetBankAlt`, `SetBankAltHere`, `IsBankAltHere`, `BanksHere` (pins bank here), `Choices`; `Set` and the bank alt setters fire `Bags.InputsChanged` | config |
 | `Classes.lua` | Class-only items from the tooltip "Classes:" line | `Classes.Of`, `Mine`, `ForOther` (pure), `Token`, `Name` | classes |
 | `ClassSkills.lua` | A class's own skill items: a rogue's locked lockboxes (Classic's item IDs, else the tooltip's "Locked" / "Requires Lockpicking" line; unlocked ones by the bag slot's tooltip), a mage's Comprehension scrolls ("Requires Comprehension") | `ClassSkills.Of`, `Opened` (a bag slot: unlocked / locked / unknown), `Count` (a kind of lockbox's lock states over all bag groups), `Known` (pure), `Read` / `SkillPattern` / `IsLockedLine` (pure), `OfClass`, `ItemsText`, `How`, `Forget`, `ReportLines`; `SKILLS`, `LOCKBOXES` | class_skills |
@@ -195,7 +195,9 @@ PLAN.md "Decision rule"):
 3. Profession keep ("your X needs it", `ProfessionKeep` / `NeededBy` with tiers and
    `TierCheck` findings); with `matsToBankAlt` it mails to the bank alt instead.
 4. Local `evaluate`: no price source → whites and `Valuation.STAPLES` mail as `common`,
-   the rest stays; `price.failed` → stays; else AH net vs disenchant net vs threshold
+   the rest stays; `price.failed` → stays; no current price → step 5; vendor trash
+   (`Valuation.IsVendorTrash`: grey with a sell price) → stays (kind `trash`, tagged V) whatever
+   its auction price; else AH net vs disenchant net vs threshold
    (`Valuation.Threshold`, `MinGain`, `BankReason`), mail `ah` / `de` / `bank`, or
    "not worth it".
 5. `Valuation.Unpriced` (no AH price, or older than `maxAgeDays`): failed stays, grey stays,
@@ -464,7 +466,7 @@ against them.
 | The row pick and what it can't bypass | `Routes.Pick` / `Picked` / `ClearPicks` (`MAIL_CLOSED`), `Routes.Choices` (`Divertible`, then `Routes.Takers`: `ClassPriced`, `IsMe`); `Bags.Evaluate` (returns carry no pick) |
 | Re-check each slot right before attaching | `Bags.StillThere` (shared with the vendor) via `Mailer.StillThere` in `sendNext`; attached-count check in `sendMail` |
 | No price source: only whites and `Valuation.STAPLES` (recipes only to their binding) | `Prices.Source`; `Valuation` local `evaluate`; `Routes.Matches` + `Valuation.RecipeProfession` |
-| Priced but no or stale price → bank alt, never a class binding; failed price call stays; grey stays | `Valuation.Unpriced`; `Prices.Lookup` / `TSMUnit` (`failed`); `Routes.PriceKeep`, `Routes.ClassPriced` |
+| Priced but no or stale price → bank alt, never a class binding; failed price call stays; grey stays (with a current auction price too when a vendor buys it: `Valuation.IsVendorTrash` in the local `evaluate`, kind `trash`) | `Valuation.Unpriced`; `Prices.Lookup` / `TSMUnit` (`failed`); `Routes.PriceKeep`, `Routes.ClassPriced` |
 | Auctionator + TSM: the fresher price per item; a failed Auctionator call never replaced by TSM's | `Prices.Fresher` (from `Prices.Lookup`) |
 | Bank pin mails to the bank alt (never past a hard keep, unloaded data or a failed call; never to a binding) | `Pins.Effective` → `Valuation.Evaluate` pin branch; `Routes.Divertible` (pinned) |
 | A profession binding mails its materials and recipes whatever the price, under its cap | `Routes.Matches`, `Routes.Force` |
