@@ -188,30 +188,24 @@ describe("class skills: lockboxes and Comprehension scrolls", function()
         _G.C_TooltipInfo = real
     end)
 
-    it("locked and unlocked boxes of one kind are valued apart (Codex review)", function()
+    it("one kind with a locked and an unlocked box: no binding takes it, a rogue keeps it (Codex review)", function()
         WowStub.setBag(0, 6, WowStub.item(IRON, "Iron Lockbox", { quality = 2, sell = 0, class = 15 }))
         WowStub.state.opened["0:6"] = true
-        ns.Routes.Add(BOB, "ROGUE")
-        local toBob, toAlt = 0, 0
-        for _, it in ipairs(ns.Bags.Evaluate().mail) do
-            if it.itemID == IRON then
-                assert.equal(1, it.stacks)
-                if it.result.to == BOB then
-                    toBob = toBob + 1
-                    assert.same({ { bag = 0, slot = 1, count = 1 } }, it.slots)
-                else
-                    toAlt = toAlt + 1
-                    assert.same({ { bag = 0, slot = 6, count = 1 } }, it.slots)
-                end
-            end
-        end
-        assert.same({ 1, 1 }, { toBob, toAlt }, "the locked one to the rogue, the unlocked one on the normal rule")
+        local route = assert(ns.Routes.Add(BOB, "ROGUE"))
+        local boxes = find(ns.Bags.Evaluate().mail, IRON)
+        assert.equal(2, boxes.stacks, "one row for the kind")
+        assert.is_nil(boxes.result.to, "an unlocked box among them: nothing of the kind goes to the friend")
+        assert.same({}, boxes.choices)
         be("ROGUE")
-        local result = ns.Bags.Evaluate()
-        assert.same({ { bag = 0, slot = 1, count = 1 } }, find(result.keep, IRON).slots, "a rogue keeps the locked one")
-        assert.equal("your Lockpicking needs it", find(result.keep, IRON).result.reason)
-        assert.same({ { bag = 0, slot = 6, count = 1 } }, find(result.mail, IRON).slots)
-        assert.is_nil(find(result.mail, IRON).result.to)
+        boxes = find(ns.Bags.Evaluate().keep, IRON)
+        assert.equal(2, boxes.stacks)
+        assert.equal("your Lockpicking needs it", boxes.result.reason, "a locked box among them: the kind stays")
+        assert.same({}, boxes.choices, "and no pick sends the unlocked one to the other rogue")
+        ns.Routes.Pick(boxes.link, route.key)
+        assert.is_nil(find(ns.Bags.Evaluate().mail, IRON), "a stale pick moves nothing")
+        ns.Routes.ClearPicks()
+        WowStub.state.opened["0:1"] = true
+        assert.is_nil(find(ns.Bags.Evaluate().keep, IRON), "every box unlocked: the normal rule")
     end)
 
     it("a lockbox's slot is read only where Lockpicking matters (Codex review)", function()
@@ -300,7 +294,6 @@ describe("class skills: lockboxes and Comprehension scrolls", function()
         -- an unlocked one isn't kept for Lockpicking
         WowStub.state.opened["0:1"] = true
         assert.is_nil(find(ns.Bags.Evaluate().keep, IRON))
-        assert.is_true(find(ns.Bags.Evaluate().mail, IRON).opened)
         WowStub.state.opened["0:1"] = nil
         -- "on my bank alt" doesn't move them: they are picked here
         ns.Config.Set("matsToBankAlt", true)

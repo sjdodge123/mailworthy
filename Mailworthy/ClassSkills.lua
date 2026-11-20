@@ -22,10 +22,11 @@
 --
 -- A lockbox someone already picked (unlocked, not opened yet) trains nobody: its bag slot's own
 -- tooltip (C_TooltipInfo.GetBagItem, same documentation) has no "Locked" line any more. It is then
--- no lockbox for a binding or for a rogue's keep, and follows the normal rule as before; the locked
--- ones of the same kind are valued apart from it (ClassSkills.Split, Bags.Evaluate). The slot's
--- tooltip is read at every scan, but only for a lockbox and only where Lockpicking matters (a rogue,
--- or a binding for one).
+-- no lockbox for a binding or for a rogue's keep, and follows the normal rule as before. One kind of
+-- lockbox is one row of the window (ClassSkills.Split, Bags' gatherFacts): a binding takes it only
+-- while none of its boxes is unlocked, a rogue keeps it while any is still locked. The slot's tooltip
+-- is read at every scan, but only for a lockbox and only where Lockpicking matters (a rogue, or a
+-- binding for one).
 local _, ns = ...
 
 local ClassSkills = {}
@@ -169,8 +170,7 @@ function ClassSkills.Opened(bag, slot, itemID)
 end
 
 --- A lockbox's bag slots (Bags.Group's shape: itemID, slots) by lock state: those still locked, and
---- those already unlocked (ClassSkills.Opened). Bags.Evaluate values the two apart (Codex review,
---- 2026-11-20: one unlocked box sent the locked ones of its group down the normal rule too).
+--- those already unlocked (ClassSkills.Opened).
 function ClassSkills.Split(item)
     local locked, opened = {}, {}
     for _, s in ipairs(item.slots or {}) do

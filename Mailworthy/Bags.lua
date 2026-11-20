@@ -306,8 +306,7 @@ end
 
 -- The scan, step by step ------------------------------------------------------------
 -- Bags.Evaluate: prepare the settings (Bags.PrepareSettings), read once what every item needs
--- (scanContext), then per item group (a lockbox's locked and unlocked stacks apart: lockStates): its
--- facts (gatherFacts), where it goes (decide, then holdShare and
+-- (scanContext), then per item group: its facts (gatherFacts), where it goes (decide, then holdShare and
 -- Bags.ApplySendSwitches), Return to sender's share (splitReturns); each part filed and counted
 -- (tally); then the mail counts (countMails) and the lists' order (sortLists).
 
@@ -370,12 +369,23 @@ local function gatherFacts(item, ctx)
     item.pin = ns.Pins.Effective(item.itemID)
     if ctx.classRoutes then item.classes, item.myClass = ns.Classes.Of(item.itemID), ctx.mine end
     -- A lockbox or a Comprehension scroll (ClassSkills.lua), and whether this character's own class levels on it.
-    -- Not a lockbox already unlocked (item.opened, lockStates below).
+    -- A lockbox already unlocked trains nobody (ClassSkills.Split: the slot's own tooltip, read only
+    -- where Lockpicking matters to this scan). One kind of lockbox stays one row, so both ways are the
+    -- careful one (Codex review, 2026-11-20): a binding takes the kind only while none of its boxes is
+    -- unlocked (nothing unlocked goes to a friend), and a rogue keeps it while any is still locked
+    -- (no locked box leaves a rogue's bags).
     item.classSkill, item.ownSkill = nil, nil
-    local skill = ctx.skills and not item.opened and ns.ClassSkills.Of(item.itemID) or nil
+    local skill = ctx.skills and ns.ClassSkills.Of(item.itemID) or nil
     if skill and ctx.skills[skill] then
-        item.classSkill = skill
-        if ns.ClassSkills.SKILLS[skill].class == ctx.mine then item.ownSkill = ns.ClassSkills.SKILLS[skill].name end
+        local locked, opened = 1, 0
+        if skill == ns.ClassSkills.LOCKPICKING then
+            local l, o = ns.ClassSkills.Split(item)
+            locked, opened = #l, #o
+        end
+        if opened == 0 then item.classSkill = skill end
+        if locked > 0 and ns.ClassSkills.SKILLS[skill].class == ctx.mine then
+            item.ownSkill = ns.ClassSkills.SKILLS[skill].name
+        end
     end
     item.questFor = ns.Quests.For(item.link)
     item.conjured = ns.Conjured.Is(item.itemID)
@@ -389,26 +399,6 @@ local function gatherFacts(item, ctx)
     if ctx.gearRoutes and item.price == nil and ns.Routes.IsGear(item) then
         item.de = ns.Prices.DisenchantValueFor(item.link)
     end
-end
-
---- A lockbox's stacks apart by lock state (ClassSkills.Split), where Lockpicking matters to this scan
---- (ctx.skills: on a rogue, or with a binding for one; nothing is read otherwise): the locked ones, and
---- those already unlocked (`opened`: no lockbox for a binding or a rogue's keep, the normal rule).
---- Any other item as it is. Returns the item's parts.
-local function lockStates(item, ctx)
-    local lockpicking = ns.ClassSkills.LOCKPICKING
-    if not (ctx.skills and ctx.skills[lockpicking] and ns.ClassSkills.Of(item.itemID) == lockpicking) then
-        return { item }
-    end
-    local locked, opened = ns.ClassSkills.Split(item)
-    if #opened == 0 then return { item } end
-    if #locked == 0 then
-        item.opened = true
-        return { item }
-    end
-    local rest = Bags.Part(item, opened)
-    rest.opened = true
-    return { Bags.Part(item, locked), rest }
 end
 
 --- Where an item goes, from its facts: its own verdict (Valuation.Evaluate, a row's "Me"), a binding's
@@ -593,19 +583,17 @@ function Bags.Evaluate(settings)
     local ctx = scanContext(settings)
     local result, stacksTo = newResult(ctx), {}
     local owedFor = owedReader(settings.returns)
-    for _, group in ipairs(Bags.Group(Bags.Slots())) do
-        for _, item in ipairs(lockStates(group, ctx)) do
-            value(item, ctx)
-            local parts, rest = splitReturns(item, owedFor(item.itemID), settings)
-            if not parts then
-                tally(result, item, stacksTo)
-            else
-                for _, back in ipairs(parts) do tally(result, back, stacksTo) end
-                if #rest > 0 then -- what wasn't mailed to this character (or won't split): the usual rule
-                    local left = Bags.Part(item, rest)
-                    value(left, ctx)
-                    tally(result, left, stacksTo)
-                end
+    for _, item in ipairs(Bags.Group(Bags.Slots())) do
+        value(item, ctx)
+        local parts, rest = splitReturns(item, owedFor(item.itemID), settings)
+        if not parts then
+            tally(result, item, stacksTo)
+        else
+            for _, back in ipairs(parts) do tally(result, back, stacksTo) end
+            if #rest > 0 then -- what wasn't mailed to this character (or won't split): the usual rule
+                local left = Bags.Part(item, rest)
+                value(left, ctx)
+                tally(result, left, stacksTo)
             end
         end
     end

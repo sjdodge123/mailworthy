@@ -178,7 +178,8 @@ than at the vendor goes to your bank alt. The rest stays in your bags to vendor.
   rogue friend or alt can level Lockpicking on them (a mage, Comprehension). Like a
   profession's materials they go whatever their price, also with no auction price or without
   Auctionator, and to the bank alt instead only at or above the binding's price cap. A lockbox
-  someone already picked isn't sent. Without such a binding nothing changes. On a rogue or a
+  someone already picked isn't sent (nor the locked ones of the same kind, until you have
+  looted it). Without such a binding nothing changes. On a rogue or a
   mage, its own lockboxes or scrolls stay in the bags ("Keep my professions' materials"); the
   row's button still sends one to a friend, and a bank pin to the bank alt.
 - **Guild template** (`/mw guild`, or **Guild...** in Mailworthy settings): the guild master

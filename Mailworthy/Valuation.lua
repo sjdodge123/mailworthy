@@ -525,7 +525,7 @@ end
 --- profession needs it, it should recommend Banking"). Not one to convert: that's crafted now.
 function Valuation.BankForCraft(r)
     return type(r) == "table" and r.action == "keep" and r.neededBy ~= nil and not r.convert and not r.deHere
-        and not r.classSkill -- a rogue's lockbox, a mage's scroll: picked or read from the bags, not banked
+        and not r.ownSkill -- a rogue's lockbox, a mage's scroll: picked or read from the bags, not banked
 end
 
 --- Pure: the tag for a valued item (`item.result`, Valuation.Evaluate's verdict after Bags.Evaluate's
@@ -685,7 +685,7 @@ function Valuation.Evaluate(item, price, settings)
         -- Item data first: an item whose data hasn't loaded is a hard keep, so no pick and no Return to
         -- sender takes it from this keep (Codex review, 2026-11-20).
         if item.vendor == nil then return keep(K.notLoaded) end
-        return keep(K.profession, { neededBy = item.ownSkill, classSkill = item.classSkill }, item.ownSkill)
+        return keep(K.profession, { neededBy = item.ownSkill, ownSkill = true }, item.ownSkill)
     end
     local r = evaluate(item, price, settings)
     -- Level my professions (operator, 2026-11-14: "when i see something with low sale price like that and

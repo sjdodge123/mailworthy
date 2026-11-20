@@ -143,7 +143,7 @@ function. Specs: the module's own spec first; `critical_path` = `spec/critical_p
    - `Bags.Slots` (bags 0..`LastBag`, reagent bag included) then `Bags.Group` (per link +
      bound + in use).
    - Per item, the local `value(item)` gathers facts (`Locks.IsItemLocked`,
-     `Pins.Effective`, `Quests.For`, `Conjured.Is`, `Recipes.Known` (recipes only: `item.known`), `Classes.Of`, `ClassSkills.Of` (`item.classSkill`, `item.ownSkill`; read only on a rogue or mage, or with a binding for that class; a lockbox's locked and unlocked stacks are valued apart: `ClassSkills.Split` in the local `lockStates`, `item.opened`), `Prices.Vendor`,
+     `Pins.Effective`, `Quests.For`, `Conjured.Is`, `Recipes.Known` (recipes only: `item.known`), `Classes.Of`, `ClassSkills.Of` (`item.classSkill`, `item.ownSkill`; read only on a rogue or mage, or with a binding for that class; a kind of lockbox with an unlocked box, `ClassSkills.Split`: no `classSkill`, and `ownSkill` only while a box is still locked), `Prices.Vendor`,
      `Prices.Lookup` when `Prices.Source()` is set), then:
      `Valuation.Evaluate` (section 4.2) → `Routes.Divert` (section 4.3) → `Routes.Choices`
      and the row pick (`Routes.Picked` → `Routes.Force`) → `settings.hold` (no bank alt,
@@ -468,7 +468,7 @@ against them.
 | Auctionator + TSM: the fresher price per item; a failed Auctionator call never replaced by TSM's | `Prices.Fresher` (from `Prices.Lookup`) |
 | Bank pin mails to the bank alt (never past a hard keep, unloaded data or a failed call; never to a binding) | `Pins.Effective` → `Valuation.Evaluate` pin branch; `Routes.Divertible` (pinned) |
 | A profession binding mails its materials and recipes whatever the price, under its cap | `Routes.Matches`, `Routes.Force` |
-| A class binding takes its class skill's items (locked lockboxes, Comprehension scrolls) whatever the price, under its cap; a rogue or a mage keeps its own | `ClassSkills.Of` / `Split` → `Bags` (`lockStates`; `item.classSkill`, `item.ownSkill`, `item.opened`); `Routes.SkillItem` in `Routes.Matches` / `Routes.Takers` (no `ClassPriced`); `Valuation.Evaluate` (`ownSkill` keep, `neededBy`; item data first: `notLoaded`); `Routes.Choices` (no pick when a binding names this character for it) |
+| A class binding takes its class skill's items (locked lockboxes, Comprehension scrolls) whatever the price, under its cap; a rogue or a mage keeps its own | `ClassSkills.Of` / `Split` → `Bags` (`gatherFacts`: `item.classSkill`, `item.ownSkill`); `Routes.SkillItem` in `Routes.Matches` / `Routes.Takers` (no `ClassPriced`); `Valuation.Evaluate` (`ownSkill` keep, `neededBy`; item data first: `notLoaded`); `Routes.Choices` (no pick when a binding names this character for it) |
 | A binding naming this character keeps the item here (not a recipe it already knows: regular rules) | `Routes.Force` (`forMe`), `Routes.Divertible`, `Mailer.Blocker`; `Routes.Divert` + `Recipes.Known` |
 | The list can't change during a send | `Mailer.Busy` checks in `Pins`, `LocksUI`, `PinWarning`, `MailWindow` |
 

@@ -74,7 +74,7 @@ SavedVariables, feature switches, where each Safety rule is enforced) before rea
   price (operator, 2026-11-20: "Lock boxes can route to rouges for training ... comprehension
   items to mages(class specific profession)"; "Like profession mats"). Without a binding for
   that class they follow the normal rule ("Normal rule, as today"); a lockbox already
-  unlocked is no lockbox. On a rogue or a mage itself they stay like its professions'
+  unlocked is no lockbox, and no binding takes a kind of lockbox while one of its boxes is. On a rogue or a mage itself they stay like its professions'
   materials ("Yes, they stay"; me first: the row's pick and a bank pin still move them).
 
 ## Never write into Blizzard's controller UI (STRICT)
