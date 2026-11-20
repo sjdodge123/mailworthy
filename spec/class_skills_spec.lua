@@ -188,6 +188,79 @@ describe("class skills: lockboxes and Comprehension scrolls", function()
         _G.C_TooltipInfo = real
     end)
 
+    it("locked and unlocked boxes of one kind are valued apart (Codex review)", function()
+        WowStub.setBag(0, 6, WowStub.item(IRON, "Iron Lockbox", { quality = 2, sell = 0, class = 15 }))
+        WowStub.state.opened["0:6"] = true
+        ns.Routes.Add(BOB, "ROGUE")
+        local toBob, toAlt = 0, 0
+        for _, it in ipairs(ns.Bags.Evaluate().mail) do
+            if it.itemID == IRON then
+                assert.equal(1, it.stacks)
+                if it.result.to == BOB then
+                    toBob = toBob + 1
+                    assert.same({ { bag = 0, slot = 1, count = 1 } }, it.slots)
+                else
+                    toAlt = toAlt + 1
+                    assert.same({ { bag = 0, slot = 6, count = 1 } }, it.slots)
+                end
+            end
+        end
+        assert.same({ 1, 1 }, { toBob, toAlt }, "the locked one to the rogue, the unlocked one on the normal rule")
+        be("ROGUE")
+        local result = ns.Bags.Evaluate()
+        assert.same({ { bag = 0, slot = 1, count = 1 } }, find(result.keep, IRON).slots, "a rogue keeps the locked one")
+        assert.equal("your Lockpicking needs it", find(result.keep, IRON).result.reason)
+        assert.same({ { bag = 0, slot = 6, count = 1 } }, find(result.mail, IRON).slots)
+        assert.is_nil(find(result.mail, IRON).result.to)
+    end)
+
+    it("a lockbox's slot is read only where Lockpicking matters (Codex review)", function()
+        ns.Bags.Evaluate()
+        assert.equal(0, WowStub.state.bagTooltipReads, "no binding, a paladin: nothing read")
+        ns.Routes.Add(BOB, "MAGE")
+        ns.Bags.Evaluate()
+        ns.Bags.Evaluate()
+        assert.equal(0, WowStub.state.bagTooltipReads, "a mage's binding only: no lockbox slot is read")
+        ns.Routes.Add(BOB, "ROGUE")
+        ns.Bags.Evaluate()
+        assert.equal(2, WowStub.state.bagTooltipReads, "a rogue's binding: the two lockboxes' slots")
+    end)
+
+    it("a rogue's lockbox whose data hasn't loaded is a hard keep: no pick moves it (Codex review)", function()
+        be("ROGUE")
+        local route = assert(ns.Routes.Add(BOB, "ROGUE"))
+        local unloaded = { link = WowStub.link(IRON, "Iron Lockbox"), itemID = IRON, count = 1, stacks = 1, quality = 2,
+            vendor = nil, classSkill = "lockpicking", ownSkill = "Lockpicking" }
+        local verdict = ns.Valuation.Evaluate(unloaded, nil, ns.Valuation.Settings({}, false))
+        assert.equal("item info not loaded yet", verdict.reason)
+        assert.is_true(ns.Valuation.HardKeep(verdict))
+        route.skill = nil
+        assert.same({}, ns.Routes.Choices(unloaded, verdict, nil, {}, { route }))
+        unloaded.vendor = 0
+        verdict = ns.Valuation.Evaluate(unloaded, nil, ns.Valuation.Settings({}, false))
+        assert.equal("your Lockpicking needs it", verdict.reason)
+        assert.equal(1, #ns.Routes.Choices(unloaded, verdict, nil, {}, { route }), "loaded: the pick is offered")
+    end)
+
+    it("a binding naming this rogue (saved on another character): no pick sends its lockbox to another rogue (Codex review)", function()
+        be("ROGUE")
+        ns.Routes.Add(BOB, "ROGUE")
+        local list = ns.Util.Store(MailworthyDB, "routes", (ns.Util.RealmKey()))
+        list[#list + 1] = { to = ns.PlayerName(), class = "ROGUE", cap = 1000, at = 1 }
+        local box = find(ns.Bags.Evaluate().keep, IRON)
+        assert.equal("your Lockpicking needs it", box.result.reason)
+        assert.same({}, box.choices, "no pick button: it is this character's")
+        ns.Routes.Pick(box.link, "class:ROGUE|bob surname")
+        assert.is_nil(find(ns.Bags.Evaluate().mail, IRON), "a stale pick moves nothing")
+        ns.Routes.ClearPicks()
+        -- with "Keep my professions' materials" off the binding itself keeps it here, as before
+        ns.Routes.Remove("class:ROGUE|bob surname")
+        ns.Config.Set("keepProfessionMats", false)
+        box = find(ns.Bags.Evaluate().keep, IRON)
+        assert.is_truthy(box.result.forMe)
+        assert.same({}, box.choices)
+    end)
+
     it("a mage's binding takes Comprehension scrolls unpriced; a plain mage-only item keeps the price rule", function()
         ns.Routes.Add(BOB, "MAGE")
         local result = ns.Bags.Evaluate()
@@ -227,6 +300,7 @@ describe("class skills: lockboxes and Comprehension scrolls", function()
         -- an unlocked one isn't kept for Lockpicking
         WowStub.state.opened["0:1"] = true
         assert.is_nil(find(ns.Bags.Evaluate().keep, IRON))
+        assert.is_true(find(ns.Bags.Evaluate().mail, IRON).opened)
         WowStub.state.opened["0:1"] = nil
         -- "on my bank alt" doesn't move them: they are picked here
         ns.Config.Set("matsToBankAlt", true)
@@ -258,7 +332,7 @@ describe("class skills: lockboxes and Comprehension scrolls", function()
         local line = table.concat(ns.ClassSkills.ReportLines(), "\n")
         assert.truthy(line:find('LOCKED = "Locked"', 1, true))
         assert.truthy(line:find('ITEM_MIN_SKILL = "Requires %s (%d)"', 1, true))
-        assert.truthy(line:find("Iron Lockbox.-%(Lockpicking, item ID, already unlocked: the normal rule%)"))
+        assert.truthy(line:find("Iron Lockbox.-%(Lockpicking, item ID, 1 of 1 already unlocked: the normal rule%)"))
         assert.truthy(line:find("Heavy Iron Junkbox.-%(Lockpicking, tooltip%)"))
         assert.truthy(line:find("VOCE WELL.-%(Comprehension, tooltip%)"))
         assert.is_nil(line:find("Copper Ore", 1, true))

@@ -468,6 +468,12 @@ local picks = {} -- item link -> Routes.MINE or a binding's key
 --- item's own (Valuation.Evaluate's, before any binding); none for what no binding may take.
 function Routes.Choices(item, verdict, price, settings, routes)
     if not Routes.Divertible(verdict, price) then return {} end
+    -- A class skill's item (a rogue's lockbox) that a binding names this character for: on that
+    -- character Valuation keeps it first (`neededBy`), so Routes.Divert never reaches the binding and
+    -- `forMe` isn't set; no pick moves it all the same (AGENTS Safety; Codex review, 2026-11-20).
+    for _, r in ipairs(routes or {}) do
+        if Routes.SkillItem(r, item) and Routes.IsMe((Routes.Recipient(r))) then return {} end
+    end
     local unit = Routes.Units(item, price, settings)
     local list = Routes.Takers(item, verdict, price, unit, routes, false, nil, true)
     table.sort(list, function(a, b)

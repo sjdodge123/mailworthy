@@ -39,6 +39,7 @@ local function defaultState()
         tooltipLines = {}, -- itemID -> { "Locked", "Requires Lockpicking (70)" }: more lines of its tooltip
         opened = {}, -- "bag:slot" -> true: a lockbox already picked (its bag tooltip has no "Locked" line)
         tooltipReads = 0, -- C_TooltipInfo.GetItemByID calls
+        bagTooltipReads = 0, -- C_TooltipInfo.GetBagItem calls
         mods = {}, bindings = {}, bindingOwners = {}, activeFrame = nil, now = 1000, gamepadUI = false,
         navButton = nil,
         -- bindings: guild = nil (not in one) or { clubId, name, rank (this character's 0-based rank index, default 3),
@@ -582,6 +583,7 @@ _G.C_TooltipInfo = {
     end,
     -- The item in a bag slot: its own state (a lockbox already picked has lost its "Locked" line).
     GetBagItem = function(bag, slot)
+        s().bagTooltipReads = s().bagTooltipReads + 1
         local it = s().bags[bag] and s().bags[bag][slot]
         if not it then return nil end
         local lines = { { type = 22, leftText = "Item " .. tostring(it.itemID) } }

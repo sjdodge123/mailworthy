@@ -22,7 +22,10 @@
 --
 -- A lockbox someone already picked (unlocked, not opened yet) trains nobody: its bag slot's own
 -- tooltip (C_TooltipInfo.GetBagItem, same documentation) has no "Locked" line any more. It is then
--- no lockbox for a binding or for a rogue's keep, and follows the normal rule as before.
+-- no lockbox for a binding or for a rogue's keep, and follows the normal rule as before; the locked
+-- ones of the same kind are valued apart from it (ClassSkills.Split, Bags.Evaluate). The slot's
+-- tooltip is read at every scan, but only for a lockbox and only where Lockpicking matters (a rogue,
+-- or a binding for one).
 local _, ns = ...
 
 local ClassSkills = {}
@@ -165,17 +168,16 @@ function ClassSkills.Opened(bag, slot, itemID)
     return true
 end
 
---- The class skill a bag item (Bags.Group's shape: itemID, slots) trains right now, or nil: a
---- lockbox only while every one of its slots is still locked.
-function ClassSkills.For(item)
-    local id = ClassSkills.Of(item.itemID)
-    if not id then return nil end
-    if id == ClassSkills.LOCKPICKING then
-        for _, s in ipairs(item.slots or {}) do
-            if ClassSkills.Opened(s.bag, s.slot, item.itemID) then return nil end
-        end
+--- A lockbox's bag slots (Bags.Group's shape: itemID, slots) by lock state: those still locked, and
+--- those already unlocked (ClassSkills.Opened). Bags.Evaluate values the two apart (Codex review,
+--- 2026-11-20: one unlocked box sent the locked ones of its group down the normal rule too).
+function ClassSkills.Split(item)
+    local locked, opened = {}, {}
+    for _, s in ipairs(item.slots or {}) do
+        local list = ClassSkills.Opened(s.bag, s.slot, item.itemID) and opened or locked
+        list[#list + 1] = s
     end
-    return id
+    return locked, opened
 end
 
 --- Pure: the skill ids of a class token ("ROGUE" -> { "lockpicking" }).
@@ -207,9 +209,9 @@ function ClassSkills.ReportLines()
     for _, item in ipairs(ns.Bags.Group(ns.Bags.Slots())) do
         local id, how = ClassSkills.Of(item.itemID), ClassSkills.How(item.itemID)
         if id and how then
-            local opened = id == ClassSkills.LOCKPICKING and ClassSkills.For(item) == nil
+            local opened = id == ClassSkills.LOCKPICKING and #select(2, ClassSkills.Split(item)) or 0
             names[#names + 1] = string.format("%s (%s, %s%s)", tostring(item.link), ClassSkills.SKILLS[id].name, how,
-                opened and ", already unlocked: the normal rule" or "")
+                opened > 0 and string.format(", %d of %d already unlocked: the normal rule", opened, item.stacks) or "")
         end
     end
     return { string.format("class skills (lockboxes, Comprehension scrolls): %s, %s; in your bags: %s",

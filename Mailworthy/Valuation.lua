@@ -682,6 +682,9 @@ function Valuation.Evaluate(item, price, settings)
     -- stay"), in the bags even with "on my bank alt" (it is picked or read here). Me first: no binding
     -- takes it (Routes.Divert), the row's pick and a bank pin still do.
     if settings.keepProfessionMats and item.ownSkill then
+        -- Item data first: an item whose data hasn't loaded is a hard keep, so no pick and no Return to
+        -- sender takes it from this keep (Codex review, 2026-11-20).
+        if item.vendor == nil then return keep(K.notLoaded) end
         return keep(K.profession, { neededBy = item.ownSkill, classSkill = item.classSkill }, item.ownSkill)
     end
     local r = evaluate(item, price, settings)
