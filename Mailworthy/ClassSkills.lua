@@ -8,8 +8,10 @@
 -- profession's materials ("Yes, they stay"). Without a binding the normal rule applies, as before.
 --
 -- How an item is known:
--- 1. Lockboxes: Classic's by item ID (LOCKBOXES; no API, so it holds before item data loads), or the
---    tooltip's "Locked" line (LOCKED), or its "Requires Lockpicking (N)" line (ITEM_MIN_SKILL).
+-- 1. Lockboxes: Classic's by item ID (LOCKBOXES; each checked against Wowhead Classic's tooltip,
+--    2026-11-20: all say "Locked" and "Requires Lockpicking (N)", none binds; no API, so it holds
+--    before item data loads), or the tooltip's "Locked" line (LOCKED), or its "Requires Lockpicking
+--    (N)" line (ITEM_MIN_SKILL).
 -- 2. Comprehension scrolls: the tooltip's "Requires Comprehension (N)" line (ITEM_MIN_SKILL).
 -- The tooltip is C_TooltipInfo.GetItemByID (TooltipInfoDocumentation.lua on Forever, as Classes.lua
 -- and Conjured.lua read it). Forever's global strings aren't in the source mirror, so LOCKED and
@@ -78,11 +80,21 @@ function ClassSkills.SkillPattern(format)
     return "^" .. p:gsub("%%s", "(.-)"):gsub("%%d", "%%d+") .. "$"
 end
 
+-- A line's parts: the two texts may share one line ("Locked", a line break, "Requires Lockpicking (1)").
+local function split(text)
+    local list = {}
+    for part in plain(text):gmatch("[^\r\n]+") do list[#list + 1] = part:match("^%s*(.-)%s*$") end
+    return list
+end
+
 --- Pure: is this tooltip line the "Locked" line? `label` is LOCKED (the client's own text).
 function ClassSkills.IsLockedLine(text, label)
     if type(text) ~= "string" then return false end
     label = type(label) == "string" and label ~= "" and label or ClassSkills.LOCKED
-    return plain(text) == label
+    for _, part in ipairs(split(text)) do
+        if part == label then return true end
+    end
+    return false
 end
 
 --- Pure: the class skill a tooltip's lines name ("lockpicking" / "comprehension"), or nil.
@@ -93,9 +105,11 @@ function ClassSkills.Read(texts, locked, minSkill)
     for _, text in ipairs(texts or {}) do
         if type(text) == "string" then
             if ClassSkills.IsLockedLine(text, locked) then return ClassSkills.LOCKPICKING end
-            local name = plain(text):match(pattern)
-            for _, id in ipairs(ClassSkills.ORDER) do
-                if name and name:lower() == ClassSkills.SKILLS[id].name:lower() then found = found or id end
+            for _, part in ipairs(split(text)) do
+                local name = part:match(pattern)
+                for _, id in ipairs(ClassSkills.ORDER) do
+                    if name and name:lower() == ClassSkills.SKILLS[id].name:lower() then found = found or id end
+                end
             end
         end
     end

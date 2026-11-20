@@ -189,7 +189,9 @@ call stays (never "no price yet"); the hard keeps and the profession keep come f
 skipped) it stays like the rest of the bank alt's share. An item whose disenchant value alone
 doesn't pay goes the same way (the auction house may still pay). Unpriced green and blue
 gear goes too (`Valuation.UNPRICED_GEAR`; operator: "Yes, gear goes too"). A class binding never takes an unpriced item
-(`Routes.PriceKeep`: the cap can't be checked). Replaces the launch-days 0-13 exception for
+(`Routes.PriceKeep`: the cap can't be checked), except its class skill's items (2026-11-20,
+`ClassSkills.lua`: a rogue's locked lockboxes, a mage's Comprehension scrolls), which go like a
+profession's materials. Replaces the launch-days 0-13 exception for
 white trade goods (research 4.2, 2026-10-20).
 
 **Staple trade goods (the flat rules, operator, 2026-11-08):** `Valuation.STAPLES`, one table

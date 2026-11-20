@@ -68,7 +68,14 @@ SavedVariables, feature switches, where each Safety rule is enforced) before rea
   A profession binding mails its materials and its profession's recipes to the bound player
   whatever their price (operator, 2026-11-08: "keep as is"; recipes: "recipes should go to
   their respective profession mappings"), under its price cap when there is a price; a class
-  binding follows the price rules above.
+  binding follows the price rules above, except for what its class's own skill levels on
+  (`ClassSkills.lua`): a rogue's binding takes locked lockboxes and a mage's Comprehension
+  scrolls like a profession's materials, whatever their price, under the cap when there is a
+  price (operator, 2026-11-20: "Lock boxes can route to rouges for training ... comprehension
+  items to mages(class specific profession)"; "Like profession mats"). Without a binding for
+  that class they follow the normal rule ("Normal rule, as today"); a lockbox already
+  unlocked is no lockbox. On a rogue or a mage itself they stay like its professions'
+  materials ("Yes, they stay"; me first: the row's pick and a bank pin still move them).
 
 ## Never write into Blizzard's controller UI (STRICT)
 
