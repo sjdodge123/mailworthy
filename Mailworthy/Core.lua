@@ -82,10 +82,28 @@ function ns.On(event, fn)
     table.insert(handlers[event], fn)
 end
 
+local dispatching, afterEvent = 0, {}
+
+--- Run `fn` once every handler of the event being dispatched has run (at once when none is):
+--- for state that must outlive the other handlers of the same event, with no timer involved.
+function ns.AfterEvent(fn)
+    if dispatching == 0 then return fn() end
+    afterEvent[#afterEvent + 1] = fn
+end
+
 function ns.Fire(event, ...)
+    dispatching = dispatching + 1
     for _, fn in ipairs(handlers[event] or {}) do
         local ok, err = pcall(fn, ...)
         if not ok and ns.Log then ns.Log.Add("error", "%s handler: %s", event, tostring(err)) end
+    end
+    dispatching = dispatching - 1
+    if dispatching > 0 or #afterEvent == 0 then return end
+    local queue = afterEvent
+    afterEvent = {}
+    for _, fn in ipairs(queue) do
+        local ok, err = pcall(fn)
+        if not ok and ns.Log then ns.Log.Add("error", "after %s: %s", event, tostring(err)) end
     end
 end
 

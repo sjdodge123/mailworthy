@@ -161,14 +161,49 @@ describe("characters", function()
                 assert.is_nil(ns.Characters.ServerID(), guid)
                 assert.same({ "#" .. guid, "placeholder" }, { ns.Characters.Realm() })
             end
+            -- No GUID at all: a token kept in this character's own saved variables. A namesake on another
+            -- realm has its own (Codex review, second pass: "#?<name>" was shared by namesakes).
+            WowStub.state.name = ME
             for _, guid in ipairs({ 7, false, "" }) do
                 WowStub.state.guid = guid or nil
-                assert.same({ "#?Two There", "placeholder" }, { ns.Characters.Realm() })
-                assert.is_nil(ns.Config.BankAlt())
+                local realm, source = ns.Characters.Realm()
+                assert.equal("#?" .. MailworthyCharDB.realmToken, realm)
+                assert.equal("placeholder", source)
             end
-            WowStub.state.name = nil
-            assert.same({ nil, "unknown" }, { ns.Characters.Realm() })
-            assert.is_nil(ns.Characters.Record(), "no realm: the character is not recorded under a made-up one")
+            local mine = ns.Util.RealmKey()
+            ns.Config.SetBankAlt("Bank On A")
+            assert.equal("Bank On A", ns.Config.BankAlt())
+            MailworthyCharDB.realmToken = nil -- the namesake's own saved variables, on another realm
+            assert.are_not.equal(mine, (ns.Util.RealmKey()))
+            assert.is_nil(ns.Config.BankAlt(), "the namesake never reads the first one's bank alt")
+        end)
+
+        -- Codex review, second pass: a record with the same server ID vouched for a namesake on the
+        -- other realm of an ID known to stand for two.
+        it("on a server ID that stands for two realms, the name's record is not asked", function()
+            MailworthyDB.characters = {}
+            record(ME, REALM, { server = "91" })
+            ns.Config.SetBankAlt("Bank On A")
+            WowStub.state.name, WowStub.state.realm = "Someone Else", OTHER -- the same ID, another realm
+            ns.Fire("PLAYER_LOGIN")
+            assert.is_false(MailworthyDB.realmIDs["91"])
+            MailworthyCharDB.realm = nil
+            WowStub.state.name, WowStub.state.realm = ME, "" -- the namesake on that other realm
+            ns.Fire("PLAYER_LOGIN")
+            assert.same({ "#Player-91-0ABCDEF0", "placeholder" }, { ns.Characters.Realm() })
+            assert.is_nil(ns.Config.BankAlt())
+        end)
+
+        it("before the saved variables load there is no realm, and nothing is recorded", function()
+            MailworthyCharDB.realm, MailworthyDB.characters, MailworthyDB.realmIDs = nil, {}, {}
+            WowStub.state.realm, WowStub.state.guid = "", nil
+            local saved = MailworthyCharDB
+            rawset(_G, "MailworthyCharDB", nil)
+            local realm, source = ns.Characters.Realm()
+            local recorded = ns.Characters.Record()
+            rawset(_G, "MailworthyCharDB", saved)
+            assert.same({ nil, "unknown" }, { realm, source })
+            assert.is_nil(recorded, "no realm: the character is not recorded under a made-up one")
         end)
 
         it("a server ID the game named two realms for is never used again", function()
@@ -188,10 +223,15 @@ describe("characters", function()
             assert.equal("#91|Alliance", (ns.Util.RealmKey()))
             WowStub.state.realm = REALM -- the game names the realm while the mailbox is open
             assert.equal("#91|Alliance", (ns.Util.RealmKey()), "one visit, one realm")
+            -- Through every MAIL_CLOSED handler (the ledger commits its takes there), with no timer
+            -- (Codex review, second pass: a timer's synchronous fallback released it first).
+            local timers, atClose = _G.C_Timer, nil
+            _G.C_Timer = nil
+            ns.On("MAIL_CLOSED", function() atClose = ns.Util.RealmKey() end) -- the last handler
             ns.Fire("MAIL_CLOSED")
-            assert.equal("#91|Alliance", (ns.Util.RealmKey()), "through every MAIL_CLOSED handler")
-            WowStub.runTimers()
-            assert.equal(REALM .. "|Alliance", (ns.Util.RealmKey()))
+            _G.C_Timer = timers
+            assert.equal("#91|Alliance", atClose)
+            assert.equal(REALM .. "|Alliance", (ns.Util.RealmKey()), "asked again once they have all run")
             -- A mail run, and a mail still waiting for the game's answer after a stop, hold it too.
             ns.Mailer.state.busy = true
             WowStub.state.realm = ""
@@ -215,8 +255,9 @@ describe("characters", function()
                 .. "server ID 91", ns.Characters.RealmText())
             WowStub.state.realm, WowStub.state.guid = nil, nil
             MailworthyCharDB.realm, MailworthyDB.characters = nil, {}
-            assert.equal("the game gives no realm name (nil): using #?Rettana Quilwrit, from a placeholder (no realm known); "
-                .. "server ID unknown", ns.Characters.RealmText())
+            local text = ns.Characters.RealmText() -- makes the token
+            assert.equal("the game gives no realm name (nil): using #?" .. tostring(MailworthyCharDB.realmToken)
+                .. ", from a placeholder (no realm known); server ID unknown", text)
         end)
 
         it("the saved bank alt, the known characters and the launch day survive a blank realm name", function()

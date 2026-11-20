@@ -50,11 +50,14 @@ end
 --      be of another server, or was itself made from a server ID (`guess`);
 --   5. a placeholder, a realm of its own, so unnamed realms never share a bank alt:
 --      "#<serverID>" for a server ID not known to stand for two realms, else one for this
---      character alone ("#<GUID>", "#?<name>"); nil when there isn't even a name.
--- A server ID the game named two realms for is never trusted again (realmIDs[id] = false),
--- and what was recorded from it is forgotten. Nothing found by 3. to 5. is saved as a fact.
+--      character alone: "#<GUID>", or without a GUID "#?<token>", a token kept in this
+--      character's own saved variables (MailworthyCharDB.realmToken); nil before those load.
+-- A server ID the game named two realms for is never trusted again (realmIDs[id] = false):
+-- what was recorded from it is forgotten, and it rules out 3. and 4. (a namesake on the
+-- other realm). Nothing found by 3. to 5. is saved as a fact.
 -- The answer holds while a mailbox is open and while a mail run is on or waits for the
--- game's answer: what was previewed, sent and logged in one visit is one realm's.
+-- game's answer, through the handlers of the event that ends either: what was previewed,
+-- sent and logged in one visit is one realm's.
 Characters.PLACEHOLDER = "#"
 Characters.REALM_SOURCES = {
     game = "the game", saved = "this character's last login", server = "the server ID",
@@ -124,27 +127,39 @@ local function resolve()
     local known
     if id and type(MailworthyDB) == "table" then known = ns.Util.Table(MailworthyDB.realmIDs)[id] end
     if named(known) then return known, "server" end
-    realm = fromCharacters(id)
-    if realm then return realm, "characters" end
     local P = Characters.PLACEHOLDER
-    if id and known == nil then return P .. id, "placeholder" end
+    if known ~= false then
+        -- Not on a server ID known to stand for two realms: a namesake there may be on the other
+        -- one, and a record's matching server ID then says nothing (Codex review, second pass).
+        realm = fromCharacters(id)
+        if realm then return realm, "characters" end
+        if id then return P .. id, "placeholder" end
+    end
     -- No server ID, or one that stands for two realms: a realm of this character alone.
     local guid = named(call(UnitGUID, "player"))
     if guid then return P .. guid, "placeholder" end
-    local name = named(ns.PlayerName())
-    if name then return P .. "?" .. name, "placeholder" end
-    return nil, "unknown"
+    -- No GUID either: a token of this character's own saved variables (a name can have a namesake
+    -- on another realm; Codex review, second pass).
+    if type(MailworthyCharDB) ~= "table" then return nil, "unknown" end
+    if not named(MailworthyCharDB.realmToken) then
+        MailworthyCharDB.realmToken = string.format("%d-%06d", ns.Util.Now(), math.random(0, 999999))
+    end
+    return P .. "?" .. MailworthyCharDB.realmToken, "placeholder"
 end
 
 local held       -- { realm, source }: the last answer
 local atMailbox  -- a mailbox is open (MAIL_SHOW .. after MAIL_CLOSED's handlers)
+local settling   -- a mail's answer is being handled (through MAIL_SEND_SUCCESS's handlers)
+
+--- Is a mail run on, or a mail of a stopped run still with the game?
+local function mailing()
+    local mailer = ns.Mailer
+    return mailer ~= nil and (mailer.Busy() or (type(mailer.state) == "table" and mailer.state.pending ~= nil))
+end
 
 --- Does the last answer hold (a mailbox visit, a mail run, a mail still with the game)?
 local function holding()
-    if not held then return false end
-    if atMailbox then return true end
-    local mailer = ns.Mailer
-    return mailer ~= nil and (mailer.Busy() or (type(mailer.state) == "table" and mailer.state.pending ~= nil))
+    return held ~= nil and (atMailbox or settling or mailing()) and true or false
 end
 
 --- This character's realm (the key its realm's saved data is kept under) and where it came from
@@ -157,15 +172,26 @@ function Characters.Realm()
 end
 
 --- A new login, or the mailbox closed: the realm is asked again.
-function Characters.ReleaseRealm() atMailbox, held = false, nil end
+function Characters.ReleaseRealm() atMailbox, settling, held = false, false, nil end
 
 ns.On("MAIL_SHOW", function()
+    if mailing() and held then -- a mail of the last visit is still with the game: its realm stands
+        atMailbox = true
+        return
+    end
     atMailbox, held = false, nil
     Characters.Realm()
     atMailbox = true
 end)
--- After every MAIL_CLOSED handler (the ledger commits its pending takes there).
-ns.On("MAIL_CLOSED", function() ns.Util.After(0, function() atMailbox = false end) end)
+-- Released once every MAIL_CLOSED handler has run (the ledger commits its pending takes there).
+ns.On("MAIL_CLOSED", function() ns.AfterEvent(function() atMailbox = false end) end)
+-- This file loads before Mailer.lua, so this runs first: the mail the game just confirmed is
+-- credited by the mailer's handler, which clears its "busy" / "pending" before it writes the ledger.
+ns.On("MAIL_SEND_SUCCESS", function()
+    if not holding() then return end
+    settling = true
+    ns.AfterEvent(function() settling = false end)
+end)
 
 --- "the game says "X"" / "the game gives no realm name (""): using X, from this character's last
 --- login; server ID 91", for /mw report.
