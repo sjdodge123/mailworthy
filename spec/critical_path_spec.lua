@@ -871,6 +871,54 @@ describe("critical path: mailing", function()
         assertSafeAndComplete(ns, preview, { [BANK_ALT] = true, [ENGINEER] = true })
     end)
 
+    it("vendor trash (mouse): a grey item a vendor buys stays whatever the auction house lists it for", function()
+        -- Rule added on purpose (operator, 2026-11-20): "there is a build in button on the vendor to
+        -- 'sell trash' and it sells all trash. Those items shouldnt be suggested to AH even if the
+        -- price is favorable. those dont sell". Before, a grey item with a current auction price was
+        -- priced like any other and mailed for the auction house.
+        prices[WowStub.link(4865, "Ruined Pelt")] = 9000 -- 90s at auction, 12c at a vendor
+        mailbox()
+        _G.MailworthyMailButton:Click()
+        local preview = previewed(ns)
+        assert.is_nil(preview[4865], "priced grey junk stays for the vendor")
+        assert.equal(BANK_ALT, preview[2770], "the ore still goes for the auction house")
+        -- The Vendor send switch never mails it either ("Grey junk stays").
+        ns.SettingsUI.Show(ns.MailWindow.Frame())
+        _G.MailworthySettingsSendVendor:Click()
+        ns.SettingsUI.Frame():Hide()
+        preview = previewed(ns)
+        assert.is_nil(preview[4865], "Vendor on: priced grey junk still stays")
+        _G.MailworthyMailSend:Click()
+        deliver(ns)
+        assertSafeAndComplete(ns, preview, { [BANK_ALT] = true })
+        for i in ipairs(WowStub.state.sent) do
+            for _, it in ipairs(WowStub.state.sentItems[i]) do assert.are_not.equal(4865, it.itemID, "mailed vendor trash") end
+        end
+    end)
+
+    it("vendor trash (controller): it stays off the list; bank-pinned, it goes to the bank alt", function()
+        -- Operator, 2026-11-13: "Pins override them" (a bank pin mails grey junk too).
+        prices[WowStub.link(4865, "Ruined Pelt")] = 9000
+        WowStub.state.gamepadUI = true
+        WowStub.state.activeFrame = MailFrame
+        mailbox()
+        local watcher = _G.MailworthyPadWatcher
+        watcher.scripts.OnUpdate(watcher, 0.2)
+        _G.MailworthyPadTriangle:Click()
+        watcher.scripts.OnUpdate(watcher, 0.2)
+        assert.is_nil(previewed(ns)[4865], "priced grey junk stays for the vendor")
+        ns.Pins.Set(4865, WowStub.link(4865, "Ruined Pelt"), ns.Pins.BANK, "spec")
+        ns.MailWindow.Refresh()
+        watcher.scripts.OnUpdate(watcher, 0.2)
+        local preview = previewed(ns)
+        assert.equal(BANK_ALT, preview[4865], "the pinned pelt goes to the bank alt")
+        ns.Nav.Select(_G.MailworthyMailSend)
+        WowStub.state.now = WowStub.state.now + 1
+        _G.MailworthyPadCross:Click()
+        deliver(ns)
+        assertSafeAndComplete(ns, preview, { [BANK_ALT] = true })
+    end)
+
     it("Send by tag (mouse): Vendor on mails what a vendor beats, never junk; Auction off keeps the auction items", function()
         -- shindo107's feat/craft-mats-to-alt: "V" on sends what the auction house prices under a vendor,
         -- so the bank alt can sell it. "Grey junk stays" and "an item whose price call failed stays"

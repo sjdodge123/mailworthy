@@ -1,5 +1,5 @@
 -- Sell the V items at a vendor. The bank alt view tags what a vendor pays more for with V
--- (Valuation.Verdict: "not worth it" items and grey junk), and a main gets the same tags after a
+-- (Valuation.Verdict: "not worth it" items and grey junk, priced or not), and a main gets the same tags after a
 -- Send, "so the trip to the vendor is easy". This is the last step of that trip: at a merchant,
 -- one button lists the V items in the bags with what the vendor pays, and Sell sells them.
 --

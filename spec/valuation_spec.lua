@@ -124,6 +124,62 @@ describe("valuation", function()
         end)
     end)
 
+    -- Operator, 2026-11-20: "there is a build in button on the vendor to 'sell trash' and it sells all
+    -- trash. Those items shouldnt be suggested to AH even if the price is favorable. those dont sell".
+    describe("vendor trash: a grey item a vendor buys (what the merchant's Sell All Junk button sells)", function()
+        local function pelt(o)
+            local t = item({ link = "[Ruined Pelt]", itemID = 4865, count = 5, quality = 0, classID = 15, vendor = 12 })
+            for k, v in pairs(o or {}) do t[k] = v end
+            return t
+        end
+
+        it("stays for the vendor whatever the auction house lists it for, and is tagged V", function()
+            assert.equal("ah", V.Evaluate(pelt({ quality = 1 }), { ah = 9000, age = 0 }, S).route, "a white one would go")
+            local r = V.Evaluate(pelt(), { ah = 9000, age = 0 }, S)
+            assert.equal("keep", r.action)
+            assert.is_true(V.Is(r, V.K.trash))
+            assert.equal("vendor trash", r.reason)
+            assert.equal(60, r.vendor)
+            assert.is_nil(r.gain, "no auction gain is worked out for it")
+            assert.equal("v", V.Verdict({ result = r, quality = 0, vendor = 12 }, false))
+            assert.is_true(V.IsVendorTrash(pelt()))
+        end)
+
+        it("a disenchant price doesn't move it either, nor a bank-it-for-later rule", function()
+            local r = V.Evaluate(pelt({ classID = 4 }), { ah = 9000, de = 9000, age = 0 }, S)
+            assert.is_true(V.Is(r, V.K.trash))
+        end)
+
+        it("only what that button sells: a grey no vendor buys is priced like anything else", function()
+            assert.is_false(V.IsVendorTrash(pelt({ vendor = 0 })))
+            assert.is_false(V.IsVendorTrash(pelt({ vendor = false })))
+            assert.is_false(V.IsVendorTrash(pelt({ quality = 1 })))
+            assert.is_false(V.IsVendorTrash(nil))
+            assert.equal("ah", V.Evaluate(pelt({ vendor = 0 }), { ah = 9000, age = 0 }, S).route)
+            assert.is_true(V.Is(V.Evaluate(pelt({ vendor = 0 }), { ah = nil }, S), V.K.junk), "unpriced: junk, as before")
+        end)
+
+        it("the hard keeps, a failed price call, item data and the pins still come first", function()
+            assert.is_true(V.Is(V.Evaluate(pelt({ locked = true }), { ah = 9000 }, S), V.K.locked))
+            assert.is_true(V.Is(V.Evaluate(pelt({ questFor = "A Quest" }), { ah = 9000 }, S), V.K.questNeeds))
+            local failed = V.Evaluate(pelt(), { failed = true }, S)
+            assert.is_true(V.Is(failed, V.K.priceFailed))
+            assert.is_true(failed.failed)
+            local unloaded = pelt()
+            unloaded.vendor = nil
+            assert.is_true(V.Is(V.Evaluate(unloaded, { ah = 9000 }, S), V.K.notLoaded))
+            local pinned = V.Evaluate(pelt({ pin = V.PIN_BANK }), { ah = 9000, age = 0 }, S)
+            assert.equal("mail", pinned.action, "a bank pin still mails it (operator, 2026-11-13: \"Pins override them\")")
+            assert.equal("bank", pinned.route)
+            assert.is_true(V.Is(V.Evaluate(pelt({ pin = V.PIN_HERE }), { ah = 9000 }, S), V.K.pinHere))
+        end)
+
+        it("is a price keep: a class binding never takes it (Routes.PriceKeep)", function()
+            assert.is_true(V.Flag(V.Evaluate(pelt(), { ah = 9000, age = 0 }, S), "priceKeep"))
+            assert.is_false(V.HardKeep(V.Evaluate(pelt(), { ah = 9000, age = 0 }, S)), "Return to sender still takes it")
+        end)
+    end)
+
     describe("smoothed price (ALGORITHM-RESEARCH 4.1 / 4.7)", function()
         -- Prices.History rows: newest first, maxSeen = the day's highest minimum buyout.
         local function hist(...)

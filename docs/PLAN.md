@@ -184,7 +184,8 @@ better than holding on the main". With Auctionator (or TSM) installed but no auc
 for an item, it is mailed to the bank alt to wait there for one (route `noprice`, chip "No
 price", reason "no auction price yet"; no gain is shown, none is made up). A price past the
 age limit counts as none: the item goes the same way, reason "auction price too old (8 days)"
-(operator, same day: "Stale prices go too"). Grey junk stays for the vendor; a failed price
+(operator, same day: "Stale prices go too"). Grey junk stays for the vendor (with a current auction
+price too when a vendor buys it: vendor trash, below); a failed price
 call stays (never "no price yet"); the hard keeps and the profession keep come first; without a bank alt (or with it
 skipped) it stays like the rest of the bank alt's share. An item whose disenchant value alone
 doesn't pay goes the same way (the auction house may still pay). Unpriced green and blue
@@ -253,6 +254,12 @@ reason) when any of these hold:
 - it's a profession tool (fishing poles, Mining Pick, Blacksmith Hammer, Skinning
   Knife, Flint and Tinder, Arclight Spanner, enchanting rods): the v0.2.0 scan put
   a Fishing Pole on the mail list;
+- it is vendor trash: a grey item a vendor buys, whatever the auction house lists it for (operator,
+  2026-11-20: "there is a build in button on the vendor to 'sell trash' and it sells all trash. Those
+  items shouldnt be suggested to AH even if the price is favorable. those dont sell";
+  `Valuation.IsVendorTrash`, kind `trash`, tagged V; Blizzard's junk is quality Poor with a sell
+  price, `ContainerFrameItemButtonMixin:UpdateJunkItem`). A bank pin, a profession keep and Return
+  to sender still come first; a grey item no vendor buys is priced like any other;
 - it is grey junk with no price (or only an old one), or its price call failed (with Auctionator
   installed an item with no price, or one past the age limit, otherwise goes to the bank alt
   since 2026-11-08; without Auctionator at all, the common-items rule above applies);

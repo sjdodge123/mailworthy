@@ -669,6 +669,20 @@ call `SendMail` anyway. Every Mailer timer checks the run id and `busy`.
   (`Valuation.Evaluate` returns the profession keep before the item-data check, and `Routes.Choices`
   offers another binding while a binding names this character): older than this change, for the
   operator to decide.
+- Vendor trash (operator, 2026-11-20, with before / after screenshots of the merchant's sell-trash
+  button: "a lot of these items are vendor trash. there is a build in button on the vendor to 'sell
+  trash' and it sells all trash. Those items shouldnt be suggested to AH even if the price is
+  favorable. those dont sell"): a grey item with a current auction price was priced like any other
+  and tagged AH (only an unpriced grey was junk). Now a grey item a vendor buys stays whatever its
+  auction price (`Valuation.IsVendorTrash`; kind `trash`, "vendor trash", a `priceKeep`: no class
+  binding takes it), tagged V, listed by the Vendor window, never mailed by the Send: V switch. The
+  definition is Blizzard's own (`ContainerFrame.lua`, `UpdateJunkItem`: quality Poor and not
+  `noValue`; the button itself, `C_MerchantFrame.SellAllJunkItems`, is C code, so "it sells exactly
+  those" is read from the bag's junk coin, not from the seller). Unchanged: a bank pin still mails
+  it, a profession keep and Return to sender come first, a failed price call keeps it as "no price",
+  an unpriced grey is "junk (no price data)" as before, and a grey item no vendor buys is priced
+  like anything else (the button doesn't sell it). Critical path: two cases (mouse; controller with
+  a bank pin).
 
 ## 7. State right now
 

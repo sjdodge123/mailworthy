@@ -23,8 +23,8 @@
 -- rest of the session, so the trip to the vendor is easy. Same settings as the
 -- window (postage included), so the tags match what it showed.
 --
--- Grey junk with a vendor price is V too (the AH has no price for it). Without
--- Auctionator: only that, plus the "Mailed for" line.
+-- Grey junk with a vendor price is V too, whatever the AH lists it for (vendor trash:
+-- Valuation.IsVendorTrash). Without Auctionator: only that, plus the "Mailed for" line.
 --
 -- Taint: tags are textures and font strings on the game's bag buttons (and the bag
 -- addons' buttons, BagAddons.lua), kept in our own weak table (the lock glow's
@@ -335,6 +335,10 @@ local function tagText(verdict, item, settings)
             .. "%dh deposit.", money(unit), basis, ageText(p.age),
             ahGain > 0 and (money(ahGain) .. " more than a vendor") or "no more than a vendor",
             math.floor(settings.cut * 100 + 0.5), ns.Valuation.DURATION_HOURS[settings.duration])
+    elseif ns.Valuation.Is(r, ns.Valuation.K.trash) then
+        -- Vendor trash (Valuation.IsVendorTrash): its auction price is beside the point.
+        return string.format("Vendor trash: sell it to a vendor (%s). Grey items don't sell at the auction house, "
+            .. "whatever they are listed for there.", money(r.vendor))
     elseif p.ah then
         return string.format("Auction price today: %s each%s%s. After the %d%% cut and the deposit that's %s, "
             .. "so sell it to a vendor (%s).", money(unit), basis, ageText(p.age), math.floor(settings.cut * 100 + 0.5),

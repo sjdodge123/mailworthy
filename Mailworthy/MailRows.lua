@@ -85,6 +85,7 @@ function UI.WhyKept(r)
     if V.Is(r, K.locked) then return "locked (press to unlock)" end
     if V.Is(r, K.ammo) then return "ammo for your ranged weapon" end
     if V.Is(r, K.junk) then return "junk: sell it at a vendor" end
+    if V.Is(r, K.trash) then return "vendor trash: sell it at a vendor" end
     if V.Is(r, K.uncommon) then return "uncommon: needs auction prices" end
     if r.untilSkill then return r.reason .. " (until skill " .. r.untilSkill .. ")" end
     if r.window then

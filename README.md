@@ -96,7 +96,7 @@ than at the vendor goes to your bank alt. The rest stays in your bags to vendor.
 - **No math needed:** prices are Auctionator's last scan, held down by the 3-day median
   when the last scan is a spike (one empty market can't flip a verdict), half the deposit counts (the game refunds it on a sale), a flooded
   market is valued at its floor, an item with no auction price yet goes to the bank alt to wait
-  for one (grey junk stays for the vendor), recipes go to the friend bound to their
+  for one (grey junk stays for the vendor, with an auction price too: what the vendor's own sell-junk button sells is tagged **V**, never **AH**), recipes go to the friend bound to their
   profession (one you already know is never kept for you: it goes on like any item), and the rule knows the realm's launch day: before the first raids enchanting materials, herbs
   and elementals are tagged **B** (bank them, they sell higher later), and later the
   minimum gain grows with the gold supply. Details: `docs/PLAN.md` "Decision rule".
