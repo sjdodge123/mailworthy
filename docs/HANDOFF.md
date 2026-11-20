@@ -693,22 +693,34 @@ call `SendMail` anyway. Every Mailer timer checks the run id and `busy`.
   day, the known characters. A blank name was a realm like any other: every character would start
   an empty one (no bank alt, no account bindings, an empty ledger), and two realms of one faction
   would share it, so a bank alt picked on one would be mailed to on the other. Now
-  `Characters.Realm()` (realm, source) never takes a blank or non-string name: the game's name; else
-  the realm this character was last seen on (`MailworthyCharDB.realm`, new); else the one named
-  realm the account's `characters` record this name and faction on (what an older build saved); else
-  the realm this account has seen with the GUID's server ID (`MailworthyDB.realmIDs`, new;
-  `UnitGUID("player")` = `Player-<serverID>-<8 hex>`, the shape LedgerLink confirmed on the beta
-  2026-10-05); else the placeholder `#<serverID>`, a realm of its own; else nil ("nil|Faction", as
-  before). The server-ID answer is never saved for the character, and an ID seen with two realm names
-  is set to `false` and never used again (assumed, not checked: one server ID per realm).
-  `Prices.TSMDataTime` reads the same realm; `/mw report` has a "realm:" line with what the game
-  gave, what is used and from where. Nothing is migrated: saved data stays under the real realm name
-  and is found again. **Known limits:** what v0.44.1 or older saved under a blank realm (key
-  "|Faction") during such a period is left where it is; a character first seen under a placeholder
-  starts again under the real name once the game gives one, or once a sibling teaches the account
-  its server ID (set the bank alt again). Critical path: three cases (mouse: the saved bank alt
-  still gets the mail; controller: an older build's saved data; a never-seen character never gets
-  another realm's bank alt).
+  `Characters.Realm()` (realm, source) never takes a blank or non-string name. In order: the game's
+  name, the only thing ever saved (`MailworthyCharDB.realm`, new; with the GUID's server ID,
+  `MailworthyDB.realmIDs`, new; `UnitGUID("player")` = `Player-<serverID>-<8 hex>`, the shape
+  LedgerLink confirmed on the beta 2026-10-05); else the realm the game last named for this
+  character; else the realm the game named for another character with this server ID; else the one
+  named realm the account's `characters` record this name and faction on (what an older build
+  saved), never a record of another server (`server`, written only when the game named the realm)
+  or one made from a server ID (`guess`); else a placeholder realm: `#<serverID>`, or for a server
+  ID that stands for two realms (`realmIDs[id] = false`: the game named two) or a missing GUID one
+  for the character alone (`#<GUID>`, `#?<name>`); nil only without a name. The answer holds from
+  `MAIL_SHOW` until after `MAIL_CLOSED`'s handlers, and while a mail run is busy or a mail waits for
+  the game's answer, so one visit previews, sends and logs under one realm. `Prices.TSMDataTime`
+  reads the same realm; `/mw report` has a "realm:" line with what the game gave, what is used and
+  from where. Nothing is migrated: saved data stays under the real realm name and is found again.
+  **Known limits:** what v0.44.1 or older saved under a blank realm (key "|Faction") during such a
+  period is left where it is; on a build that never names the realm, a character first seen there
+  on an account whose realm the game never named for this version (no `realmIDs` yet) gets the
+  server's placeholder, not the account's old realm (set the bank alt again; it starts over under
+  the real name once the game gives one); and a namesake on a second realm, never recorded there,
+  is taken for the recorded one while neither realm's server ID is known (assumed throughout: one
+  server ID per realm). Codex review (2026-11-20), four findings, all fixed with a spec each: the
+  name's record was asked before the server ID (a namesake on another realm got the first realm's
+  bank alt); a realm taken from the server ID was saved through the character's own record and
+  outlived the ID being distrusted (now marked `guess`, never saved, forgotten with the ID); unnamed
+  realms shared one writable key (`#91` for an ID known to stand for two, `nil` without a GUID); and
+  a realm name arriving mid-send split the ledger over two keys (the hold above). Critical path:
+  three cases (mouse: the saved bank alt still gets the mail; controller: an older build's saved
+  data; a never-seen character never gets another realm's bank alt).
 
 ## 7. State right now
 

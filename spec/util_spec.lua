@@ -98,8 +98,11 @@ describe("Util", function()
         -- No realm name from the game: the realm this character was last seen on (Characters.Realm).
         WowStub.state.realm, WowStub.state.faction = nil, "Horde"
         assert.equal("Classic Beta PvP|Horde", (ns.Util.RealmKey()))
+        -- Nothing known: a placeholder realm of this character alone, never one unnamed realms share.
         MailworthyCharDB.realm, MailworthyDB.characters = nil, {}
-        assert.equal("nil|Horde", (ns.Util.RealmKey()), "nothing known at all")
+        assert.equal("#?Rettana Quilwrit|Horde", (ns.Util.RealmKey()))
+        WowStub.state.name = nil
+        assert.equal("nil|Horde", (ns.Util.RealmKey()), "not even a name")
     end)
 
     it("Table keeps a table and gives a new one for anything else", function()

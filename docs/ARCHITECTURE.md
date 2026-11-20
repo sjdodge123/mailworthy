@@ -70,7 +70,7 @@ function. Specs: the module's own spec first; `critical_path` = `spec/critical_p
 | `Log.lua` | Account-wide dated diagnostics log (300 lines) | `Log.Add(area, fmt, ...)`, `Log.Lines`, `Log.Trim` (pure) | core |
 | `Util.lua` | Helpers every module shares: a guarded call, listener lists, server time, a timer with a synchronous fallback, the realm|faction key, SavedVariables stores, a name's lower-case key, an item's name from its link, "a, b and c" | `Util.Call`, `Signal(area)` (`Add`, `Fire`, `Count`), `Now`, `After`, `RealmKey`, `Table`, `Store(db, field, key)`, `NameKey`, `LinkName`, `ListText` | util |
 | `Blocked.lua` | Records `ADDON_ACTION_FORBIDDEN/BLOCKED` blamed on Mailworthy with the last command | `Blocked.OnEvent`, `Blocked.Lines` | blocked, report |
-| `Characters.lua` | Known characters of the account; who this one can mail; **the realm** every per-realm store is keyed by (`Realm`: the game's name, never a blank one; else the character's last seen realm, the account's record of this name, the GUID's server ID, a `#<serverID>` placeholder) | `ns.PlayerName`, `Characters.Current/Record/Mailable/Key/Professions`, `Realm` (realm, source), `ServerID`, `IsPlaceholder`, `RealmText` (`/mw report`), `Clean` / `CleanSpaces` (a name without realm and extra spaces; `Config.Clean` and `Routes.Clean` are aliases) | characters |
+| `Characters.lua` | Known characters of the account; who this one can mail; **the realm** every per-realm store is keyed by (`Realm`: the game's name, never a blank one; else the realm it last named for this character, the realm it named for this GUID's server ID, the account's record of this name, a placeholder `#<serverID>` / `#<GUID>` / `#?<name>`; held for a mailbox visit and a mail run) | `ns.PlayerName`, `Characters.Current/Record/Mailable/Key/Professions`, `Realm` (realm, source), `ReleaseRealm`, `ServerID`, `IsPlaceholder`, `RealmText` (`/mw report`), `Clean` / `CleanSpaces` (a name without realm and extra spaces; `Config.Clean` and `Routes.Clean` are aliases) | characters |
 | `Gamepad.lua` | Read-only controller helpers: button names, glyphs, API presence | `Gamepad.Name/NameFor/Fill/Glyph/LabelStyle/Presence` | gamepad |
 | `Locks.lua` | Per-character item locks (Alt+click, L3, LocksUI) | `Locks.IsItemLocked`, `ToggleItem`, `Toggle`, `List`, `BagCounts`, `OnChanged`, `ToggleSelectedBagSlot`, `MigrateSlotLocks`, `BagClick(o)` (the modified-click / pad-key / install code Locks and Pins share) | locks, locks_ui |
 | `Palette.lua` | One colour and label per destination (AH, DE, V, BA, BH, F, R, ...) | entries, `ORDER`, `LEGEND`, `Hex`, `Letters` | border, bank_alt |
@@ -303,8 +303,8 @@ Every `ns.On` handler, by event. `Blocked.lua` registers `ADDON_ACTION_FORBIDDEN
 |---|---|
 | `ADDON_LOADED` | Core (`ns.Init`), BagAddons, MailButton (`Blizzard_MailFrame`) |
 | `PLAYER_LOGIN` | Core (first), Characters, Locks, Pins, Border, Config, Quests, Comms, Guild, Stale, Mailer, Ledger (owner index), LedgerHooks (prune, install), Contributions, PadKey, MailButton, SettingsUI, RoutesUI, LedgerUI, LocksUI, PinsUI, PinWarning, Widgets (tooltips and disarming on `Nav.OnSelect`), Bags (Locks / Pins changes into `Bags.InputsChanged`), MinimapButton, MailWindow, BankAlt, Vendor, BagAddons, AuctionatorTags, Prices (`WatchWrites`), Report |
-| `MAIL_SHOW` | Conjured, ClassSkills, Recipes, Comms, Stale, Mailer, Trip, MailButton, Report |
-| `MAIL_CLOSED` | Border, Routes, Bags, Mailer, LedgerHooks, Contributions, Returns, Trip, MailWindow |
+| `MAIL_SHOW` | Characters (holds the realm for the visit), Conjured, ClassSkills, Recipes, Comms, Stale, Mailer, Trip, MailButton, Report |
+| `MAIL_CLOSED` | Characters (releases the realm after the other handlers), Border, Routes, Bags, Mailer, LedgerHooks, Contributions, Returns, Trip, MailWindow |
 | `MAIL_SEND_SUCCESS` | Mailer, LedgerHooks |
 | `MAIL_FAILED` | Mailer, LedgerHooks |
 | `MAIL_SUCCESS` | LedgerHooks |
@@ -366,7 +366,7 @@ server side.
 |---|---|---|
 | `log` *init* | `{ "MM-DD HH:MM:SS name [area] msg" }`, 300 lines | Log |
 | `blocked` *init* | `{ {event, fn, at, after, version} }`, 10 | Blocked |
-| `characters` *init* | `["name|realm|faction"] = {name, realm, faction, class, level, professions, lastSeen}` | Characters |
+| `characters` *init* | `["name|realm|faction"] = {name, realm, faction, class, level, professions, lastSeen, server, guess}` (`server`: the GUID's server ID, written when the game named the realm; `guess`: the server ID a realm was taken from, such a record never vouches for a realm) | Characters |
 | `features` *init* | `[switch] = bool` (only what the player changed) | Core |
 | `routes` *init* | `[realm|faction] = { binding }` (account scope) | Routes |
 | `peers` *init* | `[realm|faction][lowername] = {name, professions, characters, version, at, skills, release}` | Comms (`release`: Version) |
@@ -375,7 +375,7 @@ server side.
 | `bankAlts` | `[realm|faction] = name` | Config |
 | `names` | `{ {name, realm, faction} }`, 40 | Config |
 | `realms` | `[realm] = {firstSeen}` | Config |
-| `realmIDs` *init* | `[GUID server ID] = realm name`, or `false` once the ID was seen with two names | Characters |
+| `realmIDs` *init* | `[GUID server ID] = realm name` as the game named it, or `false` once it named two for the ID | Characters |
 | `crafterOffers` | `[realm|faction]["name|prof"] = true` | Routes |
 | `fresh` | `[realm|faction][lowername] = {name, day, at}` | Stale |
 | `tierCheck` | `[charKey][skillLine] = {rank, at, recipes, reagents, findings, ...}` | TierCheck |
@@ -398,7 +398,7 @@ A binding record: `{to, profession = skillLineID | class = "MAGE", cap, gear = "
 | `settings` | `keepProfessionMats`, `matsToBankAlt` (`Config.CHARACTER`) | Config |
 | `pinMode` | `"here"` or nil | Pins |
 | `tagsAfterSend` | bool | BankAlt |
-| `realm` | the realm this character was last seen on (`Characters.Realm`), used when the game gives no realm name | Characters |
+| `realm` | the realm the game last named for this character (`Characters.Realm`), used when it gives no realm name | Characters |
 | `lockedSlots` | old slot locks; migrated to `lockedItems` and removed by `Locks.MigrateSlotLocks` | Locks |
 
 Migrations live in `Core.Init`, `Locks.MigrateSlotLocks`, `Guild.ReadSaved` (old odd caps)
