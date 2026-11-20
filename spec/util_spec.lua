@@ -95,8 +95,11 @@ describe("Util", function()
         assert.equal("Classic Beta PvP|Alliance", key)
         assert.equal("Classic Beta PvP", realm)
         assert.equal("Alliance", faction)
+        -- No realm name from the game: the realm this character was last seen on (Characters.Realm).
         WowStub.state.realm, WowStub.state.faction = nil, "Horde"
-        assert.equal("nil|Horde", (ns.Util.RealmKey()))
+        assert.equal("Classic Beta PvP|Horde", (ns.Util.RealmKey()))
+        MailworthyCharDB.realm, MailworthyDB.characters = nil, {}
+        assert.equal("nil|Horde", (ns.Util.RealmKey()), "nothing known at all")
     end)
 
     it("Table keeps a table and gives a new one for anything else", function()

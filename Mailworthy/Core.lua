@@ -22,6 +22,8 @@ function ns.Init()
     MailworthyDB.peers = MailworthyDB.peers or {}                     -- realm|faction -> Mailworthy users heard from
     MailworthyDB.features = MailworthyDB.features or {}
     MailworthyDB.pins = MailworthyDB.pins or {}                       -- item ID -> { kind, link, at }: the account's pins (Pins.lua)
+    -- GUID server ID -> realm name, false = seen with two names (Characters.Realm)
+    MailworthyDB.realmIDs = type(MailworthyDB.realmIDs) == "table" and MailworthyDB.realmIDs or {}
 end
 
 -- Kill switches for each piece that touches Blizzard UI, so a problem in game

@@ -683,6 +683,32 @@ call `SendMail` anyway. Every Mailer timer checks the run id and `busy`.
   an unpriced grey is "junk (no price data)" as before, and a grey item no vendor buys is priced
   like anything else (the button doesn't sell it). Critical path: two cases (mouse; controller with
   a bank pin).
+- No realm name from the game (2026-11-20; the operator forwarded another addon author's post: since
+  client build 71037, up from 70959, `GetRealmName()` returns ""; asked "Do Mailworthy or ledgerlink
+  add-ons use these values?", then "Yes, fix it"). **Not seen on our client:** read through
+  rl-companion the same day, every session ran build 70959 and every record holds the full name
+  ("CAMWOW US2 Realm 9 RP PvP"); nothing under a blank key. Built as a guard. Mailworthy read the
+  realm in one place (`Characters.Current`) and keyed by it: the bank alt, the account's bindings,
+  peers, the ledger, guild templates and giving, the scan-day store, the crafter offers, the launch
+  day, the known characters. A blank name was a realm like any other: every character would start
+  an empty one (no bank alt, no account bindings, an empty ledger), and two realms of one faction
+  would share it, so a bank alt picked on one would be mailed to on the other. Now
+  `Characters.Realm()` (realm, source) never takes a blank or non-string name: the game's name; else
+  the realm this character was last seen on (`MailworthyCharDB.realm`, new); else the one named
+  realm the account's `characters` record this name and faction on (what an older build saved); else
+  the realm this account has seen with the GUID's server ID (`MailworthyDB.realmIDs`, new;
+  `UnitGUID("player")` = `Player-<serverID>-<8 hex>`, the shape LedgerLink confirmed on the beta
+  2026-10-05); else the placeholder `#<serverID>`, a realm of its own; else nil ("nil|Faction", as
+  before). The server-ID answer is never saved for the character, and an ID seen with two realm names
+  is set to `false` and never used again (assumed, not checked: one server ID per realm).
+  `Prices.TSMDataTime` reads the same realm; `/mw report` has a "realm:" line with what the game
+  gave, what is used and from where. Nothing is migrated: saved data stays under the real realm name
+  and is found again. **Known limits:** what v0.44.1 or older saved under a blank realm (key
+  "|Faction") during such a period is left where it is; a character first seen under a placeholder
+  starts again under the real name once the game gives one, or once a sibling teaches the account
+  its server ID (set the bank alt again). Critical path: three cases (mouse: the saved bank alt
+  still gets the mail; controller: an older build's saved data; a never-seen character never gets
+  another realm's bank alt).
 
 ## 7. State right now
 

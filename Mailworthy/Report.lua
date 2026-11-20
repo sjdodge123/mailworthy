@@ -80,6 +80,7 @@ function Report.Build()
         "build: " .. strings(call(GetBuildInfo)),
         string.format("character: %s (%s, %s)%s", tostring(name), tostring(realm), tostring(faction),
             ns.BankAlt.IsBankAlt() and " - the bank alt" or ""),
+        "realm: " .. ns.Characters.RealmText(),
         "bank alt: " .. tostring(ns.Config.BankAlt() or "none set"),
         string.format("server: launch day %s (realm first seen %s)", tostring(ns.Config.ServerDay()),
             date("%Y-%m-%d", ns.Config.FirstSeen())),

@@ -375,6 +375,8 @@ _G.UnitName = function(unit)
 end
 _G.GetRealmName = function() return s().realm end
 _G.UnitFactionGroup = function() return s().faction end
+-- state.guid: "Player-<serverID>-<8 hex>"; nil by default (the realm then comes from GetRealmName alone).
+_G.UnitGUID = function(unit) if unit == nil or unit == "player" then return s().guid end end
 _G.UnitClass = function(unit)
     if unit == nil or unit == "player" then return unpack(s().class, 1, 3) end
     local m = groupUnit(unit)

@@ -70,7 +70,7 @@ function. Specs: the module's own spec first; `critical_path` = `spec/critical_p
 | `Log.lua` | Account-wide dated diagnostics log (300 lines) | `Log.Add(area, fmt, ...)`, `Log.Lines`, `Log.Trim` (pure) | core |
 | `Util.lua` | Helpers every module shares: a guarded call, listener lists, server time, a timer with a synchronous fallback, the realm|faction key, SavedVariables stores, a name's lower-case key, an item's name from its link, "a, b and c" | `Util.Call`, `Signal(area)` (`Add`, `Fire`, `Count`), `Now`, `After`, `RealmKey`, `Table`, `Store(db, field, key)`, `NameKey`, `LinkName`, `ListText` | util |
 | `Blocked.lua` | Records `ADDON_ACTION_FORBIDDEN/BLOCKED` blamed on Mailworthy with the last command | `Blocked.OnEvent`, `Blocked.Lines` | blocked, report |
-| `Characters.lua` | Known characters of the account; who this one can mail | `ns.PlayerName`, `Characters.Current/Record/Mailable/Key/Professions`, `Clean` / `CleanSpaces` (a name without realm and extra spaces; `Config.Clean` and `Routes.Clean` are aliases) | characters |
+| `Characters.lua` | Known characters of the account; who this one can mail; **the realm** every per-realm store is keyed by (`Realm`: the game's name, never a blank one; else the character's last seen realm, the account's record of this name, the GUID's server ID, a `#<serverID>` placeholder) | `ns.PlayerName`, `Characters.Current/Record/Mailable/Key/Professions`, `Realm` (realm, source), `ServerID`, `IsPlaceholder`, `RealmText` (`/mw report`), `Clean` / `CleanSpaces` (a name without realm and extra spaces; `Config.Clean` and `Routes.Clean` are aliases) | characters |
 | `Gamepad.lua` | Read-only controller helpers: button names, glyphs, API presence | `Gamepad.Name/NameFor/Fill/Glyph/LabelStyle/Presence` | gamepad |
 | `Locks.lua` | Per-character item locks (Alt+click, L3, LocksUI) | `Locks.IsItemLocked`, `ToggleItem`, `Toggle`, `List`, `BagCounts`, `OnChanged`, `ToggleSelectedBagSlot`, `MigrateSlotLocks`, `BagClick(o)` (the modified-click / pad-key / install code Locks and Pins share) | locks, locks_ui |
 | `Palette.lua` | One colour and label per destination (AH, DE, V, BA, BH, F, R, ...) | entries, `ORDER`, `LEGEND`, `Hex`, `Letters` | border, bank_alt |
@@ -375,6 +375,7 @@ server side.
 | `bankAlts` | `[realm|faction] = name` | Config |
 | `names` | `{ {name, realm, faction} }`, 40 | Config |
 | `realms` | `[realm] = {firstSeen}` | Config |
+| `realmIDs` *init* | `[GUID server ID] = realm name`, or `false` once the ID was seen with two names | Characters |
 | `crafterOffers` | `[realm|faction]["name|prof"] = true` | Routes |
 | `fresh` | `[realm|faction][lowername] = {name, day, at}` | Stale |
 | `tierCheck` | `[charKey][skillLine] = {rank, at, recipes, reagents, findings, ...}` | TierCheck |
@@ -397,6 +398,7 @@ A binding record: `{to, profession = skillLineID | class = "MAGE", cap, gear = "
 | `settings` | `keepProfessionMats`, `matsToBankAlt` (`Config.CHARACTER`) | Config |
 | `pinMode` | `"here"` or nil | Pins |
 | `tagsAfterSend` | bool | BankAlt |
+| `realm` | the realm this character was last seen on (`Characters.Realm`), used when the game gives no realm name | Characters |
 | `lockedSlots` | old slot locks; migrated to `lockedItems` and removed by `Locks.MigrateSlotLocks` | Locks |
 
 Migrations live in `Core.Init`, `Locks.MigrateSlotLocks`, `Guild.ReadSaved` (old odd caps)
