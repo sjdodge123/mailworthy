@@ -22,11 +22,11 @@
 --
 -- A lockbox someone already picked (unlocked, not opened yet) trains nobody: its bag slot's own
 -- tooltip (C_TooltipInfo.GetBagItem, same documentation) has no "Locked" line any more. It is then
--- no lockbox for a binding or for a rogue's keep, and follows the normal rule as before. One kind of
--- lockbox is one row of the window (ClassSkills.Split, Bags' gatherFacts): a binding takes it only
--- while none of its boxes is unlocked, a rogue keeps it while any is still locked. The slot's tooltip
--- is read at every scan, but only for a lockbox and only where Lockpicking matters (a rogue, or a
--- binding for one).
+-- no lockbox for a binding or for a rogue's keep, and follows the normal rule as before. The lock
+-- state is counted per kind of lockbox over all the bags (ClassSkills.Count, Bags' gatherFacts), and
+-- both ways are the careful one: a binding takes a kind only while every one of its boxes is known to
+-- be locked, a rogue keeps it while any is locked or can't be told. The slots' tooltips are read once
+-- per scan, only for a lockbox and only where Lockpicking matters (a rogue, or a binding for one).
 local _, ns = ...
 
 local ClassSkills = {}
@@ -156,28 +156,37 @@ function ClassSkills.Of(itemID)
     return false
 end
 
---- Is the lockbox in this bag slot already unlocked: its own tooltip, read whole, has no "Locked"
---- line? false when it can't be told (no such call, the tooltip not loaded yet): it counts as locked.
+--- Is the lockbox in this bag slot already unlocked? true: its own tooltip, read whole, has no
+--- "Locked" line; false: it has one; nil when it can't be told (no such call, a failed one, the
+--- tooltip not loaded yet). Unknown is neither: no binding takes such a box, and a rogue keeps it
+--- (Codex review, 2026-11-20: unknown counted as locked sent an unlocked box to a binding).
 function ClassSkills.Opened(bag, slot, itemID)
     local info = rawget(_G, "C_TooltipInfo")
     local data = type(info) == "table" and call(info.GetBagItem, bag, slot) or nil
-    if type(data) ~= "table" or type(data.lines) ~= "table" or #data.lines == 0 or not loaded(itemID) then return false end
+    if type(data) ~= "table" or type(data.lines) ~= "table" then return nil end
     local label = rawget(_G, "LOCKED")
     for _, line in ipairs(data.lines) do
         if ClassSkills.IsLockedLine(lineText(line), label) then return false end
     end
+    if #data.lines == 0 or not loaded(itemID) then return nil end
     return true
 end
 
---- A lockbox's bag slots (Bags.Group's shape: itemID, slots) by lock state: those still locked, and
---- those already unlocked (ClassSkills.Opened).
-function ClassSkills.Split(item)
-    local locked, opened = {}, {}
-    for _, s in ipairs(item.slots or {}) do
-        local list = ClassSkills.Opened(s.bag, s.slot, item.itemID) and opened or locked
-        list[#list + 1] = s
+--- The lock states of a kind of lockbox over bag items (Bags.Group's shape: itemID, slots), every
+--- group of `itemID` counted (the same box in use or soulbound is a group of its own):
+--- { locked, opened, unknown } slot counts.
+function ClassSkills.Count(itemID, groups)
+    local n = { locked = 0, opened = 0, unknown = 0 }
+    for _, item in ipairs(groups or {}) do
+        if item.itemID == itemID then
+            for _, s in ipairs(item.slots or {}) do
+                local opened = ClassSkills.Opened(s.bag, s.slot, itemID)
+                local state = opened == nil and "unknown" or (opened and "opened" or "locked")
+                n[state] = n[state] + 1
+            end
+        end
     end
-    return locked, opened
+    return n
 end
 
 --- Pure: the skill ids of a class token ("ROGUE" -> { "lockpicking" }).
@@ -209,9 +218,11 @@ function ClassSkills.ReportLines()
     for _, item in ipairs(ns.Bags.Group(ns.Bags.Slots())) do
         local id, how = ClassSkills.Of(item.itemID), ClassSkills.How(item.itemID)
         if id and how then
-            local opened = id == ClassSkills.LOCKPICKING and #select(2, ClassSkills.Split(item)) or 0
-            names[#names + 1] = string.format("%s (%s, %s%s)", tostring(item.link), ClassSkills.SKILLS[id].name, how,
-                opened > 0 and string.format(", %d of %d already unlocked: the normal rule", opened, item.stacks) or "")
+            local n = id == ClassSkills.LOCKPICKING and ClassSkills.Count(item.itemID, { item }) or { opened = 0, unknown = 0 }
+            names[#names + 1] = string.format("%s (%s, %s%s%s)", tostring(item.link), ClassSkills.SKILLS[id].name, how,
+                n.opened > 0 and string.format(", %d of %d already unlocked: no binding takes it", n.opened, item.stacks) or "",
+                n.unknown > 0 and string.format(", %d of %d lock state unknown: no binding takes it", n.unknown, item.stacks)
+                    or "")
         end
     end
     return { string.format("class skills (lockboxes, Comprehension scrolls): %s, %s; in your bags: %s",

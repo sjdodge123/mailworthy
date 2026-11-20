@@ -178,14 +178,65 @@ describe("class skills: lockboxes and Comprehension scrolls", function()
         assert.equal(BOB, find(result.mail, JUNKBOX).result.to, "the locked one still goes")
         assert.is_true(ns.ClassSkills.Opened(0, 1, IRON))
         assert.is_false(ns.ClassSkills.Opened(0, 2, JUNKBOX))
-        -- a bag tooltip that hasn't loaded says nothing: the box counts as locked
-        WowStub.state.uncached[IRON] = true
-        assert.is_false(ns.ClassSkills.Opened(0, 1, IRON))
+        assert.same({ locked = 0, opened = 1, unknown = 0 }, ns.ClassSkills.Count(IRON, ns.Bags.Group(ns.Bags.Slots())))
+    end)
+
+    it("a lock state that can't be read is neither: no binding takes the box, a rogue keeps it (Codex review)", function()
+        local route = assert(ns.Routes.Add(BOB, "ROGUE"))
+        WowStub.state.opened["0:1"] = true -- unlocked, and the game doesn't say so:
         local real = _G.C_TooltipInfo
-        _G.C_TooltipInfo = { GetItemByID = real.GetItemByID }
-        WowStub.state.uncached[IRON] = nil
-        assert.is_false(ns.ClassSkills.Opened(0, 1, IRON), "a client without GetBagItem")
+        for what, broken in pairs({
+            ["no GetBagItem"] = { GetItemByID = real.GetItemByID },
+            ["GetBagItem answers nothing"] = { GetItemByID = real.GetItemByID, GetBagItem = function() return nil end },
+            ["GetBagItem fails"] = { GetItemByID = real.GetItemByID, GetBagItem = function() error("boom") end },
+            ["an empty tooltip"] = { GetItemByID = real.GetItemByID, GetBagItem = function() return { lines = {} } end },
+        }) do
+            _G.C_TooltipInfo = broken
+            assert.is_nil(ns.ClassSkills.Opened(0, 1, IRON), what)
+            local box = find(ns.Bags.Evaluate().mail, IRON)
+            assert.is_nil(box.result.to, what .. ": not to the binding")
+            assert.same({}, box.choices, what .. ": no pick either")
+        end
+        -- its data not loaded yet: a name line alone says nothing
         _G.C_TooltipInfo = real
+        WowStub.state.uncached[JUNKBOX] = true
+        assert.is_nil(ns.ClassSkills.Opened(0, 2, JUNKBOX))
+        WowStub.state.uncached[JUNKBOX] = nil
+        -- on a rogue the box stays while its state is unknown
+        WowStub.state.opened["0:1"] = nil
+        be("ROGUE")
+        _G.C_TooltipInfo = { GetItemByID = real.GetItemByID }
+        local kept = find(ns.Bags.Evaluate().keep, IRON)
+        assert.equal("your Lockpicking needs it", kept.result.reason)
+        assert.same({}, kept.choices)
+        ns.Routes.Pick(kept.link, route.key)
+        assert.is_nil(find(ns.Bags.Evaluate().mail, IRON))
+        ns.Routes.ClearPicks()
+        assert.truthy(table.concat(ns.ClassSkills.ReportLines(), "\n")
+            :find("Iron Lockbox.-1 of 1 lock state unknown: no binding takes it"))
+        _G.C_TooltipInfo = real
+    end)
+
+    it("an unlocked box of the kind in another bag group (in use) still holds the locked one back (Codex review)", function()
+        ns.Routes.Add(BOB, "ROGUE")
+        local attached = WowStub.item(IRON, "Iron Lockbox", { quality = 2, sell = 0, class = 15 })
+        attached.isLocked = true -- on the Send Mail tab: the game's own lock, a bag group of its own
+        WowStub.setBag(0, 6, attached)
+        WowStub.state.opened["0:6"] = true
+        local result = ns.Bags.Evaluate()
+        local seen = 0
+        for _, list in ipairs({ result.mail, result.keep }) do
+            for _, it in ipairs(list) do
+                if it.itemID == IRON then
+                    seen = seen + 1
+                    assert.is_nil(it.result.to)
+                    assert.same({}, it.choices)
+                end
+            end
+        end
+        assert.equal(2, seen)
+        WowStub.state.opened["0:6"] = nil
+        assert.equal(BOB, find(ns.Bags.Evaluate().mail, IRON).result.to, "both locked: the free one goes")
     end)
 
     it("one kind with a locked and an unlocked box: no binding takes it, a rogue keeps it (Codex review)", function()
@@ -325,7 +376,7 @@ describe("class skills: lockboxes and Comprehension scrolls", function()
         local line = table.concat(ns.ClassSkills.ReportLines(), "\n")
         assert.truthy(line:find('LOCKED = "Locked"', 1, true))
         assert.truthy(line:find('ITEM_MIN_SKILL = "Requires %s (%d)"', 1, true))
-        assert.truthy(line:find("Iron Lockbox.-%(Lockpicking, item ID, 1 of 1 already unlocked: the normal rule%)"))
+        assert.truthy(line:find("Iron Lockbox.-%(Lockpicking, item ID, 1 of 1 already unlocked: no binding takes it%)"))
         assert.truthy(line:find("Heavy Iron Junkbox.-%(Lockpicking, tooltip%)"))
         assert.truthy(line:find("VOCE WELL.-%(Comprehension, tooltip%)"))
         assert.is_nil(line:find("Copper Ore", 1, true))

@@ -369,21 +369,23 @@ local function gatherFacts(item, ctx)
     item.pin = ns.Pins.Effective(item.itemID)
     if ctx.classRoutes then item.classes, item.myClass = ns.Classes.Of(item.itemID), ctx.mine end
     -- A lockbox or a Comprehension scroll (ClassSkills.lua), and whether this character's own class levels on it.
-    -- A lockbox already unlocked trains nobody (ClassSkills.Split: the slot's own tooltip, read only
-    -- where Lockpicking matters to this scan). One kind of lockbox stays one row, so both ways are the
-    -- careful one (Codex review, 2026-11-20): a binding takes the kind only while none of its boxes is
-    -- unlocked (nothing unlocked goes to a friend), and a rogue keeps it while any is still locked
-    -- (no locked box leaves a rogue's bags).
+    -- A lockbox already unlocked trains nobody (ClassSkills.Count: each slot's own tooltip, read once
+    -- per scan and only where Lockpicking matters to it). The states are counted per kind of lockbox
+    -- over all the bags (ctx.groups: a box in use is a group of its own), and both ways are the careful
+    -- one (Codex review, 2026-11-20): a binding takes a kind only while every one of its boxes is known
+    -- to be locked (nothing unlocked goes to a friend, whatever slot it sits in at Send), and a rogue
+    -- keeps it while any is locked or can't be told (no locked box leaves a rogue's bags).
     item.classSkill, item.ownSkill = nil, nil
     local skill = ctx.skills and ns.ClassSkills.Of(item.itemID) or nil
     if skill and ctx.skills[skill] then
-        local locked, opened = 1, 0
+        local n = { locked = 1, opened = 0, unknown = 0 }
         if skill == ns.ClassSkills.LOCKPICKING then
-            local l, o = ns.ClassSkills.Split(item)
-            locked, opened = #l, #o
+            ctx.boxes = ctx.boxes or {}
+            ctx.boxes[item.itemID] = ctx.boxes[item.itemID] or ns.ClassSkills.Count(item.itemID, ctx.groups or { item })
+            n = ctx.boxes[item.itemID]
         end
-        if opened == 0 then item.classSkill = skill end
-        if locked > 0 and ns.ClassSkills.SKILLS[skill].class == ctx.mine then
+        if n.locked > 0 and n.opened == 0 and n.unknown == 0 then item.classSkill = skill end
+        if n.locked + n.unknown > 0 and ns.ClassSkills.SKILLS[skill].class == ctx.mine then
             item.ownSkill = ns.ClassSkills.SKILLS[skill].name
         end
     end
@@ -583,7 +585,8 @@ function Bags.Evaluate(settings)
     local ctx = scanContext(settings)
     local result, stacksTo = newResult(ctx), {}
     local owedFor = owedReader(settings.returns)
-    for _, item in ipairs(Bags.Group(Bags.Slots())) do
+    ctx.groups = Bags.Group(Bags.Slots()) -- gatherFacts counts a kind of lockbox over all of them
+    for _, item in ipairs(ctx.groups) do
         value(item, ctx)
         local parts, rest = splitReturns(item, owedFor(item.itemID), settings)
         if not parts then
