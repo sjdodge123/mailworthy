@@ -361,7 +361,8 @@ end
 --- checked against it: an item without one goes to the bank alt, whatever its route; a disenchant value
 --- alone isn't one; Codex review, 2026-11-08), except its class skill's items (Routes.SkillItem: a
 --- lockbox, a Comprehension scroll), which go whatever their price like a profession's materials;
---- with `notMe`, never a binding whose recipient is this character. Second return: the first binding whose player's skill is past the material (Tiers).
+--- with `notMe`, never a binding whose recipient is this character. Second return: the first
+--- binding whose player's skill is past the material (Tiers).
 function Routes.Takers(item, verdict, price, unit, routes, tiers, priceOf, notMe)
     local list, outgrown = {}, nil
     for _, r in ipairs(routes or {}) do
