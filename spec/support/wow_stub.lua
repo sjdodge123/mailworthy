@@ -36,7 +36,10 @@ local function defaultState()
         conjured = {}, -- itemID -> true: the tooltip's "Conjured Item" line
         known = {}, -- itemID -> true: the tooltip's "Already known" line (a recipe this character learned)
         uncached = {}, -- itemID -> true: its data hasn't loaded (a name line alone, IsItemDataCachedByID false)
+        tooltipLines = {}, -- itemID -> { "Locked", "Requires Lockpicking (70)" }: more lines of its tooltip
+        opened = {}, -- "bag:slot" -> true: a lockbox already picked (its bag tooltip has no "Locked" line)
         tooltipReads = 0, -- C_TooltipInfo.GetItemByID calls
+        bagTooltipReads = 0, -- C_TooltipInfo.GetBagItem calls
         mods = {}, bindings = {}, bindingOwners = {}, activeFrame = nil, now = 1000, gamepadUI = false,
         navButton = nil,
         -- bindings: guild = nil (not in one) or { clubId, name, rank (this character's 0-based rank index, default 3),
@@ -564,6 +567,8 @@ _G.C_Mail = { IsCommandPending = function() return false end }
 _G.ITEM_CLASSES_ALLOWED = "Classes: %s"
 _G.ITEM_CONJURED = "Conjured Item"
 _G.ITEM_SPELL_KNOWN = "Already known"
+_G.LOCKED = "Locked"
+_G.ITEM_MIN_SKILL = "Requires %s (%d)"
 _G.C_TooltipInfo = {
     GetItemByID = function(id)
         s().tooltipReads = s().tooltipReads + 1
@@ -573,7 +578,22 @@ _G.C_TooltipInfo = {
         if s().known[id] then lines[#lines + 1] = { type = 0, leftText = "|cffff2020Already known|r" } end
         local classes = s().itemClasses[id]
         if classes then lines[#lines + 1] = { type = 43, leftText = "Classes: " .. classes } end
+        for _, text in ipairs(s().tooltipLines[id] or {}) do lines[#lines + 1] = { type = 0, leftText = text } end
         return { id = id, lines = lines }
+    end,
+    -- The item in a bag slot: its own state (a lockbox already picked has lost its "Locked" line).
+    GetBagItem = function(bag, slot)
+        s().bagTooltipReads = s().bagTooltipReads + 1
+        local it = s().bags[bag] and s().bags[bag][slot]
+        if not it then return nil end
+        local lines = { { type = 22, leftText = "Item " .. tostring(it.itemID) } }
+        if s().uncached[it.itemID] then return { id = it.itemID, lines = lines } end
+        for _, text in ipairs(s().tooltipLines[it.itemID] or {}) do
+            if not (text == "Locked" and s().opened[bag .. ":" .. slot]) then
+                lines[#lines + 1] = { type = 0, leftText = text }
+            end
+        end
+        return { id = it.itemID, lines = lines }
     end,
 }
 -- Item data (ItemDocumentation.lua): IsItemDataCachedByID(itemInfo) -> isCached. The item info

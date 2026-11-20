@@ -53,7 +53,7 @@ the order, but anything run at file load (constants built from other modules,
 | # | Layer | Files |
 |---|---|---|
 | 1 | Foundation | `Core`, `Log`, `Util`, `Blocked`, `Characters`, `Gamepad`, `Locks`, `Palette`, `Pins`, `Border` |
-| 2 | Pricing and rules | `Prices`, `Disenchant`, `Tiers`, `TierData` (fills `ns.Tiers`), `TierCheck`, `Quests`, `Conjured`, `Recipes`, `Ammo`, `Valuation`, `Config`, `Classes` |
+| 2 | Pricing and rules | `Prices`, `Disenchant`, `Tiers`, `TierData` (fills `ns.Tiers`), `TierCheck`, `Quests`, `Conjured`, `Recipes`, `Ammo`, `Valuation`, `Config`, `Classes`, `ClassSkills` |
 | 3 | Bindings and peers | `Routes`, `Comms`, `Guild`, `Stale`, `Version` |
 | 4 | Scan, send, records | `Bags`, `Mailer`, `Ledger`, `LedgerWire`, `LedgerHooks`, `LedgerExport`, `Contributions`, `Returns`, `Trip` |
 | 5 | Windows and input | `Widgets`, `MailButton`, `Nav`, `PadKey`, `SettingsUI`, `RoutesUI`, `LedgerUI`, `LocksUI`, `PinsUI`, `PinWarning`, `MinimapButton`, `MailWindow` (+ `MailTooltip`, `MailRows`, `MailRecipients`, `MailBanners`, `MailBindings`, `MailTotals`, `MailSend`, `MailTabs`), `BankAlt`, `Vendor` |
@@ -88,7 +88,8 @@ function. Specs: the module's own spec first; `critical_path` = `spec/critical_p
 | `Valuation.lua` | **The decision rule** (pure): mail or keep, and the route, for one item; **verdict kinds** (`KINDS`: each keep's `kind`, display text and flags `hard` / `unmailable` / `priceKeep` / `quiet`; code reads the kind, never the reason text: `verdict_kinds_spec`) | `Valuation.Evaluate`, `KINDS`, `K`, `Keep`, `Is`, `Flag`, `HardKeep`, `Verdict(item, banksHere)` (the bag tag for a valued item), `DEFAULT_CAP`, `Unpriced`, `Unmailable`, `NeededBy`, `ProfessionKeep`, `DisenchantsHere`, `Settings`, `DEFAULTS`, `STAPLES`, `SEND*`, `Money` | valuation |
 | `Config.lua` | Saved settings over `Valuation.DEFAULTS`; bank alt per realm/faction; flags | `Config.Values/Get/Set/Step/Flag`, `Tooltips` / `CycleTooltips` (item tooltips: full / short / off), `BankAlt`, `SetBankAlt`, `SetBankAltHere`, `IsBankAltHere`, `BanksHere` (pins bank here), `Choices`; `Set` and the bank alt setters fire `Bags.InputsChanged` | config |
 | `Classes.lua` | Class-only items from the tooltip "Classes:" line | `Classes.Of`, `Mine`, `ForOther` (pure), `Token`, `Name` | classes |
-| `Routes.lua` | **Bindings**: a profession's materials (or a class's items) to a player; skip once; row picks | `Routes.Divert`, `Divertible`, `Matches`, `Before`, `Force`, `Choices`, `Pick/Picked/ClearPicks`, `Active`, `List`, `Add/Remove`, `Crafter`, `Recipient`, `ClassPriced`, `PriceKeep`, `GearBeaten`, `Takers` (the binding filter Divert and Choices share), `Skill(route, cache)` (one roster read per scan); every change of a binding, skip or pick fires `Bags.InputsChanged` | routes |
+| `ClassSkills.lua` | A class's own skill items: a rogue's locked lockboxes (Classic's item IDs, else the tooltip's "Locked" / "Requires Lockpicking" line; unlocked ones by the bag slot's tooltip), a mage's Comprehension scrolls ("Requires Comprehension") | `ClassSkills.Of`, `Opened` (a bag slot: unlocked / locked / unknown), `Count` (a kind of lockbox's lock states over all bag groups), `Known` (pure), `Read` / `SkillPattern` / `IsLockedLine` (pure), `OfClass`, `ItemsText`, `How`, `Forget`, `ReportLines`; `SKILLS`, `LOCKBOXES` | class_skills |
+| `Routes.lua` | **Bindings**: a profession's materials (or a class's items, its skill's items like materials: `SkillItem`) to a player; skip once; row picks | `Routes.Divert`, `Divertible`, `Matches`, `SkillItem`, `Before`, `Force`, `Choices`, `Pick/Picked/ClearPicks`, `Active`, `List`, `Add/Remove`, `Crafter`, `Recipient`, `ClassPriced`, `PriceKeep`, `GearBeaten`, `Takers` (the binding filter Divert and Choices share), `Skill(route, cache)` (one roster read per scan); every change of a binding, skip or pick fires `Bags.InputsChanged` | routes |
 | `Comms.lua` | Addon messages between Mailworthys (prefix `Mailworthy`); peers; the name mark | `Comms.Register(letter, def)` (each module registers and owns its message kinds: decode, hear, channels, afterHello), `Kinds`, `RegisterPrefix`, `Announce` (the hello, then each kind's `afterHello` in registration order), `Ask`, `Hear` (dispatches through the registry; a skills or hello message marks the bag tags stale: `BankAlt.Invalidate`), `UpdatePeer(name, fields, create)`, `OnPeersChanged` (synchronous), `OnHeard`, `Assembler()` (multipart messages, per guild key + sender), `SendGuild`, `Whisper`, `Peers/Peer`, `Skill`, `Mark`, `OnMarksChanged` | peer_mark, routes, comms_wire |
 | `Guild.lua` | **Guild template**: GM/officer rules, shared on GUILD, opted into per player | `Guild.Rules`, `Offer`, `Hear`, `Broadcast`, `Ask`, `CanPublish`, `InUse/SetUse/ToggleUse`, `Draft*`, `Publish` | guild |
 | `Stale.lua` | Stale-price nudge (Auctionator's age, or TSM's data age when younger); peers' scan days (display only) | `Stale.OwnAge`, `EffectiveAge` (pure), `Nudge` (pure), `Hear`, `Message`, `Current` | stale |
@@ -132,7 +133,7 @@ function. Specs: the module's own spec first; `critical_path` = `spec/critical_p
 
 ### 4.1 A mailbox visit (preview, then send)
 
-1. **Open.** `MAIL_SHOW` resets per-visit state in several modules (`Mailer`, `Conjured.Forget`, `Recipes.Forget`,
+1. **Open.** `MAIL_SHOW` resets per-visit state in several modules (`Mailer`, `Conjured.Forget`, `ClassSkills.Forget`, `Recipes.Forget`,
    `Report`, `Trip`, `Stale`, `Comms`). `MailWindow`'s tab watcher (`MailworthyTabWatcher`,
    `OnUpdate` every 0.2 s: `FollowTab`, `AutoOpen`, `CheckTab`, `RecheckEmpty`) opens the
    window when the Send Mail tab appears (switch `autoOpen`; on the bank alt also
@@ -142,7 +143,7 @@ function. Specs: the module's own spec first; `critical_path` = `spec/critical_p
    - `Bags.Slots` (bags 0..`LastBag`, reagent bag included) then `Bags.Group` (per link +
      bound + in use).
    - Per item, the local `value(item)` gathers facts (`Locks.IsItemLocked`,
-     `Pins.Effective`, `Quests.For`, `Conjured.Is`, `Recipes.Known` (recipes only: `item.known`), `Classes.Of`, `Prices.Vendor`,
+     `Pins.Effective`, `Quests.For`, `Conjured.Is`, `Recipes.Known` (recipes only: `item.known`), `Classes.Of`, `ClassSkills.Of` (`item.classSkill`, `item.ownSkill`; read only on a rogue or mage, or with a binding for that class; a kind of lockbox, `ClassSkills.Count` over `ctx.groups`: `classSkill` only while every box is known locked, `ownSkill` while any is locked or unknown), `Prices.Vendor`,
      `Prices.Lookup` when `Prices.Source()` is set), then:
      `Valuation.Evaluate` (section 4.2) → `Routes.Divert` (section 4.3) → `Routes.Choices`
      and the row pick (`Routes.Picked` → `Routes.Force`) → `settings.hold` (no bank alt,
@@ -209,12 +210,14 @@ The verdict (`item.result`) carries `action`, `route`, `reason`, `gain`, `postag
 
 1. `Routes.Divertible`: never a hard keep (`Valuation.HardKeep`: a kind flagged `hard`), a pin, a failed price
    call or a verdict kept for this character.
-2. `verdict.neededBy` (this character's own profession keep) wins: me first.
+2. `verdict.neededBy` (this character's own profession keep, or its class skill's:
+   `item.ownSkill`) wins: me first.
 3. `Routes.Units` (unit price; the cap price takes the higher of auction and vendor for
    gear).
 4. Each binding from `Routes.Active()` (personal, account, then `Guild.Rules`) that
    `Routes.Matches` (profession materials by tier, recipes via
-   `Valuation.RecipeProfession`, class items with `Routes.ClassPriced`; a recipe this character
+   `Valuation.RecipeProfession`, class items with `Routes.ClassPriced`, a class skill's items
+   (`Routes.SkillItem`: lockboxes, Comprehension scrolls) without it; a recipe this character
    already knows, `item.known`, never matches a binding whose recipient `Routes.IsMe`); the winner by
    `Routes.Before`: character, then account, then guild; lower known skill first.
 5. At or above the cap → the normal rule. `Routes.GearBeaten` (Enchanting Gear switch) → the
@@ -298,7 +301,7 @@ Every `ns.On` handler, by event. `Blocked.lua` registers `ADDON_ACTION_FORBIDDEN
 |---|---|
 | `ADDON_LOADED` | Core (`ns.Init`), BagAddons, MailButton (`Blizzard_MailFrame`) |
 | `PLAYER_LOGIN` | Core (first), Characters, Locks, Pins, Border, Config, Quests, Comms, Guild, Stale, Mailer, Ledger (owner index), LedgerHooks (prune, install), Contributions, PadKey, MailButton, SettingsUI, RoutesUI, LedgerUI, LocksUI, PinsUI, PinWarning, Widgets (tooltips and disarming on `Nav.OnSelect`), Bags (Locks / Pins changes into `Bags.InputsChanged`), MinimapButton, MailWindow, BankAlt, Vendor, BagAddons, AuctionatorTags, Prices (`WatchWrites`), Report |
-| `MAIL_SHOW` | Conjured, Recipes, Comms, Stale, Mailer, Trip, MailButton, Report |
+| `MAIL_SHOW` | Conjured, ClassSkills, Recipes, Comms, Stale, Mailer, Trip, MailButton, Report |
 | `MAIL_CLOSED` | Border, Routes, Bags, Mailer, LedgerHooks, Contributions, Returns, Trip, MailWindow |
 | `MAIL_SEND_SUCCESS` | Mailer, LedgerHooks |
 | `MAIL_FAILED` | Mailer, LedgerHooks |
@@ -343,6 +346,7 @@ FOREVER-UI-NOTES.md; `spec/no_gamepad_taint_spec.lua` guards them.
 | `OnUpdate` watchers | own frames | PadKey (0.1 s), MailWindow tab watcher (0.2 s), MinimapButton (drag only) |
 | `HookScript` | own frames only | MailWindow (and its `Mail*.lua` files), Nav, BankAlt, Widgets (`Tip`, `ConfirmButton`) |
 | `GetInventoryItemID("player", INVSLOT_RANGED)`, `GetItemInfoInstant` (the weapon's and the ammo's class) | API calls (pcall'd) | Ammo; `GetItemInfoInstant` also Prices, `Bags.Fingerprint` |
+| `C_TooltipInfo.GetItemByID`, `C_TooltipInfo.GetBagItem` (a lockbox's slot only), `C_Item.IsItemDataCachedByID` | API calls (pcall'd) | Classes, Conjured, Recipes, ClassSkills (`GetBagItem`: ClassSkills only) |
 
 Read-only: `FrameControlsManager:GetActiveFrame()`, `SmartNavigation:GetCurrentButton()`
 (Locks, Pins, PadKey). Global API for other addons: `MailworthyAPI.v1.GetGuildExport`
@@ -464,6 +468,7 @@ against them.
 | Auctionator + TSM: the fresher price per item; a failed Auctionator call never replaced by TSM's | `Prices.Fresher` (from `Prices.Lookup`) |
 | Bank pin mails to the bank alt (never past a hard keep, unloaded data or a failed call; never to a binding) | `Pins.Effective` → `Valuation.Evaluate` pin branch; `Routes.Divertible` (pinned) |
 | A profession binding mails its materials and recipes whatever the price, under its cap | `Routes.Matches`, `Routes.Force` |
+| A class binding takes its class skill's items (locked lockboxes, Comprehension scrolls) whatever the price, under its cap; a rogue or a mage keeps its own | `ClassSkills.Of` / `Count` → `Bags` (`gatherFacts`: `item.classSkill`, `item.ownSkill`); `Routes.SkillItem` in `Routes.Matches` / `Routes.Takers` (no `ClassPriced`); `Valuation.Evaluate` (`ownSkill` keep, `neededBy`; item data first: `notLoaded`); `Routes.Choices` (no pick when a binding names this character for it) |
 | A binding naming this character keeps the item here (not a recipe it already knows: regular rules) | `Routes.Force` (`forMe`), `Routes.Divertible`, `Mailer.Blocker`; `Routes.Divert` + `Recipes.Known` |
 | The list can't change during a send | `Mailer.Busy` checks in `Pins`, `LocksUI`, `PinWarning`, `MailWindow` |
 

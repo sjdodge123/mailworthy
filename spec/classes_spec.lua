@@ -124,7 +124,7 @@ describe("class-only items", function()
         ns.RoutesUI.Show()
         _G.MailworthyFriendsPick2:Click() -- 1 is you
         -- suggested: the green fill, no "> <" arrows (UX review U6)
-        assert.equal("Mage items (only a mage can use them)", _G.MailworthyFriendsProfession1:GetText())
+        assert.equal("Mage items (Comprehension scrolls, and what only a mage can use)", _G.MailworthyFriendsProfession1:GetText())
         assert.is_true(ns.Widgets.IsToggled(_G.MailworthyFriendsProfession1))
         assert.is_true(_G.MailworthyFriendsProfession9:IsShown(), "and every profession after it")
         _G.MailworthyFriendsProfession1:Click()

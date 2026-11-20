@@ -112,6 +112,7 @@ function Report.Build()
     for _, l in ipairs(ns.Version.ReportLines()) do lines[#lines + 1] = l end
     for _, l in ipairs(ns.Stale.ReportLines()) do lines[#lines + 1] = l end
     for _, l in ipairs(ns.Conjured.ReportLines()) do lines[#lines + 1] = l end
+    for _, l in ipairs(ns.ClassSkills.ReportLines()) do lines[#lines + 1] = l end
     for _, l in ipairs(ns.Recipes.ReportLines()) do lines[#lines + 1] = l end
     for _, l in ipairs(ns.Ammo.ReportLines()) do lines[#lines + 1] = l end
     for _, l in ipairs(ns.TierCheck.ReportLines()) do lines[#lines + 1] = l end

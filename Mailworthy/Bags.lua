@@ -218,12 +218,16 @@ function Bags.PrepareSettings(settings)
 end
 
 --- The crafting profession of this character that "Keep my professions' materials" keeps this item
---- for, or nil (PinWarning: a pin to the bank alt beats it).
+--- for, or its class's own skill (a rogue's lockbox: "Lockpicking"; ClassSkills.lua), or nil
+--- (PinWarning: a pin to the bank alt beats it).
 function Bags.ProfessionKeep(link, itemID)
     local s = Bags.PrepareSettings(ns.Config.Values())
     local item = { link = link, itemID = itemID }
     item.classID, item.subclassID = ns.Prices.ClassID(link)
-    return (ns.Valuation.ProfessionKeep(item, s))
+    local profession = ns.Valuation.ProfessionKeep(item, s)
+    if profession or not s.keepProfessionMats then return profession end
+    local skill = ns.ClassSkills.SKILLS[ns.ClassSkills.Of(itemID) or ""]
+    return skill and skill.class == ns.Classes.Mine() and skill.name or nil
 end
 
 --- The one settings builder for a scan (Bags.Evaluate), and for what reads the same settings (the
@@ -338,20 +342,53 @@ local function scanContext(settings)
         -- (Siz DisenchantValue): read it then, for gear only (Codex review, 2026-11-11).
         ctx.gearRoutes = ctx.gearRoutes or r.gear == ns.Routes.GEAR_DE
     end
-    ctx.mine = ctx.classRoutes and ns.Classes.Mine() or nil
+    ctx.mine = ns.Classes.Mine()
+    -- Class skills (ClassSkills.lua): a rogue's lockboxes and a mage's Comprehension scrolls. Each
+    -- item's tooltip is read for them only where it matters: on a character of that class (they stay,
+    -- "Keep my professions' materials") or with a binding for that class (it takes them).
+    for _, id in ipairs(ns.ClassSkills.ORDER) do
+        local class = ns.ClassSkills.SKILLS[id].class
+        local wanted = class == ctx.mine and settings.keepProfessionMats
+        for _, r in ipairs(routes) do wanted = wanted or r.class == class end
+        if wanted then
+            ctx.skills = ctx.skills or {}
+            ctx.skills[id] = true
+        end
+    end
     -- The ammo the equipped ranged weapon fires stays (Ammo.lua): the slot is read once per scan.
     ctx.fires = ns.Ammo.Equipped()
     return ctx
 end
 
 --- An item's facts, each from its own module, for Valuation and the bindings: lock, pin, class line
---- (class bindings only), an active quest's need, conjured, item class, the equipped weapon's ammo, a
+--- (class bindings only), a class skill's item (ClassSkills), an active quest's need, conjured, item class, the equipped weapon's ammo, a
 --- recipe this character knows, vendor and auction price, and an unpriced piece's disenchant value (a
 --- Gear switch only).
 local function gatherFacts(item, ctx)
     item.locked = ns.Locks.IsItemLocked(item.itemID)
     item.pin = ns.Pins.Effective(item.itemID)
     if ctx.classRoutes then item.classes, item.myClass = ns.Classes.Of(item.itemID), ctx.mine end
+    -- A lockbox or a Comprehension scroll (ClassSkills.lua), and whether this character's own class levels on it.
+    -- A lockbox already unlocked trains nobody (ClassSkills.Count: each slot's own tooltip, read once
+    -- per scan and only where Lockpicking matters to it). The states are counted per kind of lockbox
+    -- over all the bags (ctx.groups: a box in use is a group of its own), and both ways are the careful
+    -- one (Codex review, 2026-11-20): a binding takes a kind only while every one of its boxes is known
+    -- to be locked (nothing unlocked goes to a friend, whatever slot it sits in at Send), and a rogue
+    -- keeps it while any is locked or can't be told (no locked box leaves a rogue's bags).
+    item.classSkill, item.ownSkill = nil, nil
+    local skill = ctx.skills and ns.ClassSkills.Of(item.itemID) or nil
+    if skill and ctx.skills[skill] then
+        local n = { locked = 1, opened = 0, unknown = 0 }
+        if skill == ns.ClassSkills.LOCKPICKING then
+            ctx.boxes = ctx.boxes or {}
+            ctx.boxes[item.itemID] = ctx.boxes[item.itemID] or ns.ClassSkills.Count(item.itemID, ctx.groups or { item })
+            n = ctx.boxes[item.itemID]
+        end
+        if n.locked > 0 and n.opened == 0 and n.unknown == 0 then item.classSkill = skill end
+        if n.locked + n.unknown > 0 and ns.ClassSkills.SKILLS[skill].class == ctx.mine then
+            item.ownSkill = ns.ClassSkills.SKILLS[skill].name
+        end
+    end
     item.questFor = ns.Quests.For(item.link)
     item.conjured = ns.Conjured.Is(item.itemID)
     item.classID, item.subclassID = ns.Prices.ClassID(item.link)
@@ -548,7 +585,8 @@ function Bags.Evaluate(settings)
     local ctx = scanContext(settings)
     local result, stacksTo = newResult(ctx), {}
     local owedFor = owedReader(settings.returns)
-    for _, item in ipairs(Bags.Group(Bags.Slots())) do
+    ctx.groups = Bags.Group(Bags.Slots()) -- gatherFacts counts a kind of lockbox over all of them
+    for _, item in ipairs(ctx.groups) do
         value(item, ctx)
         local parts, rest = splitReturns(item, owedFor(item.itemID), settings)
         if not parts then

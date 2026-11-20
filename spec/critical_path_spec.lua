@@ -3,7 +3,8 @@
 -- the Send Mail tab alone) and the controller,
 -- with and without Auctionator, with TradeSkillMaster alone and with both, items with no auction
 -- price yet (to the bank alt), with a binding (a profession's or a class's, recipes to their
--- profession's), with a guild template (its mail tagged in the log and counted for the guild
+-- profession's, a rogue's lockboxes and a mage's Comprehension scrolls to their class's), with a
+-- guild template (its mail tagged in the log and counted for the guild
 -- contributions, nobody else's, never mail to the player's own characters; guildmates' shared counts
 -- change nothing mailed), without a bank alt or with it skipped for the visit, with
 -- Return to sender (on a main and on the bank alt itself), with a hunter's ammo (the type the equipped
@@ -752,6 +753,97 @@ describe("critical path: mailing", function()
         _G.MailworthyMailSend:Click()
         deliver(ns)
         assertSafeAndComplete(ns, preview, { [BANK_ALT] = true, [BOB] = true })
+    end)
+
+    -- A CurseForge comment and the operator, 2026-11-20: "Lock boxes can route to rouges for training
+    -- ... comprehension items to mages(class specific profession)"; "Like profession mats".
+    local function classSkillItems()
+        local S = WowStub.state
+        WowStub.setBag(0, 13, WowStub.item(4634, "Iron Lockbox", { quality = 2, sell = 0, class = 15 })) -- no price
+        S.tooltipLines[4634] = { "Locked", "Requires Lockpicking (70)" }
+        WowStub.setBag(0, 14, WowStub.item(211234, "Scroll: VOCE WELL", { quality = 2, sell = 15, class = 0 })) -- no price
+        S.itemClasses[211234] = "Mage"
+        S.tooltipLines[211234] = { "Requires Comprehension (15)" }
+        -- a lockbox the player locked, a soulbound one, and one already picked (unlocked)
+        WowStub.setBag(0, 16, WowStub.item(7976, "Plans: Locked Recipe", { quality = 2, sell = 0, class = 15 }))
+        S.tooltipLines[7976] = { "Locked", "Requires Lockpicking (1)" }
+        ns.Locks.ToggleItem(7976, WowStub.link(7976, "Plans: Locked Recipe"), "spec")
+        WowStub.setBag(0, 17, WowStub.item(7977, "Bound Recipe", { quality = 2, sell = 0, class = 15, bound = true }))
+        S.tooltipLines[7977] = { "Locked", "Requires Lockpicking (1)" }
+        WowStub.setBag(0, 18, WowStub.item(5758, "Mithril Lockbox", { quality = 2, sell = 0, class = 15 }))
+        S.tooltipLines[5758] = { "Locked", "Requires Lockpicking (175)" }
+        S.opened["0:18"] = true
+    end
+
+    it("a class binding's skill items (mouse): lockboxes to the rogue, Comprehension scrolls to the mage, unpriced too", function()
+        local ROGUE, MAGE = BOB, "Sadie Ember"
+        classSkillItems()
+        mailbox()
+        _G.MailworthyMailButton:Click()
+        local preview = previewed(ns)
+        assert.equal(BANK_ALT, preview[4634], "no binding: the normal rule, as before")
+        assert.equal(BANK_ALT, preview[211234])
+        ns.Routes.Add(ROGUE, "ROGUE")
+        ns.Routes.Add(MAGE, "MAGE")
+        ns.MailWindow.Refresh()
+        preview = previewed(ns)
+        assert.equal(ROGUE, preview[4634], "a locked lockbox with no auction price: the rogue")
+        assert.equal(MAGE, preview[211234], "a Comprehension scroll with no auction price: the mage")
+        assert.equal(BANK_ALT, preview[5758], "already unlocked: it trains nobody, the normal rule")
+        assert.is_nil(preview[7976], "locked by the player: it stays")
+        assert.is_nil(preview[7977], "soulbound: it stays")
+        assert.equal(BANK_ALT, preview[6515], "a plain green: not a class skill's item")
+        local shown = {} -- every recipient is on a "To:" line before Send (AGENTS.md Safety)
+        for _, to in ipairs(ns.MailWindow.Result().totals.recipients) do shown[to == "" and BANK_ALT or to] = true end
+        assert.same({ [BANK_ALT] = true, [ROGUE] = true, [MAGE] = true }, shown)
+        _G.MailworthyMailSend:Click()
+        deliver(ns)
+        assertSafeAndComplete(ns, preview, { [BANK_ALT] = true, [ROGUE] = true, [MAGE] = true })
+    end)
+
+    it("a class binding's skill items without Auctionator (controller): the green lockbox goes to the rogue, other greens stay", function()
+        _G.Auctionator = nil
+        classSkillItems()
+        ns.Routes.Add(BOB, "ROGUE")
+        WowStub.state.gamepadUI = true
+        ns.Fire("MAIL_SHOW")
+        mailbox()
+        WowStub.state.activeFrame = MailFrame
+        local watcher = _G.MailworthyPadWatcher
+        local function tick() watcher.scripts.OnUpdate(watcher, 0.2) end
+        local function press(name)
+            WowStub.state.now = WowStub.state.now + 1
+            _G[name]:Click()
+            tick()
+        end
+        tick()
+        press("MailworthyPadTriangle")
+        local preview = previewed(ns)
+        assert.equal(BOB, preview[4634])
+        assert.is_nil(preview[211234], "no mage binding, no price source: the green scroll stays")
+        assert.is_nil(preview[5758], "already unlocked: a green with no price source stays")
+        assert.is_nil(preview[6515], "a green with no price source stays")
+        assert.is_nil(preview[7976])
+        assert.is_nil(preview[7977])
+        ns.Nav.Select(_G.MailworthyMailSend)
+        press("MailworthyPadCross")
+        deliver(ns)
+        assertSafeAndComplete(ns, preview, { [BANK_ALT] = true, [BOB] = true })
+    end)
+
+    it("a rogue at the mailbox: its own locked lockboxes stay, a binding to another rogue or not; the rest goes", function()
+        WowStub.state.class = { "Rogue", "ROGUE", 4 }
+        classSkillItems()
+        ns.Routes.Add(BOB, "ROGUE")
+        mailbox()
+        _G.MailworthyMailButton:Click()
+        local preview = previewed(ns)
+        assert.is_nil(preview[4634], "me first: this rogue's own lockbox stays")
+        assert.equal(BANK_ALT, preview[211234], "a mage's scroll: the normal rule")
+        assert.equal(BANK_ALT, preview[2770])
+        _G.MailworthyMailSend:Click()
+        deliver(ns)
+        assertSafeAndComplete(ns, preview, { [BANK_ALT] = true })
     end)
 
     it("two bindings on one material: lowest skill first, and a recipient that changes after the preview holds Send", function()
