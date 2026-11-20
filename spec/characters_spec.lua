@@ -194,6 +194,35 @@ describe("characters", function()
             assert.is_nil(ns.Config.BankAlt())
         end)
 
+        -- Codex review, third pass: without a GUID the two checks above were skipped.
+        it("without a GUID the name's record is never asked, and a record keeps the server ID it has", function()
+            MailworthyDB.characters = {}
+            record(ME, REALM, { server = "91" })
+            ns.Config.SetBankAlt("Bank On A")
+            MailworthyDB.realmIDs = { ["91"] = false }
+            MailworthyCharDB.realm = nil
+            WowStub.state.realm, WowStub.state.guid = "", nil -- a namesake elsewhere, no realm name, no GUID
+            local realm, source = ns.Characters.Realm()
+            assert.equal("#?" .. MailworthyCharDB.realmToken, realm)
+            assert.equal("placeholder", source)
+            assert.is_nil(ns.Config.BankAlt())
+            -- An old, server-less record is no better without a GUID.
+            MailworthyDB.realmIDs, MailworthyDB.characters = {}, {}
+            record(ME, REALM)
+            assert.equal("#?" .. MailworthyCharDB.realmToken, (ns.Characters.Realm()))
+            -- The recorded character logs in without a GUID: its record keeps server 91, so the
+            -- namesake on server 92 is still told apart.
+            MailworthyDB.characters = {}
+            record(ME, REALM, { server = "91" })
+            WowStub.state.realm = REALM
+            ns.Fire("PLAYER_LOGIN")
+            assert.equal("91", MailworthyDB.characters[ME .. "|" .. REALM .. "|Alliance"].server)
+            MailworthyCharDB.realm, MailworthyDB.realmIDs = nil, {}
+            WowStub.state.realm, WowStub.state.guid = "", "Player-92-0ABCDEF0"
+            assert.same({ "#92", "placeholder" }, { ns.Characters.Realm() })
+            assert.is_nil(ns.Config.BankAlt())
+        end)
+
         it("before the saved variables load there is no realm, and nothing is recorded", function()
             MailworthyCharDB.realm, MailworthyDB.characters, MailworthyDB.realmIDs = nil, {}, {}
             WowStub.state.realm, WowStub.state.guid = "", nil

@@ -47,7 +47,8 @@ end
 --   3. the realm the game named for another character with this server ID (realmIDs);
 --   4. the account's recorded characters: the one realm this name and faction is known on
 --      (what an older Mailworthy saved, before 2. existed), unless that record is known to
---      be of another server, or was itself made from a server ID (`guess`);
+--      be of another server, or was itself made from a server ID (`guess`). Only with a
+--      server ID of its own: without one a namesake can't be told from the recorded one;
 --   5. a placeholder, a realm of its own, so unnamed realms never share a bank alt:
 --      "#<serverID>" for a server ID not known to stand for two realms, else one for this
 --      character alone: "#<GUID>", or without a GUID "#?<token>", a token kept in this
@@ -104,7 +105,7 @@ local function fromCharacters(id)
     local found
     for _, e in pairs(ns.Util.Table(MailworthyDB.characters)) do
         if type(e) == "table" and e.name == name and e.faction == faction and not e.guess
-            and (e.server == nil or id == nil or e.server == id) then
+            and (e.server == nil or e.server == id) then
             local realm = named(e.realm)
             if realm and not Characters.IsPlaceholder(realm) then
                 if found and found ~= realm then return nil end
@@ -128,12 +129,13 @@ local function resolve()
     if id and type(MailworthyDB) == "table" then known = ns.Util.Table(MailworthyDB.realmIDs)[id] end
     if named(known) then return known, "server" end
     local P = Characters.PLACEHOLDER
-    if known ~= false then
+    if id and known ~= false then
         -- Not on a server ID known to stand for two realms: a namesake there may be on the other
-        -- one, and a record's matching server ID then says nothing (Codex review, second pass).
+        -- one, and a record's matching server ID then says nothing (Codex review, second pass). Not
+        -- without a server ID either: nothing then tells this character from a namesake (third pass).
         realm = fromCharacters(id)
         if realm then return realm, "characters" end
-        if id then return P .. id, "placeholder" end
+        return P .. id, "placeholder"
     end
     -- No server ID, or one that stands for two realms: a realm of this character alone.
     local guid = named(call(UnitGUID, "player"))
@@ -246,11 +248,9 @@ function Characters.Record()
     local key = Characters.Key(name, realm, faction)
     local _, source = Characters.Realm()
     local id, old = Characters.ServerID(), MailworthyDB.characters[key]
-    if source == "game" or source == "saved" then
-        entry.server = id
-    else
-        entry.server = type(old) == "table" and old.server or nil
-    end
+    entry.server = type(old) == "table" and old.server or nil
+    -- A login without a GUID never erases the server ID the record has (Codex review, third pass).
+    if id and (source == "game" or source == "saved") then entry.server = id end
     if source == "server" then entry.guess = id end
     MailworthyDB.characters[key] = entry
     ns.Log.Add("chars", "recorded %s", Characters.Describe(entry))
