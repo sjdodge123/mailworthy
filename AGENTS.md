@@ -122,7 +122,7 @@ bag, by mouse and by controller, with and without Auctionator, with a binding, w
 ammo, with a guild
 template (on and off), with Return to sender (on a main and on the bank alt), with the 5s
 money reserve (before Send and mid-run), with no realm name from the game (`Characters.Realm`: the
-saved bank alt still found, never one of another realm), and on
+saved bank alt still found, unnamed realms never sharing one), and on
 an older build's SavedVariables; every mail checked against the Safety rules above, and
 what was previewed must be exactly what was sent. CI runs it as its own job,
 `critical-path`, which main's branch protection requires (operator, 2026-11-07); `release.yml`
