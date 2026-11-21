@@ -80,10 +80,15 @@ describe("characters", function()
             local entry = MailworthyDB.characters[ME .. "|" .. REALM .. "|Alliance"]
             assert.is_nil(entry.server, "the record doesn't claim a server ID the game never tied to this realm")
             assert.is_nil(entry.guess)
-            -- Recorded on two realms: the name doesn't say which.
+            -- Recorded on two realms: the name doesn't say which. What this character's own saved
+            -- variables remember does (it was found on the first, above, while it had one record);
+            -- a character that remembers nothing has no realm.
             record(ME, OTHER)
+            assert.same({ REALM, "characters" }, { ns.Characters.Realm() })
+            MailworthyCharDB.inferred = nil
             assert.same({ "#91", "placeholder" }, { ns.Characters.Realm() })
             -- Another faction's or another name's record says nothing; a blank or placeholder record neither.
+            MailworthyDB.realmGuesses = {} -- nothing vouched: else a name with no record takes the vouched realm
             MailworthyDB.characters = {
                 a = { name = ME, realm = REALM, faction = "Horde" },
                 b = { name = "Someone Else", realm = REALM, faction = "Alliance" },
@@ -92,6 +97,190 @@ describe("characters", function()
                 e = "junk",
             }
             assert.same({ "#91", "placeholder" }, { ns.Characters.Realm() })
+        end)
+
+        -- Operator, 2026-11-20, once build 71037 was read giving "" on their client ("Yes, fix it"):
+        -- the game never names the realm there, so only the recorded characters can say where a
+        -- server ID is. Before, a new character got the placeholder and no bank alt.
+        describe("recorded characters vouch for their server ID's realm", function()
+            local memory = {} -- GUID -> what that character's own saved variables remember
+            local function loginAs(name, guid, realm)
+                memory[tostring(WowStub.state.guid)] = MailworthyCharDB.inferred
+                MailworthyCharDB.realm, MailworthyCharDB.inferred = nil, memory[guid] -- that character's own file
+                WowStub.state.name, WowStub.state.guid, WowStub.state.realm = name, guid, realm or ""
+                ns.Fire("PLAYER_LOGIN")
+                return ns.Characters.Realm()
+            end
+
+            before_each(function()
+                memory = {}
+                ns.Config.SetBankAlt("Zed Banker")
+                MailworthyDB.characters, MailworthyDB.realmIDs, MailworthyDB.realmServers = {}, {}, {}
+                record(ME, REALM, { class = "PALADIN", level = 8 }) -- as an older build saved it
+                record("Old Friend", REALM)
+            end)
+
+            it("a new character finds the realm once a recorded one has logged in", function()
+                assert.same({ "#91", "placeholder" }, { loginAs("New Here", "Player-91-0000000A") }, "nobody vouched yet")
+                assert.same({ REALM, "characters" }, { loginAs(ME, "Player-91-0ABCDEF0") })
+                assert.equal(REALM, MailworthyDB.realmGuesses["91"])
+                assert.is_nil(MailworthyDB.realmIDs["91"], "a guess, not what the game said")
+                assert.same({ REALM, "siblings" }, { loginAs("New Here", "Player-91-0000000A") })
+                assert.equal("Zed Banker", ns.Config.BankAlt())
+                assert.is_nil(MailworthyCharDB.realm, "never saved as a fact")
+                local entry = MailworthyDB.characters["New Here|" .. REALM .. "|Alliance"]
+                assert.equal("91", entry.guess, "recorded as found on the server ID's word")
+                -- It vouches for nothing itself, and another server ID is another realm.
+                MailworthyDB.realmGuesses = {}
+                assert.same({ "#91", "placeholder" }, { loginAs("New Here", "Player-91-0000000A") })
+                MailworthyDB.realmGuesses = { ["91"] = REALM }
+                assert.same({ "#92", "placeholder" }, { loginAs("New Elsewhere", "Player-92-0000000B") })
+                assert.is_nil(ns.Config.BankAlt())
+                assert.truthy(ns.Characters.RealmText():find("a placeholder", 1, true))
+                loginAs("New Here", "Player-91-0000000A")
+                assert.truthy(ns.Characters.RealmText():find("using Classic Beta PvP, from your other characters on this server", 1, true),
+                    ns.Characters.RealmText())
+            end)
+
+            it("two characters vouching for different realms end the guess", function()
+                loginAs(ME, "Player-91-0ABCDEF0")
+                loginAs("New Here", "Player-91-0000000A")
+                assert.truthy(MailworthyDB.characters["New Here|" .. REALM .. "|Alliance"])
+                record("Other One", OTHER) -- a character of another realm, on the same server ID
+                assert.same({ OTHER, "characters" }, { loginAs("Other One", "Player-91-0000000C") }, "its own record still stands")
+                assert.is_false(MailworthyDB.realmGuesses["91"])
+                assert.is_nil(MailworthyDB.characters["New Here|" .. REALM .. "|Alliance"], "what was recorded on the guess is gone")
+                assert.same({ "#Player-91-0000000A", "placeholder" }, { loginAs("New Here", "Player-91-0000000A") },
+                    "a realm of its own: the ID may stand for two")
+                assert.is_nil(ns.Config.BankAlt())
+                assert.same({ REALM, "characters" }, { loginAs(ME, "Player-91-0ABCDEF0") }, "a recorded character keeps its realm")
+                assert.is_false(MailworthyDB.realmGuesses["91"], "and the guess stays ended")
+            end)
+
+            it("the game's own name replaces the guess, and what was recorded on it", function()
+                loginAs(ME, "Player-91-0ABCDEF0")
+                loginAs("New Here", "Player-91-0000000A")
+                assert.same({ OTHER, "game" }, { loginAs("Third One", "Player-91-0000000D", OTHER) })
+                assert.is_nil(MailworthyDB.realmGuesses["91"])
+                assert.equal(OTHER, MailworthyDB.realmIDs["91"])
+                assert.is_nil(MailworthyDB.characters["New Here|" .. REALM .. "|Alliance"])
+                assert.same({ OTHER, "server" }, { loginAs("New Here", "Player-91-0000000A") })
+                -- The same name from the game leaves a right guess and its records alone.
+                MailworthyDB.realmIDs, MailworthyDB.realmServers = { ["91"] = OTHER }, { [OTHER] = "91" }
+                MailworthyDB.realmGuesses = { ["93"] = REALM }
+                loginAs("New Too", "Player-93-0000000E")
+                loginAs("Fourth One", "Player-93-0000000F", REALM)
+                assert.equal(REALM, MailworthyDB.realmGuesses["93"])
+                assert.truthy(MailworthyDB.characters["New Too|" .. REALM .. "|Alliance"])
+            end)
+
+            it("a guess for a realm the game named for another server ID is not used", function()
+                MailworthyDB.realmGuesses = { ["92"] = REALM }
+                MailworthyDB.realmServers = { [REALM] = "91" }
+                assert.same({ "#Player-92-0000000A", "placeholder" }, { loginAs("New Here", "Player-92-0000000A") },
+                    "what is said of server 92 can't be right: a realm of this character alone")
+                assert.is_nil(ns.Config.BankAlt())
+            end)
+
+            -- Codex review: a character whose name is recorded on two realms fell through to the guess
+            -- as if it had no record; its own record was then marked a guess, ignored at the next login
+            -- and deleted, and the character ended up on the other realm.
+            it("a name recorded on two realms: the realm its own record was found on before, and that record stays its own", function()
+                assert.same({ REALM, "characters" }, { loginAs(ME, "Player-91-0ABCDEF0") }, "one record: found, and remembered")
+                assert.equal(REALM, MailworthyCharDB.inferred)
+                record(ME, OTHER, { class = "PALADIN", level = 8 }) -- a namesake's record turns up, on another realm
+                for _ = 1, 3 do -- it stays on its realm, login after login
+                    assert.same({ REALM, "characters" }, { loginAs(ME, "Player-91-0ABCDEF0") })
+                    assert.equal("Zed Banker", ns.Config.BankAlt())
+                    assert.is_nil(MailworthyDB.characters[ME .. "|" .. REALM .. "|Alliance"].guess, "its own record is never a guess")
+                end
+                assert.is_nil(MailworthyCharDB.realm, "remembered, never saved as a fact")
+                assert.truthy(MailworthyDB.characters[ME .. "|" .. OTHER .. "|Alliance"], "the namesake's record is left alone")
+                -- The namesake itself (its own saved variables remember nothing): no realm known, whatever
+                -- is vouched for its server ID. A name on two realms means characters on two.
+                assert.same({ "#91", "placeholder" }, { loginAs(ME, "Player-91-0000000C") })
+                assert.is_nil(ns.Config.BankAlt())
+                assert.same({ "#92", "placeholder" }, { loginAs(ME, "Player-92-0000000A") })
+                -- An ended guess: the ID can't be relied on, so a realm of this character alone (Codex
+                -- review, second pass: two such characters on the two realms of an ID shared "#92", and
+                -- with it a bank alt).
+                MailworthyDB.realmGuesses["92"] = false
+                assert.same({ "#Player-92-0000000A", "placeholder" }, { loginAs(ME, "Player-92-0000000A") })
+                local one = ns.Util.RealmKey()
+                ns.Config.SetBankAlt("Bank On A")
+                loginAs(ME, "Player-92-0000000B") -- its namesake, on the ID's other realm
+                assert.are_not.equal(one, (ns.Util.RealmKey()))
+                assert.is_nil(ns.Config.BankAlt())
+            end)
+
+            -- Codex review, third pass: realms A and B on one server ID. A's character vouched, and B's
+            -- characters (a namesake recorded on both, and a new one) took A and its bank alt until one of
+            -- B's own recorded characters logged in. Fourth pass: counting what B's characters vouch for
+            -- let one mistaken voucher unlock the guess. So: characters on two realms, no guess at all,
+            -- unless the game itself has put the other realm on another server ID.
+            it("an account with characters on two realms: what is vouched for a server ID is not relied on", function()
+                record(ME, OTHER, { class = "PALADIN", level = 8 }) -- its namesake on the other realm
+                record("Only There", OTHER)
+                assert.same({ REALM, "characters" }, { loginAs("Old Friend", "Player-91-0000000B") })
+                assert.equal(REALM, MailworthyDB.realmGuesses["91"])
+                assert.same({ "#91", "placeholder" }, { loginAs(ME, "Player-91-0000000C") }, "the namesake: either realm")
+                assert.is_nil(ns.Config.BankAlt())
+                assert.same({ "#91", "placeholder" }, { loginAs("New Here", "Player-91-0000000A") }, "a new character too")
+                assert.is_nil(ns.Config.BankAlt())
+                -- The other realm's character vouching for another server ID changes nothing: a voucher
+                -- can be a namesake's mistake.
+                assert.same({ OTHER, "characters" }, { loginAs("Only There", "Player-92-0000000D") })
+                assert.equal(OTHER, MailworthyDB.realmGuesses["92"])
+                assert.same({ "#91", "placeholder" }, { loginAs("New Here", "Player-91-0000000A") })
+                assert.same({ "#92", "placeholder" }, { loginAs("New There", "Player-92-0000000E") })
+                -- The game itself naming the other realm on another server ID does: the first is then
+                -- the only realm server 91 can be.
+                assert.same({ OTHER, "game" }, { loginAs("Only There", "Player-92-0000000D", OTHER) })
+                assert.same({ REALM, "siblings" }, { loginAs("New Here", "Player-91-0000000A") })
+                assert.equal("Zed Banker", ns.Config.BankAlt())
+            end)
+
+            -- Codex review, fourth pass: the level check dropped the stale record of a deleted character,
+            -- which left its recreated namesake only the other realm's record: found there, wrongly.
+            it("class and level never pick among realms: a recreated character is not handed its namesake's realm", function()
+                MailworthyDB.characters = {}
+                record("Shared Name", REALM, { class = "PALADIN", level = 8 })
+                record("Shared Name", OTHER, { class = "PALADIN", level = 20 }) -- deleted since, and recreated:
+                record("Only There", OTHER)
+                WowStub.state.level = 8
+                assert.same({ "#91", "placeholder" }, { loginAs("Shared Name", "Player-91-0000000F") })
+                assert.is_nil(MailworthyCharDB.inferred)
+                assert.is_nil(MailworthyDB.realmGuesses["91"], "and it vouches for nothing")
+                assert.is_nil(ns.Config.BankAlt())
+            end)
+
+            -- Codex review: a guess that put a realm on another server ID than the game then named for
+            -- it was no longer used, but the records made on it stayed in that realm's lists.
+            it("the game naming a realm's server ID ends a guess that put it elsewhere", function()
+                MailworthyDB.realmGuesses = { ["92"] = REALM }
+                assert.same({ REALM, "siblings" }, { loginAs("New B", "Player-92-0000000A") })
+                assert.truthy(MailworthyDB.characters["New B|" .. REALM .. "|Alliance"])
+                loginAs("Third One", "Player-91-0000000D", REALM) -- the game: this realm is server 91
+                assert.is_false(MailworthyDB.realmGuesses["92"])
+                assert.is_nil(MailworthyDB.characters["New B|" .. REALM .. "|Alliance"], "no longer one of this realm's characters")
+                local names = {}
+                for _, e in ipairs(ns.Characters.Mailable()) do names[e.name] = true end
+                assert.is_nil(names["New B"])
+                assert.same({ "#Player-92-0000000A", "placeholder" }, { loginAs("New B", "Player-92-0000000A") })
+            end)
+
+            it("a namesake of another class, or of a lower level than the record, is not the recorded one", function()
+                WowStub.state.class = { "Mage", "MAGE", 8 }
+                assert.same({ "#91", "placeholder" }, { loginAs(ME, "Player-91-0ABCDEF0") }, "the record is a paladin's")
+                assert.is_nil(MailworthyDB.realmGuesses["91"], "and it vouches for nothing")
+                WowStub.state.class = { "Paladin", "PALADIN", 2 }
+                WowStub.state.level = 3
+                assert.same({ "#91", "placeholder" }, { loginAs(ME, "Player-91-0ABCDEF0") }, "the record is level 8")
+                WowStub.state.level = 9
+                assert.same({ REALM, "characters" }, { loginAs(ME, "Player-91-0ABCDEF0") })
+                -- A record without class or level (or a character whose class can't be read) is not held against it.
+                assert.same({ REALM, "characters" }, { loginAs("Old Friend", "Player-91-0000000B") })
+            end)
         end)
 
         it("a character never seen: the realm the game named for another character with its server ID", function()

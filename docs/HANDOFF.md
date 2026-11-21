@@ -741,6 +741,67 @@ call `SendMail` anyway. Every Mailer timer checks the run id and `busy`.
   token).
   Critical path: three cases (mouse: the saved bank alt still gets the mail; controller: an older
   build's saved data; a never-seen character never gets another realm's bank alt).
+- The blank realm name, seen (2026-11-20, evening): read through rl-companion after the operator
+  logged a character out, the client was on build **71037** and `GetRealmName()` gave `""`
+  (LedgerLink's export of that login: `"raw":{...,"realmName":""}`, client build `1.60.1.71037`;
+  Mailworthy's log: `recorded Rok Nstone (, Alliance)`). The PC still had Mailworthy **v0.44.0**,
+  which saved under the blank realm as predicted: a record `Rok Nstone||Alliance`, `realms[""]`,
+  empty `routes` / `fresh` / `peers` under `|Alliance`, and a ledger under `|Alliance` with two
+  mails from the player's own alt counted as another player's. All of it is left where it is
+  (v0.44.2 and later never read it). The GUID was `Player-6935-00C3240F`; another character of the
+  same realm has server ID 6935 too.
+  Replaying that saved data against v0.44.2 (spec harness): the four recorded characters find the
+  realm and the bank alt, a **new** character gets `#6935` and no bank alt, for good, since on
+  71037 the game never names the realm and `realmIDs` is learned from nothing else. The operator
+  ("Let new characters find the realm from your existing ones on this build?": "Yes, fix it"):
+  a character found by its own record now **vouches** for the realm of its server ID
+  (`MailworthyDB.realmGuesses[id] = realm`, `vouch`), and a character with no record of its own
+  takes that realm (source `siblings`; its record is marked `guess`, so it vouches for nothing and
+  nothing is saved as a fact). A guess is relied on only while the account has no characters
+  recorded on another realm, unless the game itself has put that realm on another server ID
+  (`vouched`: "open" otherwise, and the character keeps the server's placeholder as before): with
+  characters on two realms, one voucher can't say which realm a server ID is. A character whose
+  name is recorded on several realms takes the one its own record was found on before, remembered
+  in its own saved variables (`MailworthyCharDB.inferred`; by its own record, source `characters`,
+  never marked a guess, without vouching), and otherwise has no realm, as before. Two characters vouching for different realms end the guess
+  (`false`: what was recorded on it is forgotten and a never-seen character gets a realm of its
+  own, `#<GUID>`); the game's own name replaces a different guess the same way; a guess for a
+  realm the game named for another server ID is ended too, with what was recorded on it (so a
+  realm that really had two server IDs would lose its second ID's guessed records until those
+  characters log in again: the one-ID-per-realm assumption, which `fromCharacters` relies on too).
+  Codex review of the vouching, four passes: a name recorded on two realms fell through to the guess
+  and lost its own record (fixed); a contradicted guess left its records in the realm's lists
+  (fixed); with an ended guess, two characters whose names are on several realms shared `#<id>`
+  (fixed: a realm of the character alone); a realm with two server IDs loses a right guess (not
+  changed: the assumption above). Third pass, one finding, fixed: with two realms on one server ID,
+  the first realm's voucher sent the other realm's namesake and new characters to the first realm
+  until one of the other realm's own characters logged in (the "open" rule and
+  `MailworthyCharDB.inferred` above). Fourth pass, two findings, fixed: counting what the other
+  realm's characters vouch for let one mistaken voucher unlock the guess (only the game's own word
+  counts a realm out now), and the level check dropped a deleted character's stale record, leaving
+  its recreated namesake the other realm's record alone (class and level now only reject a sole
+  record, never pick among realms). Fifth pass, one finding, **accepted by the operator**
+  (2026-11-20, asked "log a character on a second realm so I can check, or ship it as is?": "Ship
+  it as is"): the whole step rests on a GUID server ID being one realm's. If two realms share an ID, a correct
+  voucher for the recorded realm sends a new character on the other, unrecorded realm to the
+  recorded one and its bank alt (origin/main gives it `#<id>` and none). No code narrows that:
+  it is the premise. Not checked in game; one sign against taking it for granted: the client's
+  own folder for this realm is `91` while the GUID says 6935. Checkable with one character on a
+  second realm (`/mw report`, "server ID"): if two realms turn out to share an ID, replace the
+  vouching with a one-press "this character is on my other characters' realm" confirmation. This reverses, for guesses only, the
+  review's "only the game's name teaches a server ID": `realmIDs` and `realmServers` are still
+  facts. To make the record a character is found by harder to mistake, a record of another class,
+  or of a higher level than the character logging in, is a namesake's and is not taken
+  (`fromCharacters`; only for a name recorded on one realm: among several, class and level pick
+  nothing). **Known limits now:** a new character that logs in before any recorded
+  character has logged in on this version still gets the placeholder until one does, and on an
+  account with characters recorded on several realms it keeps the placeholder (no guess is relied
+  on there, unless the game names the other realms); a namesake
+  of the same class and at least the recorded level, on a realm where the account has no other
+  recorded character, is taken for the recorded one, and its vouching then points new characters
+  of that server at the recorded realm (the preview still names the recipient). Critical path: one
+  case (a new character mails to the realm's bank alt once a recorded one has logged in; another
+  server ID gets no bank alt).
 
 ## 7. State right now
 
