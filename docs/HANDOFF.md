@@ -780,7 +780,13 @@ call `SendMail` anyway. Every Mailer timer checks the run id and `busy`.
   realm's characters vouch for let one mistaken voucher unlock the guess (only the game's own word
   counts a realm out now), and the level check dropped a deleted character's stale record, leaving
   its recreated namesake the other realm's record alone (class and level now only reject a sole
-  record, never pick among realms). This reverses, for guesses only, the
+  record, never pick among realms). Fifth pass, one finding, **open, the operator's call**: the
+  whole step rests on a GUID server ID being one realm's. If two realms share an ID, a correct
+  voucher for the recorded realm sends a new character on the other, unrecorded realm to the
+  recorded one and its bank alt (origin/main gives it `#<id>` and none). No code narrows that:
+  it is the premise. Not checked in game; one sign against taking it for granted: the client's
+  own folder for this realm is `91` while the GUID says 6935. Checkable with one character on a
+  second realm (`/mw report`, "server ID"). This reverses, for guesses only, the
   review's "only the game's name teaches a server ID": `realmIDs` and `realmServers` are still
   facts. To make the record a character is found by harder to mistake, a record of another class,
   or of a higher level than the character logging in, is a namesake's and is not taken
