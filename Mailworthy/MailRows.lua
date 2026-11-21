@@ -174,17 +174,26 @@ end
 -- can move an item from Staying to Mailing), or nil.
 local function rowShowing(link)
     local lists = { { page = "mail", items = "mail", rows = S.mailRows }, { page = "stay", items = "keep", rows = S.stayRows } }
-    for _, list in ipairs(lists) do
-        for _, row in ipairs(list.rows) do
-            if row.button:IsShown() and row.item and row.item.link == link then return row.button end
+    -- The row with the pick first: what goes back to its sender (Return to sender) shares the link and
+    -- has none (Codex review, 2026-11-21: Square then landed on it and did nothing).
+    for _, wantPick in ipairs({ true, false }) do
+        for _, list in ipairs(lists) do
+            for _, row in ipairs(list.rows) do
+                if row.button:IsShown() and row.item and row.item.link == link
+                    and (not wantPick or UI.HasPick(row.item)) then
+                    return row.button
+                end
+            end
         end
     end
-    for _, list in ipairs(lists) do
-        for i, item in ipairs(S.result and S.result[list.items] or {}) do
-            if item.link == link then
-                S.pages[list.page] = math.floor((i - 1) / #list.rows) + 1
-                UI.Refresh(true)
-                return list.rows[(i - 1) % #list.rows + 1].button
+    for _, wantPick in ipairs({ true, false }) do
+        for _, list in ipairs(lists) do
+            for i, item in ipairs(S.result and S.result[list.items] or {}) do
+                if item.link == link and (not wantPick or UI.HasPick(item)) then
+                    S.pages[list.page] = math.floor((i - 1) / #list.rows) + 1
+                    UI.Refresh(true)
+                    return list.rows[(i - 1) % #list.rows + 1].button
+                end
             end
         end
     end

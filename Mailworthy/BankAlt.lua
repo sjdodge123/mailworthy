@@ -131,7 +131,10 @@ function BankAlt.Refresh()
             item.advice = BankAlt.Verdict(item) -- the tooltip's
             item.verdict = item.advice -- the bag tag's
             -- A main that never sent: its pinned items only (a pin always shows its tag).
-            if mode == nil and not (item.result and item.result.pinned) then item.advice, item.verdict = nil, nil end
+            -- An Alt picked at the mailbox (Routes.ToBankAlt) keeps its tag too: the player chose it (Codex review).
+            if mode == nil and not (item.result and (item.result.pinned or item.result.altPick)) then
+                item.advice, item.verdict = nil, nil
+            end
             local tag = item.verdict and BankAlt.Tag(item.verdict)
             if tag then keys[tag.key] = true end
             cache.byLink[item.link] = item
@@ -305,6 +308,8 @@ local function tagText(verdict, item, settings)
             .. unpin
     elseif verdict == "b" and r.pinned then
         return "Bank it on your bank alt: you pinned it, so Send mails it there (Settings > Pinned items lists them)." .. unpin
+    elseif verdict == "b" and r.altPick then
+        return "Bank it on your bank alt: you picked Alt at the mailbox, so Send mails it there this visit."
     elseif verdict == "b" then
         local why = tostring(r.reason):gsub("^bank: ", "")
         return (BankAlt.BanksHere() and "Bank it here, don't list it yet: " or "Bank it on your bank alt, don't list it yet: ")

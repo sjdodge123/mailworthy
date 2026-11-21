@@ -232,8 +232,10 @@ The row pick (`Routes.Pick`, one visit) goes through `Routes.Choices`, which ski
 table, cap, Gear switch and profession keep but not `Divertible`, `ClassPriced`, a binding
 naming this character, or Return to sender. On a bank-here row (`Routes.BankHere`: a profession's
 keep or a bank-here pin) the cycle has **Alt** after Here (`Routes.PickStates`): `Routes.AltOffered`
-(a bank alt taking this visit's mail, item data loaded, no hard keep, failed price call or binding
-naming this character) → `Routes.ToBankAlt` (route `bank`, `altPick`). The Staying list puts rows
+(a bank alt taking this visit's mail, item data loaded, no hard keep, failed price call, nor a
+binding in force for the item that names this character) → `Routes.ToBankAlt` (route `bank`,
+`altPick`; gain and auction unit price from the item's own rule without the pin or profession keep).
+A main that never sent tags an Alt like a pin (`BankAlt.Refresh`). The Staying list puts rows
 with a pick button right after the locked ones (`Bags` `sortLists`), so they are on its first page.
 
 ### 4.4 Bag tags and tooltip lines

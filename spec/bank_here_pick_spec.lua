@@ -136,6 +136,46 @@ describe("Here / Alt on a bank-here row", function()
             assert.truthy(find(ns.Bags.Evaluate().mail, 2840))
         end)
 
+        it("no Alt on a material bound to this character: the account's characters mail it here (Codex review)", function()
+            ns.Routes.Add(ns.PlayerName(), 164)
+            local item = find(ns.Bags.Evaluate().keep, 2840)
+            assert.truthy(item, "it stays")
+            assert.is_nil(item.alt)
+            ns.Routes.Pick(item.link, ns.Routes.ALT)
+            assert.truthy(find(ns.Bags.Evaluate().keep, 2840), "an Alt pick doesn't move it either")
+            local me = { to = ns.PlayerName(), profession = 164, key = "me", scope = "account" }
+            local other = { to = "Bob Surname", profession = 164, key = "f", scope = "account" }
+            assert.is_false(ns.Routes.AltOffered(bar, craft, nil, {}, { me }))
+            assert.is_true(ns.Routes.AltOffered(bar, craft, nil, {}, { other }), "a friend's binding: Alt still offered")
+        end)
+
+        it("Alt keeps the item's own gain: a priced bar adds to the total, not to the unpriced count (Codex review)", function()
+            ns.Routes.Pick(WowStub.link(2840, "Copper Bar"), ns.Routes.ALT)
+            local scan = ns.Bags.Evaluate()
+            local item = find(scan.mail, 2840)
+            assert.truthy(item.result.gain, "its auction gain")
+            assert.truthy(item.result.ahUnit)
+            assert.equal(0, scan.totals.unpriced)
+            assert.equal(item.result.gain, scan.totals.gain)
+        end)
+
+        it("a main that never sent: a bank-here pin's tag stays when Alt is picked, BH then BA (Codex review)", function()
+            ns.Pins.SetMode(ns.Pins.HERE, "spec")
+            ns.Pins.Set(2840, WowStub.link(2840, "Copper Bar"), ns.Pins.BANK, "spec")
+            assert.is_nil(ns.BankAlt.Mode(), "never sent: only pins are tagged")
+            ns.BankAlt.Invalidate()
+            assert.equal("here", ns.BankAlt.ItemFor(2840).verdict)
+            ns.Routes.Pick(WowStub.link(2840, "Copper Bar"), ns.Routes.ALT)
+            ns.BankAlt.Invalidate()
+            assert.equal("b", ns.BankAlt.ItemFor(2840).verdict)
+            local text = {}
+            for _, line in ipairs(ns.BankAlt.TooltipLines(ns.BankAlt.ItemFor(2840), nil, ns.BankAlt.Settings(), "full")) do
+                text[#text + 1] = tostring(line[1])
+            end
+            local lines = table.concat(text, "\n")
+            assert.truthy(lines:find("you picked Alt", 1, true), lines)
+        end)
+
         it("the pick button's tooltip names Here and Alt", function()
             local item = find(ns.Bags.Evaluate().keep, 2840)
             local lines = ns.MailWindow.PickLines(item, false, false)
@@ -145,6 +185,76 @@ describe("Here / Alt on a bank-here row", function()
             assert.equal("Click: Alt (to Roknua). Cleared when the mailbox closes.", lines[4])
             assert.is_true(ns.MailWindow.HasPick(item))
             assert.is_false(ns.MailWindow.HasPick({ choices = {} }))
+        end)
+    end)
+
+    -- Codex review, 2026-11-21: a bank-here pin with a stack owed back (Return to sender): the stack going
+    -- back shares the link and has no pick; Square's highlight must follow the row that has it.
+    describe("with Return to sender", function()
+        local BOB = "Bob Surname"
+        before_each(function()
+            _G.Auctionator = { API = { v1 = {
+                GetAuctionPriceByItemLink = function() return 900 end,
+                GetAuctionAgeByItemLink = function() return 0 end,
+            } } }
+            ns.Config.SetBankAlt("Roknua Themicrulah")
+            WowStub.setBag(0, 1, WowStub.item(2592, "Wool Cloth", { count = 20, sell = 33, class = 7, subclass = 5 }))
+            WowStub.setBag(0, 2, WowStub.item(2592, "Wool Cloth", { count = 20, sell = 33, class = 7, subclass = 5 }))
+            ns.Fire("MAIL_SHOW")
+            WowStub.state.inbox = { { sender = BOB, subject = "for you", daysLeft = 29.9,
+                items = { { itemID = 2592, name = "Wool Cloth", count = 20 } } } }
+            TakeInboxItem(1, 1)
+            ns.Fire("MAIL_SUCCESS", 2592)
+            WowStub.state.inbox = {}
+            WowStub.runTimers(2)
+            ns.Pins.SetMode(ns.Pins.HERE, "spec")
+            ns.Pins.Set(2592, WowStub.link(2592, "Wool Cloth"), ns.Pins.BANK, "spec")
+        end)
+        after_each(function() _G.Auctionator = nil end)
+
+        it("Square cycles the pinned stack Here, Alt, Here, Alt: the highlight stays on its row", function()
+            WowStub.state.gamepadUI = true
+            MailFrame:Show()
+            SendMailFrame:Show()
+            local watcher = _G.MailworthyPadWatcher
+            local function tick() watcher.scripts.OnUpdate(watcher, 0.2) end
+            local function press(name)
+                WowStub.state.now = WowStub.state.now + 1
+                _G[name]:Click()
+                tick()
+            end
+            WowStub.state.activeFrame = MailFrame
+            tick()
+            press("MailworthyPadTriangle")
+            _G.MailworthyMailReturn:Click()
+            local function rest()
+                for _, list in ipairs({ ns.MailWindow.Result().mail, ns.MailWindow.Result().keep }) do
+                    for _, it in ipairs(list) do
+                        if it.itemID == 2592 and it.result.route ~= "return" then return it end
+                    end
+                end
+            end
+            local function back()
+                for _, it in ipairs(ns.MailWindow.Result().mail) do
+                    if it.itemID == 2592 and it.result.route == "return" then return it end
+                end
+            end
+            assert.truthy(back(), "one stack goes back to Bob")
+            assert.is_true(rest().alt, "the other is the pinned stack, Here / Alt")
+            local rowOf = ns.MailWindow.shared.rowOf
+            for button, row in pairs(rowOf) do
+                if button:IsShown() and row.item == rest() then ns.Nav.Select(button) end
+            end
+            assert.equal(rest(), rowOf[ns.Nav.Current()].item)
+            for _ = 1, 2 do
+                for _, want in ipairs({ ns.Routes.ALT, ns.Routes.MINE }) do
+                    press("MailworthyPadSquare")
+                    assert.equal(want, rest().pickState)
+                    local row = rowOf[ns.Nav.Current()]
+                    assert.truthy(row, "the highlight is on a row")
+                    assert.is_true(ns.MailWindow.HasPick(row.item), "the highlight is on the row with the pick, not the one going back")
+                end
+            end
         end)
     end)
 end)

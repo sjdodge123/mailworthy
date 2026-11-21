@@ -427,7 +427,7 @@ local function decide(item, ctx)
     -- row's own rule is "Here", and Alt mails it to the bank alt (Routes.AltOffered).
     local choices = ns.Routes.Choices(item, own, price, settings, routes)
     local bankHere = ns.Routes.BankHere(own)
-    local alt = ns.Routes.AltOffered(item, own, price, settings)
+    local alt = ns.Routes.AltOffered(item, own, price, settings, routes)
     local pickState = result.key or ns.Routes.MINE
     local pick = (#choices > 0 or alt) and ns.Routes.Picked(item.link) or nil
     if pick == ns.Routes.MINE and moved then
@@ -435,7 +435,7 @@ local function decide(item, ctx)
         result.picked = true
     elseif pick == ns.Routes.ALT then
         if alt then
-            result, pickState = ns.Routes.ToBankAlt(item, settings), pick
+            result, pickState = ns.Routes.ToBankAlt(item, settings, price), pick
             result.picked = true
         end
     elseif pick and pick ~= ns.Routes.MINE and pick ~= result.key then

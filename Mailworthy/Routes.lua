@@ -501,20 +501,38 @@ end
 --- Pure: a bank-here row's Alt (Routes.ALT) may mail `item` to the bank alt this visit: a BH verdict
 --- (Routes.BankHere), a bank alt that takes this visit's mail (`settings.hold` nil: one is saved, it is
 --- not this character and it isn't skipped), the item's data loaded, and never a hard keep, a failed price
---- call or a binding naming this character (AGENTS Safety: as for a bank pin). A tag's scan
---- (`settings.forTags`) offers it too, so the bag tag follows the pick.
-function Routes.AltOffered(item, verdict, price, settings)
+--- call or a binding naming this character (AGENTS Safety: as for a bank pin; `routes`, the bindings in
+--- force: one for the item's profession or class that names this character keeps it, tier table aside, as
+--- the account's other characters mail it here; Codex review, 2026-11-21: Valuation keeps the material
+--- for the profession first, so `forMe` isn't set). A tag's scan (`settings.forTags`) offers it too, so
+--- the bag tag follows the pick.
+function Routes.AltOffered(item, verdict, price, settings, routes)
     if not Routes.BankHere(verdict) or (settings and settings.hold) then return false end
     if ns.Valuation.HardKeep(verdict) or verdict.failed or verdict.forMe then return false end
     if type(price) == "table" and price.failed then return false end
-    return type(item) == "table" and item.vendor ~= nil
+    if type(item) ~= "table" or item.vendor == nil then return false end
+    for _, r in ipairs(routes or {}) do
+        if Routes.IsMe((Routes.Recipient(r))) and Routes.Matches(r, item, false) then return false end
+    end
+    return true
 end
 
 --- Pure: the verdict that mails `item` to the bank alt for a row's Alt (Routes.AltOffered), as a bank pin's
 --- (Valuation.Evaluate, `item.pin` "bank"): banked there. `altPick` keeps the send switches off it, as off a
---- pin (Bags.ApplySendSwitches): the player asked for exactly this.
-function Routes.ToBankAlt(item, settings)
-    return { action = "mail", route = "bank", listRoute = "common", reason = "bank: you picked Alt", altPick = true,
+--- pin (Bags.ApplySendSwitches): the player asked for exactly this. Its gain and auction unit price are the
+--- item's own rule's without the bank-here pin and the profession keep (Codex review, 2026-11-21: a priced
+--- bar was totalled as "no auction price yet"); none when that rule has none.
+function Routes.ToBankAlt(item, settings, price)
+    local plain = {}
+    for k, v in pairs(settings or ns.Valuation.DEFAULTS) do plain[k] = v end
+    plain.keepProfessionMats = false
+    local unpinned = {}
+    for k, v in pairs(item) do unpinned[k] = v end
+    unpinned.pin = nil
+    local normal = ns.Valuation.Evaluate(unpinned, price, plain)
+    return { action = "mail", route = "bank", reason = "bank: you picked Alt", altPick = true,
+        listRoute = (normal.action == "mail" and normal.route ~= "bank" and normal.route) or normal.listRoute or "common",
+        gain = normal.gain, ahUnit = normal.ahUnit,
         vendor = (item.vendor or 0) * (item.count or 1), postage = (settings and settings.postage or 0) * (item.stacks or 1) }
 end
 
