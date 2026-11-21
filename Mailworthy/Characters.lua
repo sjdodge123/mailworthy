@@ -44,7 +44,8 @@ end
 --      for the character (MailworthyCharDB.realm) and, with the server ID in its GUID
 --      (`Player-<serverID>-<id>`), for the server (MailworthyDB.realmIDs) and the realm
 --      (MailworthyDB.realmServers);
---   2. the realm the game last named for this character (MailworthyCharDB.realm);
+--   2. the realm the game last named for this character (MailworthyCharDB.realm), which also
+--      teaches the server and realm tables its server ID when that is only known now;
 --   3. the realm the game named for another character with this server ID (realmIDs);
 --   4. the account's recorded characters: the one realm this name and faction is known on
 --      (what an older Mailworthy saved, before 2. existed), unless that record or its realm
@@ -52,7 +53,7 @@ end
 --      server ID of its own: without one a namesake can't be told from the recorded one;
 --   5. a placeholder, a realm of its own, so unnamed realms never share a bank alt:
 --      "#<serverID>" for a server ID not known to stand for two realms, else one for this
---      character alone: "#<GUID>", or without a GUID "#?<token>", a token kept in this
+--      character alone: "#<GUID>", or without a whole GUID "#?<token>", a token kept in this
 --      character's own saved variables (MailworthyCharDB.realmToken); nil before those load.
 -- A server ID the game named two realms for is never trusted again (realmIDs[id] = false):
 -- what was recorded from it is forgotten, and it rules out 3. and 4. (a namesake on the
@@ -133,7 +134,12 @@ local function resolve()
         return realm, "game"
     end
     realm = type(MailworthyCharDB) == "table" and named(MailworthyCharDB.realm) or nil
-    if realm then return realm, "saved" end
+    if realm then
+        -- The game named it for this character before; its server ID may only be known now (a login
+        -- that had no GUID: Codex review, sixth pass).
+        learn(realm, id)
+        return realm, "saved"
+    end
     local known
     if id and type(MailworthyDB) == "table" then known = ns.Util.Table(MailworthyDB.realmIDs)[id] end
     if named(known) then return known, "server" end
@@ -146,8 +152,9 @@ local function resolve()
         if realm then return realm, "characters" end
         return P .. id, "placeholder"
     end
-    -- No server ID, or one that stands for two realms: a realm of this character alone.
-    local guid = named(call(UnitGUID, "player"))
+    -- No server ID, or one that stands for two realms: a realm of this character alone. Its GUID,
+    -- when it is a whole one (a cut-off one may be shared: Codex review, sixth pass).
+    local guid = id and named(call(UnitGUID, "player"))
     if guid then return P .. guid, "placeholder" end
     -- No GUID either: a token of this character's own saved variables (a name can have a namesake
     -- on another realm; Codex review, second pass).

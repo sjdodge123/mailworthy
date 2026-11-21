@@ -702,7 +702,7 @@ call `SendMail` anyway. Every Mailer timer checks the run id and `busy`.
   saved), never a record of another server (`server`, written only when the game named the realm)
   or one made from a server ID (`guess`); else a placeholder realm: `#<serverID>`, or for a server
   ID that stands for two realms (`realmIDs[id] = false`: the game named two; the name's record is
-  then not asked either) or a missing GUID one for the character alone (`#<GUID>`, else `#?<token>`,
+  then not asked either) or a missing GUID one for the character alone (`#<GUID>` when it is a whole one, else `#?<token>`,
   a token in `MailworthyCharDB.realmToken`); nil only before the saved variables load. The answer
   holds from `MAIL_SHOW` until every `MAIL_CLOSED` handler has run (`ns.AfterEvent`, new in Core: no
   timer), while a mail run is busy or a mail waits for the game's answer, and through
@@ -717,7 +717,7 @@ call `SendMail` anyway. Every Mailer timer checks the run id and `busy`.
   the real name once the game gives one); and a namesake on a second realm, never recorded there,
   is taken for the recorded one while the game has named neither realm for this version (old
   records carry no server ID). Assumed throughout: one server ID per realm.
-  Codex review (2026-11-20), five passes, twelve findings, all fixed with a spec each. First: the
+  Codex review (2026-11-20), six passes, fourteen findings, all fixed with a spec each. First: the
   name's record was asked before the server ID (a namesake on another realm got the first realm's
   bank alt); a realm taken from the server ID was saved through the character's own record and
   outlived the ID being distrusted (now marked `guess`, never saved, forgotten with the ID); unnamed
@@ -735,6 +735,10 @@ call `SendMail` anyway. Every Mailer timer checks the run id and `busy`.
   realm for a different server ID (`fromCharacters` now skips a realm tied to another ID). Fifth
   pass, one finding: that tie was read from `realmIDs`, and was lost when the ID was found to stand
   for two realms (`false`); a realm's server ID is now kept apart (`MailworthyDB.realmServers`).
+  Sixth pass, two findings, both needing a missing or cut-off GUID: a realm named on a login without
+  a GUID never learned its server ID (the saved realm now teaches it at the next login that has
+  one), and a cut-off GUID was used as a character's own placeholder (only a whole one is; else the
+  token).
   Critical path: three cases (mouse: the saved bank alt still gets the mail; controller: an older
   build's saved data; a never-seen character never gets another realm's bank alt).
 

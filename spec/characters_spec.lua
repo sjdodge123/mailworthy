@@ -155,12 +155,20 @@ describe("characters", function()
             WowStub.state.name, WowStub.state.guid = "Two There", "Player-91-0000000B"
             assert.are_not.equal(one, (ns.Util.RealmKey()))
             assert.is_nil(ns.Config.BankAlt(), "the other realm's bank alt is not this one's")
-            -- A GUID in another shape still tells characters apart; without one, the name does.
+            -- A GUID in another shape is not trusted to tell characters apart (Codex review, sixth pass:
+            -- two characters given the same cut-off "Player-91" shared "#Player-91"): the token does.
             for _, guid in ipairs({ "Creature-0-91-0-0-1-0000000000", "Player-91", "Player--0ABCDEF0" }) do
                 WowStub.state.guid = guid
                 assert.is_nil(ns.Characters.ServerID(), guid)
-                assert.same({ "#" .. guid, "placeholder" }, { ns.Characters.Realm() })
+                local realm = ns.Characters.Realm() -- makes the token
+                assert.equal("#?" .. tostring(MailworthyCharDB.realmToken), realm)
             end
+            WowStub.state.guid = "Player-91"
+            local first = ns.Util.RealmKey()
+            ns.Config.SetBankAlt("Bank On A")
+            MailworthyCharDB.realmToken = nil -- another character's own saved variables, the same cut-off GUID
+            assert.are_not.equal(first, (ns.Util.RealmKey()))
+            assert.is_nil(ns.Config.BankAlt())
             -- No GUID at all: a token kept in this character's own saved variables. A namesake on another
             -- realm has its own (Codex review, second pass: "#?<name>" was shared by namesakes).
             WowStub.state.name = ME
@@ -228,6 +236,26 @@ describe("characters", function()
             MailworthyCharDB.realm = nil
             WowStub.state.name, WowStub.state.realm, WowStub.state.guid = ME, "", "Player-92-0ABCDEF0"
             assert.same({ "#92", "placeholder" }, { ns.Characters.Realm() }, "the namesake on server 92")
+            assert.is_nil(ns.Config.BankAlt())
+        end)
+
+        -- Codex review, sixth pass: a realm the game named on a login without a GUID never learned
+        -- its server ID, so an old record of it was taken for a namesake on another server.
+        it("a realm named without a GUID learns its server ID at the next login that has one", function()
+            WowStub.state.guid = nil
+            MailworthyDB.characters, MailworthyDB.realmIDs, MailworthyDB.realmServers = {}, {}, {}
+            record(ME, REALM) -- as an older build saved it
+            ns.Config.SetBankAlt("Bank On A")
+            WowStub.state.name = "Sibling One"
+            ns.Fire("PLAYER_LOGIN") -- the game names the realm; no GUID
+            assert.is_nil(MailworthyDB.realmServers[REALM])
+            WowStub.state.realm, WowStub.state.guid = "", "Player-91-0ABCDEF0"
+            ns.Fire("PLAYER_LOGIN") -- no name now, but the GUID: the saved realm teaches its server ID
+            assert.equal("91", MailworthyDB.realmServers[REALM])
+            assert.equal(REALM, MailworthyDB.realmIDs["91"])
+            MailworthyCharDB.realm = nil
+            WowStub.state.name, WowStub.state.guid = ME, "Player-92-0ABCDEF0" -- the namesake on server 92
+            assert.same({ "#92", "placeholder" }, { ns.Characters.Realm() })
             assert.is_nil(ns.Config.BankAlt())
         end)
 
