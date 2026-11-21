@@ -400,7 +400,7 @@ A binding record: `{to, profession = skillLineID | class = "MAGE", cap, gear = "
 | `pinMode` | `"here"` or nil | Pins |
 | `tagsAfterSend` | bool | BankAlt |
 | `realm` | the realm the game last named for this character (`Characters.Realm`), used when it gives no realm name | Characters |
-| `realmToken` | this character's own placeholder realm (`#?<token>`), made only when there is no realm name and no GUID | Characters |
+| `realmToken` | this character's own placeholder realm (`#?<token>`), made only when there is no realm to find and no GUID, or one that doesn't parse as a whole player GUID | Characters |
 | `lockedSlots` | old slot locks; migrated to `lockedItems` and removed by `Locks.MigrateSlotLocks` | Locks |
 
 Migrations live in `Core.Init`, `Locks.MigrateSlotLocks`, `Guild.ReadSaved` (old odd caps)
