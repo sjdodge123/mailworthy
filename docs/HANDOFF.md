@@ -757,24 +757,32 @@ call `SendMail` anyway. Every Mailer timer checks the run id and `busy`.
   a character found by its own record now **vouches** for the realm of its server ID
   (`MailworthyDB.realmGuesses[id] = realm`, `vouch`), and a character with no record of its own
   takes that realm (source `siblings`; its record is marked `guess`, so it vouches for nothing and
-  nothing is saved as a fact). A character whose name is recorded on several realms takes the
-  vouched one when it is among them: still by its own record (source `characters`, never marked a
-  guess), without vouching. Two characters vouching for different realms end the guess
+  nothing is saved as a fact). A guess is relied on only once every other realm the account has
+  characters on is tied to a server ID of its own, by the game or by a voucher (`vouched`: "open"
+  until then, and the character keeps the server's placeholder as before), so one voucher is not
+  enough on an account that plays on two realms. A character whose name is recorded on several
+  realms takes the one its own record was found on before, remembered in its own saved variables
+  (`MailworthyCharDB.inferred`; by its own record, source `characters`, never marked a guess,
+  without vouching), else the vouched one. Two characters vouching for different realms end the guess
   (`false`: what was recorded on it is forgotten and a never-seen character gets a realm of its
   own, `#<GUID>`); the game's own name replaces a different guess the same way; a guess for a
   realm the game named for another server ID is ended too, with what was recorded on it (so a
   realm that really had two server IDs would lose its second ID's guessed records until those
   characters log in again: the one-ID-per-realm assumption, which `fromCharacters` relies on too).
-  Codex review of the vouching, two passes: a name recorded on two realms fell through to the guess
+  Codex review of the vouching, three passes: a name recorded on two realms fell through to the guess
   and lost its own record (fixed); a contradicted guess left its records in the realm's lists
   (fixed); with an ended guess, two characters whose names are on several realms shared `#<id>`
   (fixed: a realm of the character alone); a realm with two server IDs loses a right guess (not
-  changed: the assumption above). This reverses, for guesses only, the
+  changed: the assumption above). Third pass, one finding, fixed: with two realms on one server ID,
+  the first realm's voucher sent the other realm's namesake and new characters to the first realm
+  until one of the other realm's own characters logged in (the "open" rule and
+  `MailworthyCharDB.inferred` above). This reverses, for guesses only, the
   review's "only the game's name teaches a server ID": `realmIDs` and `realmServers` are still
   facts. To make the record a character is found by harder to mistake, a record of another class,
   or of a higher level than the character logging in, is a namesake's and is not taken
   (`fromCharacters`). **Known limits now:** a new character that logs in before any recorded
-  character has logged in on this version still gets the placeholder until one does; a namesake
+  character has logged in on this version still gets the placeholder until one does, and on an
+  account with characters on several realms until one of each realm has; a namesake
   of the same class and at least the recorded level, on a realm where the account has no other
   recorded character, is taken for the recorded one, and its vouching then points new characters
   of that server at the recorded realm (the preview still names the recipient). Critical path: one
