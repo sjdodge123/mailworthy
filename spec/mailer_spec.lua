@@ -169,6 +169,37 @@ describe("mailer", function()
         assert.truthy(ns.Mailer.Status():find("no answer", 1, true))
     end)
 
+    -- Codex review of the realm fallback, 2026-11-20: a realm name the game supplies after Send must
+    -- not move the mail's ledger entry to another realm's ledger, even for a mail confirmed after the
+    -- run was stopped (the handler clears "pending" before it writes the ledger).
+    it("a mail confirmed after the mailbox closed is logged under the visit's realm", function()
+        MailworthyCharDB.realm, MailworthyDB.characters, MailworthyDB.realmIDs = nil, {}, {}
+        WowStub.state.realm, WowStub.state.guid = "", "Player-91-0ABCDEF0"
+        ns.Fire("PLAYER_LOGIN")
+        ns.Config.SetBankAlt("Roknua Themicrulah") -- this unnamed realm's bank alt
+        ns.Fire("MAIL_SHOW")
+        assert.equal("#91|Alliance", (ns.Util.RealmKey()))
+        fillBags(3)
+        ns.Mailer.Start(items(), ns.Config.BankAlt())
+        WowStub.runTimers()
+        assert.equal(1, #WowStub.state.sent, "the mail is with the game")
+        WowStub.state.realm = "Classic Beta PvP" -- the game names the realm now
+        ns.Fire("MAIL_CLOSED")
+        WowStub.runTimers()
+        assert.is_false(ns.Mailer.Busy())
+        ns.Fire("MAIL_SEND_SUCCESS") -- the game's answer, after the stop
+        local function sentIn(key)
+            local n = 0
+            for _, e in ipairs(((MailworthyDB.ledger or {})[key] or {}).log or {}) do
+                if e.dir == "sent" then n = n + 1 end
+            end
+            return n
+        end
+        assert.equal(1, sentIn("#91|Alliance"), "logged where the visit's other entries are")
+        assert.equal(0, sentIn("Classic Beta PvP|Alliance"))
+        assert.equal("Classic Beta PvP|Alliance", (ns.Util.RealmKey()), "and the realm is asked again afterwards")
+    end)
+
     it("forgets mail records after 30 days", function()
         MailworthyDB.mailed = { [1] = { at = 1000 }, [2] = { at = WowStub.state.serverTime } }
         ns.Mailer.Prune(WowStub.state.serverTime)

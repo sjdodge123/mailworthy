@@ -265,6 +265,12 @@ describe("prices", function()
                 "return {downloadTime=" .. (now - 3 * 86400) .. ",fields={},data={}}")
             assert.equal(3, P.TSMAge())
             assert.equal("TSM realm data 3 days old", P.TSMAgeText())
+            -- The game gives no realm name (a client patch, 2026-11-20): the realm last seen (Characters.Realm).
+            local realm = WowStub.state.realm
+            assert.equal(realm, (ns.Characters.Realm())) -- seen once with its name
+            WowStub.state.realm = ""
+            assert.equal(3, P.TSMAge(), "a blank realm name still finds this realm's TSM data")
+            WowStub.state.realm = realm
             _G.TSM_APPHELPER_LOAD_DATA("AUCTIONDB_NON_COMMODITY_DATA", GetRealmName(),
                 "return {downloadTime=" .. now .. ",fields={},data={}}")
             assert.equal(0, P.TSMAge(), "the newest of the realm's blocks")

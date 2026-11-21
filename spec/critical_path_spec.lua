@@ -2029,6 +2029,79 @@ describe("critical path: mailing", function()
         assertGuildCounted({ [BOB] = true })
     end)
 
+    -- Another addon's author, 2026-11-20: since a client patch GetRealmName() returned "". The bank
+    -- alt and the bindings are saved per realm, so a blank name must neither lose them nor let two
+    -- realms share them (Characters.Realm).
+    it("the game gives no realm name (mouse): the saved bank alt still gets the mail, as previewed", function()
+        for _, blank in ipairs({ "", false }) do
+            WowStub.state.realm = blank or nil
+            assert.equal(BANK_ALT, ns.Config.BankAlt(), "the bank alt saved under the realm's name is still found")
+        end
+        ns.Fire("PLAYER_LOGIN") -- a login with no realm name
+        mailbox()
+        _G.MailworthyMailButton:Click()
+        local preview = previewed(ns)
+        assert.equal(BANK_ALT, preview[2770])
+        _G.MailworthyMailSend:Click()
+        deliver(ns)
+        assertSafeAndComplete(ns, preview, { [BANK_ALT] = true })
+        assert.is_nil(MailworthyDB.bankAlts["|Alliance"], "nothing saved under a blank realm")
+        assert.is_nil(MailworthyDB.bankAlts["nil|Alliance"])
+    end)
+
+    it("no realm name on data an older build saved (controller): the realm comes from the account's characters", function()
+        MailworthyCharDB.realm, MailworthyDB.realmIDs = nil, nil -- v0.44.1 and older saved neither
+        WowStub.state.realm = ""
+        WowStub.state.guid = "Player-91-0ABCDEF0"
+        ns.Fire("PLAYER_LOGIN")
+        WowStub.state.gamepadUI = true
+        WowStub.state.activeFrame = MailFrame
+        mailbox()
+        local watcher = _G.MailworthyPadWatcher
+        watcher.scripts.OnUpdate(watcher, 0.2)
+        _G.MailworthyPadTriangle:Click()
+        watcher.scripts.OnUpdate(watcher, 0.2)
+        local preview = previewed(ns)
+        assert.equal(BANK_ALT, preview[2770], "the bank alt of the realm this character is recorded on")
+        ns.Nav.Select(_G.MailworthyMailSend)
+        WowStub.state.now = WowStub.state.now + 1
+        _G.MailworthyPadCross:Click()
+        deliver(ns)
+        assertSafeAndComplete(ns, preview, { [BANK_ALT] = true })
+    end)
+
+    it("no realm name on a character never seen: a bank alt of one realm is never used on another", function()
+        -- Before, every unnamed realm shared the key "|Alliance": a bank alt picked on one was mailed
+        -- to on the other, where that name may be a stranger.
+        local function newCharacter(name, guid)
+            MailworthyCharDB.realm = nil -- its own SavedVariables: never seen on any realm
+            WowStub.state.name, WowStub.state.realm, WowStub.state.guid = name, "", guid
+            ns.Fire("PLAYER_LOGIN")
+        end
+        newCharacter("New Here", "Player-77-0ABCDEF0") -- a server this account never saw with a name
+        assert.is_nil(ns.Config.BankAlt(), "the known realm's bank alt is not this realm's")
+        mailbox()
+        _G.MailworthyMailButton:Click()
+        assert.same({}, previewed(ns), "no bank alt: its share stays")
+        assert.is_false(_G.MailworthyMailSend:IsEnabled())
+        ns.Fire("MAIL_CLOSED")
+        ns.Config.SetBankAlt("Stranger Elsewhere") -- picked on the unnamed realm 77
+        newCharacter("New There", "Player-78-0ABCDEF0") -- another unnamed realm
+        assert.is_nil(ns.Config.BankAlt(), "realm 77's bank alt is never realm 78's")
+        mailbox()
+        _G.MailworthyMailButton:Click()
+        assert.same({}, previewed(ns))
+        _G.MailworthyMailSend:Click()
+        WowStub.runTimers()
+        assert.equal(0, #WowStub.state.sent, "nothing was mailed")
+        -- A new character on the server the account knows by name finds that realm's bank alt.
+        ns.Fire("MAIL_CLOSED")
+        WowStub.state.name, WowStub.state.realm, WowStub.state.guid = "Rettana Quilwrit", "Classic Beta PvP", "Player-91-0ABCDEF0"
+        ns.Fire("PLAYER_LOGIN")
+        newCharacter("New Sibling", "Player-91-0ABCDEF0")
+        assert.equal(BANK_ALT, ns.Config.BankAlt())
+    end)
+
     it("bags that change after the preview: Send re-reads them, and a slot that changes mid-run is skipped", function()
         local pants = function() return WowStub.item(6125, "Brawler's Pants", { bound = true, quality = 2, sell = 300, class = 4 }) end
         mailbox()

@@ -130,7 +130,9 @@ end
 function Prices.TSMDataTime()
     if not ns.Features.On("tsmAge") then return nil, "off (/mw feature tsmAge on, then /reload)" end
     if not tsmData.hooked then return nil, tsmData.why end
-    local realm = call(GetRealmName)
+    -- The realm Mailworthy keeps this character's data under (Characters.Realm): the game's name,
+    -- or the last one it gave when it gives none.
+    local realm = ns.Characters.Realm()
     if type(realm) ~= "string" then return nil, "realm name not known yet" end
     -- TSM names a realm "Realm", or "Realm-Faction" where each faction has its own auction house.
     local faction = call(UnitFactionGroup, "player")

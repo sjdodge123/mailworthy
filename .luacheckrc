@@ -17,7 +17,7 @@ read_globals = {
     -- Lua extensions the client provides
     "date", "time",
     -- character
-    "GetUnitName", "UnitName", "GetRealmName", "UnitFactionGroup", "UnitClass", "UnitLevel", "GetServerTime",
+    "GetUnitName", "UnitName", "GetRealmName", "UnitGUID", "UnitFactionGroup", "UnitClass", "UnitLevel", "GetServerTime",
     "GetBuildInfo", "GetProfessions", "GetProfessionInfo", "InCombatLockdown",
     -- bindings: party / raid, guild (C_Club member info, GetGuildRosterInfo fallback), addon messages
     "GetNumGroupMembers", "IsInRaid", "UnitIsConnected", "IsInGuild", "GetNumGuildMembers", "GetGuildRosterInfo",

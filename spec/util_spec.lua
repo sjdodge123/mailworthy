@@ -95,8 +95,14 @@ describe("Util", function()
         assert.equal("Classic Beta PvP|Alliance", key)
         assert.equal("Classic Beta PvP", realm)
         assert.equal("Alliance", faction)
+        -- No realm name from the game: the realm this character was last seen on (Characters.Realm).
         WowStub.state.realm, WowStub.state.faction = nil, "Horde"
-        assert.equal("nil|Horde", (ns.Util.RealmKey()))
+        assert.equal("Classic Beta PvP|Horde", (ns.Util.RealmKey()))
+        -- Nothing known: a placeholder realm of this character alone, never one unnamed realms share.
+        MailworthyCharDB.realm, MailworthyDB.characters = nil, {}
+        local own = ns.Util.RealmKey()
+        assert.equal("#?" .. MailworthyCharDB.realmToken .. "|Horde", own)
+        assert.equal(own, (ns.Util.RealmKey()), "the same one every time")
     end)
 
     it("Table keeps a table and gives a new one for anything else", function()

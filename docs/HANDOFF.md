@@ -683,6 +683,64 @@ call `SendMail` anyway. Every Mailer timer checks the run id and `busy`.
   an unpriced grey is "junk (no price data)" as before, and a grey item no vendor buys is priced
   like anything else (the button doesn't sell it). Critical path: two cases (mouse; controller with
   a bank pin).
+- No realm name from the game (2026-11-20; the operator forwarded another addon author's post: since
+  client build 71037, up from 70959, `GetRealmName()` returns ""; asked "Do Mailworthy or ledgerlink
+  add-ons use these values?", then "Yes, fix it"). **Not seen on our client:** read through
+  rl-companion the same day, every session ran build 70959 and every record holds the full name
+  ("CAMWOW US2 Realm 9 RP PvP"); nothing under a blank key. Built as a guard. Mailworthy read the
+  realm in one place (`Characters.Current`) and keyed by it: the bank alt, the account's bindings,
+  peers, the ledger, guild templates and giving, the scan-day store, the crafter offers, the launch
+  day, the known characters. A blank name was a realm like any other: every character would start
+  an empty one (no bank alt, no account bindings, an empty ledger), and two realms of one faction
+  would share it, so a bank alt picked on one would be mailed to on the other. Now
+  `Characters.Realm()` (realm, source) never takes a blank or non-string name. In order: the game's
+  name, the only thing ever saved (`MailworthyCharDB.realm`, new; with the GUID's server ID,
+  `MailworthyDB.realmIDs`, new; `UnitGUID("player")` = `Player-<serverID>-<8 hex>`, the shape
+  LedgerLink confirmed on the beta 2026-10-05); else the realm the game last named for this
+  character; else the realm the game named for another character with this server ID; else the one
+  named realm the account's `characters` record this name and faction on (what an older build
+  saved), never a record of another server (`server`, written only when the game named the realm)
+  or one made from a server ID (`guess`); else a placeholder realm: `#<serverID>`, or for a server
+  ID that stands for two realms (`realmIDs[id] = false`: the game named two; the name's record is
+  then not asked either) or a missing GUID one for the character alone (`#<GUID>` when it is a whole one, else `#?<token>`,
+  a token in `MailworthyCharDB.realmToken`); nil only before the saved variables load. The answer
+  holds from `MAIL_SHOW` until every `MAIL_CLOSED` handler has run (`ns.AfterEvent`, new in Core: no
+  timer), while a mail run is busy or a mail waits for the game's answer, and through
+  `MAIL_SEND_SUCCESS`'s handlers, so one visit previews, sends and logs under one realm.
+  `Prices.TSMDataTime` reads the same realm; `/mw report` has a "realm:" line with what the game
+  gave, what is used and from where. Nothing is migrated: saved data stays under the real realm name
+  and is found again.
+  **Known limits:** what v0.44.1 or older saved under a blank realm (key "|Faction") during such a
+  period is left where it is; on a build that never names the realm, a character first seen there
+  on an account whose realm the game never named for this version (no `realmIDs` yet) gets the
+  server's placeholder, not the account's old realm (set the bank alt again; it starts over under
+  the real name once the game gives one); and a namesake on a second realm, never recorded there,
+  is taken for the recorded one while the game has named neither realm for this version (old
+  records carry no server ID). Assumed throughout: one server ID per realm.
+  Codex review (2026-11-20), six passes, fourteen findings, all fixed with a spec each. First: the
+  name's record was asked before the server ID (a namesake on another realm got the first realm's
+  bank alt); a realm taken from the server ID was saved through the character's own record and
+  outlived the ID being distrusted (now marked `guess`, never saved, forgotten with the ID); unnamed
+  realms shared one writable key (`#91` for an ID known to stand for two, `nil` without a GUID); a
+  realm name arriving mid-send split the ledger over two keys (the hold). Second: on an ID known to
+  stand for two realms, a record with that same ID still vouched for a namesake; `#?<name>` was
+  shared by namesakes without a GUID (now the per-character token); a mail confirmed after the stop
+  was logged after the hold ended (the mailer clears `pending` before it writes the ledger: the hold
+  now lasts through `MAIL_SEND_SUCCESS`'s handlers); and the release at `MAIL_CLOSED` used a timer
+  whose synchronous fallback ran before the ledger's own close handler (`ns.AfterEvent`). Third
+  pass, two findings, both about a character with no GUID: the name's record was still asked (a
+  namesake got the recorded realm; now never without a server ID), and a login without a GUID
+  erased the server ID its record had (kept now). Fourth pass, one finding: an old, server-less
+  record was still taken for a namesake on another server after the game had named the record's
+  realm for a different server ID (`fromCharacters` now skips a realm tied to another ID). Fifth
+  pass, one finding: that tie was read from `realmIDs`, and was lost when the ID was found to stand
+  for two realms (`false`); a realm's server ID is now kept apart (`MailworthyDB.realmServers`).
+  Sixth pass, two findings, both needing a missing or cut-off GUID: a realm named on a login without
+  a GUID never learned its server ID (the saved realm now teaches it at the next login that has
+  one), and a cut-off GUID was used as a character's own placeholder (only a whole one is; else the
+  token).
+  Critical path: three cases (mouse: the saved bank alt still gets the mail; controller: an older
+  build's saved data; a never-seen character never gets another realm's bank alt).
 
 ## 7. State right now
 
