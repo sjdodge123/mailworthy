@@ -51,6 +51,12 @@ end
 --      (what an older Mailworthy saved, before 2. existed), unless that record or its realm
 --      is known to be of another server, or it was itself made from a server ID (`guess`). Only with a
 --      server ID of its own: without one a namesake can't be told from the recorded one;
+--   4b. what those characters vouch for: a character found by 4. says which realm its
+--      server ID is on (MailworthyDB.realmGuesses), so a character never seen there finds
+--      the realm too. On a client that never names the realm nothing else could tell it
+--      (operator, 2026-11-20, after build 71037 was read giving "": "Yes, fix it"). A guess,
+--      never a fact: two characters vouching for different realms end it (false), the
+--      game's own name replaces it, and a character found this way vouches for nothing;
 --   5. a placeholder, a realm of its own, so unnamed realms never share a bank alt:
 --      "#<serverID>" for a server ID not known to stand for two realms, else one for this
 --      character alone: "#<GUID>", or without a whole GUID "#?<token>", a token kept in this
@@ -64,7 +70,8 @@ end
 Characters.PLACEHOLDER = "#"
 Characters.REALM_SOURCES = {
     game = "the game", saved = "this character's last login", server = "the server ID",
-    characters = "this account's characters", placeholder = "a placeholder (no realm known)", unknown = "unknown",
+    characters = "this account's characters", siblings = "your other characters on this server",
+    placeholder = "a placeholder (no realm known)", unknown = "unknown",
 }
 
 --- Pure: a non-empty string, or nil (a blank realm name is no answer).
@@ -81,6 +88,14 @@ function Characters.ServerID()
     return type(guid) == "string" and guid:match("^Player%-(%d+)%-%x+$") or nil
 end
 
+--- Forget the records made on a server ID's word (Characters.Record's `guess`), except those on `keep`.
+local function forgetGuessed(id, keep)
+    local characters = ns.Util.Table(MailworthyDB.characters)
+    for key, e in pairs(characters) do
+        if type(e) == "table" and e.guess == id and e.realm ~= keep then characters[key] = nil end
+    end
+end
+
 --- The game named `realm` for this character: remember it, and its server ID's realm.
 local function learn(realm, id)
     if type(MailworthyCharDB) == "table" and MailworthyCharDB.realm ~= realm then MailworthyCharDB.realm = realm end
@@ -89,17 +104,34 @@ local function learn(realm, id)
     -- tells an old record of this realm from a namesake on another server (Codex review, fifth pass).
     local servers = ns.Util.Store(MailworthyDB, "realmServers")
     if servers[realm] == nil then servers[realm] = id end
+    -- The game's word replaces what characters vouched for (4b.): a different guess goes, with
+    -- what was recorded on it.
+    local guesses = ns.Util.Store(MailworthyDB, "realmGuesses")
+    if guesses[id] ~= nil and guesses[id] ~= realm then
+        guesses[id] = nil
+        forgetGuessed(id, realm)
+    end
     local ids = ns.Util.Store(MailworthyDB, "realmIDs")
     if ids[id] == nil then
         ids[id] = realm
     elseif ids[id] ~= realm and ids[id] ~= false then
         ids[id] = false -- one server ID, two realms: it doesn't name a realm
-        -- What was recorded on its word is forgotten (Characters.Record's `guess`).
-        local characters = ns.Util.Table(MailworthyDB.characters)
-        for key, e in pairs(characters) do
-            if type(e) == "table" and e.guess == id then characters[key] = nil end
-        end
+        forgetGuessed(id) -- what was recorded on its word is forgotten
         ns.Log.Add("chars", "server ID %s seen on two realms: no longer used to find the realm", tostring(id))
+    end
+end
+
+--- A character found by its own record vouches for the realm of its server ID (4b.).
+local function vouch(realm, id)
+    if not id or type(MailworthyDB) ~= "table" then return end
+    local guesses = ns.Util.Store(MailworthyDB, "realmGuesses")
+    if guesses[id] == nil then
+        guesses[id] = realm
+        ns.Log.Add("chars", "server ID %s: %s, as this account's characters say", tostring(id), tostring(realm))
+    elseif guesses[id] ~= realm and guesses[id] ~= false then
+        guesses[id] = false -- two characters, two realms: no guess for this ID any more
+        forgetGuessed(id)
+        ns.Log.Add("chars", "server ID %s: this account's characters name two realms, no guess", tostring(id))
     end
 end
 
@@ -107,15 +139,23 @@ end
 --- (none, or more than one). Never a record of another server, or one made from a server ID; nor
 --- a realm the game has named for another server ID than `id` (MailworthyDB.realmServers: an old
 --- record carries no server ID of its own, but its realm may have one by now: Codex review, fourth
---- pass).
+--- pass). Nor a record of another class, or of a higher level than this character's: that is a
+--- namesake (a character never changes class, and never loses a level).
 local function fromCharacters(id)
     local name, faction = ns.PlayerName(), call(UnitFactionGroup, "player")
     if not name or not faction or type(MailworthyDB) ~= "table" then return nil end
     local servers = ns.Util.Table(MailworthyDB.realmServers)
+    local _, class = call(UnitClass, "player")
+    local level = tonumber((call(UnitLevel, "player")))
+    local function same(e)
+        if type(e.class) == "string" and type(class) == "string" and e.class ~= class then return false end
+        if tonumber(e.level) and level and tonumber(e.level) > level then return false end
+        return true
+    end
     local found
     for _, e in pairs(ns.Util.Table(MailworthyDB.characters)) do
         if type(e) == "table" and e.name == name and e.faction == faction and not e.guess
-            and (e.server == nil or e.server == id) then
+            and (e.server == nil or e.server == id) and same(e) then
             local realm = named(e.realm)
             if realm and not Characters.IsPlaceholder(realm) and (servers[realm] == nil or servers[realm] == id) then
                 if found and found ~= realm then return nil end
@@ -149,8 +189,18 @@ local function resolve()
         -- one, and a record's matching server ID then says nothing (Codex review, second pass). Not
         -- without a server ID either: nothing then tells this character from a namesake (third pass).
         realm = fromCharacters(id)
-        if realm then return realm, "characters" end
-        return P .. id, "placeholder"
+        if realm then
+            vouch(realm, id)
+            return realm, "characters"
+        end
+        -- Never seen: the realm this account's characters vouch for on this server ID (4b.), unless
+        -- the game has named that realm for another one.
+        local guess = ns.Util.Table(MailworthyDB.realmGuesses)[id]
+        local home = named(guess) and ns.Util.Table(MailworthyDB.realmServers)[guess]
+        if named(guess) and (home == nil or home == id) then return guess, "siblings" end
+        if guess == nil then return P .. id, "placeholder" end
+        -- They name two realms for it, or one the game has on another server ID: nothing said of
+        -- this ID can be relied on, so a realm of this character alone, below.
     end
     -- No server ID, or one that stands for two realms: a realm of this character alone. Its GUID,
     -- when it is a whole one (a cut-off one may be shared: Codex review, sixth pass).
@@ -267,7 +317,7 @@ function Characters.Record()
     entry.server = type(old) == "table" and old.server or nil
     -- A login without a GUID never erases the server ID the record has (Codex review, third pass).
     if id and (source == "game" or source == "saved") then entry.server = id end
-    if source == "server" then entry.guess = id end
+    if source == "server" or source == "siblings" then entry.guess = id end
     MailworthyDB.characters[key] = entry
     ns.Log.Add("chars", "recorded %s", Characters.Describe(entry))
     return entry

@@ -741,6 +741,36 @@ call `SendMail` anyway. Every Mailer timer checks the run id and `busy`.
   token).
   Critical path: three cases (mouse: the saved bank alt still gets the mail; controller: an older
   build's saved data; a never-seen character never gets another realm's bank alt).
+- The blank realm name, seen (2026-11-20, evening): read through rl-companion after the operator
+  logged a character out, the client was on build **71037** and `GetRealmName()` gave `""`
+  (LedgerLink's export of that login: `"raw":{...,"realmName":""}`, client build `1.60.1.71037`;
+  Mailworthy's log: `recorded Rok Nstone (, Alliance)`). The PC still had Mailworthy **v0.44.0**,
+  which saved under the blank realm as predicted: a record `Rok Nstone||Alliance`, `realms[""]`,
+  empty `routes` / `fresh` / `peers` under `|Alliance`, and a ledger under `|Alliance` with two
+  mails from the player's own alt counted as another player's. All of it is left where it is
+  (v0.44.2 and later never read it). The GUID was `Player-6935-00C3240F`; another character of the
+  same realm has server ID 6935 too.
+  Replaying that saved data against v0.44.2 (spec harness): the four recorded characters find the
+  realm and the bank alt, a **new** character gets `#6935` and no bank alt, for good, since on
+  71037 the game never names the realm and `realmIDs` is learned from nothing else. The operator
+  ("Let new characters find the realm from your existing ones on this build?": "Yes, fix it"):
+  a character found by its own record now **vouches** for the realm of its server ID
+  (`MailworthyDB.realmGuesses[id] = realm`, `vouch`), and a character with no record of its own
+  takes that realm (source `siblings`; its record is marked `guess`, so it vouches for nothing and
+  nothing is saved as a fact). Two characters vouching for different realms end the guess
+  (`false`: what was recorded on it is forgotten and a never-seen character gets a realm of its
+  own, `#<GUID>`); the game's own name replaces a different guess the same way; a guess for a
+  realm the game named for another server ID is not used. This reverses, for guesses only, the
+  review's "only the game's name teaches a server ID": `realmIDs` and `realmServers` are still
+  facts. To make the record a character is found by harder to mistake, a record of another class,
+  or of a higher level than the character logging in, is a namesake's and is not taken
+  (`fromCharacters`). **Known limits now:** a new character that logs in before any recorded
+  character has logged in on this version still gets the placeholder until one does; a namesake
+  of the same class and at least the recorded level, on a realm where the account has no other
+  recorded character, is taken for the recorded one, and its vouching then points new characters
+  of that server at the recorded realm (the preview still names the recipient). Critical path: one
+  case (a new character mails to the realm's bank alt once a recorded one has logged in; another
+  server ID gets no bank alt).
 
 ## 7. State right now
 

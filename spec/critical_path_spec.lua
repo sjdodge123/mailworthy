@@ -2102,6 +2102,32 @@ describe("critical path: mailing", function()
         assert.equal(BANK_ALT, ns.Config.BankAlt())
     end)
 
+    it("no realm name, ever (mouse): a new character mails to the realm's bank alt once a recorded one has logged in", function()
+        -- Operator, 2026-11-20, once build 71037 was read giving "" on their client ("Yes, fix it"):
+        -- the game never names the realm there, so a recorded character vouches for its server ID's
+        -- realm (Characters.Realm, 4b.). Before, a new character got a placeholder realm and no bank alt.
+        MailworthyCharDB.realm, MailworthyDB.realmIDs, MailworthyDB.realmServers = nil, {}, {}
+        WowStub.state.realm, WowStub.state.guid = "", "Player-6935-00C3240F"
+        ns.Fire("PLAYER_LOGIN") -- the recorded character, as an older build saved it
+        assert.equal(BANK_ALT, ns.Config.BankAlt())
+        MailworthyCharDB.realm = nil -- the new character's own saved variables
+        WowStub.state.name, WowStub.state.guid = "New Here", "Player-6935-00BBBBBB"
+        ns.Fire("PLAYER_LOGIN")
+        mailbox()
+        _G.MailworthyMailButton:Click()
+        local preview = previewed(ns)
+        assert.equal(BANK_ALT, preview[2770], "the bank alt of the realm its server ID is on")
+        _G.MailworthyMailSend:Click()
+        deliver(ns)
+        assertSafeAndComplete(ns, preview, { [BANK_ALT] = true })
+        -- Another server ID is another realm: nothing goes to that bank alt from there.
+        ns.Fire("MAIL_CLOSED")
+        MailworthyCharDB.realm = nil
+        WowStub.state.name, WowStub.state.guid = "New Elsewhere", "Player-7000-00CCCCCC"
+        ns.Fire("PLAYER_LOGIN")
+        assert.is_nil(ns.Config.BankAlt())
+    end)
+
     it("bags that change after the preview: Send re-reads them, and a slot that changes mid-run is skipped", function()
         local pants = function() return WowStub.item(6125, "Brawler's Pants", { bound = true, quality = 2, sell = 300, class = 4 }) end
         mailbox()

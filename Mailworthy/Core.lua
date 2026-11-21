@@ -24,6 +24,8 @@ function ns.Init()
     MailworthyDB.pins = MailworthyDB.pins or {}                       -- item ID -> { kind, link, at }: the account's pins (Pins.lua)
     -- GUID server ID -> realm name, false = seen with two names (Characters.Realm)
     MailworthyDB.realmIDs = type(MailworthyDB.realmIDs) == "table" and MailworthyDB.realmIDs or {}
+    -- GUID server ID -> the realm this account's recorded characters vouch for, false = they name two
+    MailworthyDB.realmGuesses = type(MailworthyDB.realmGuesses) == "table" and MailworthyDB.realmGuesses or {}
     -- realm name -> the GUID server ID the game first named it for
     MailworthyDB.realmServers = type(MailworthyDB.realmServers) == "table" and MailworthyDB.realmServers or {}
 end
