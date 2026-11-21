@@ -208,8 +208,27 @@ describe("characters", function()
             assert.is_nil(ns.Config.BankAlt())
             WowStub.state.guid = "Player-91-0ABCDEF0" -- the recorded character itself still finds its realm
             assert.same({ REALM, "server" }, { ns.Characters.Realm() })
-            MailworthyDB.realmIDs = { ["93"] = OTHER } -- another realm's ID says nothing about this one
-            assert.same({ REALM, "characters" }, { ns.Characters.Realm() })
+            MailworthyDB.realmIDs, MailworthyDB.realmServers = { ["93"] = OTHER }, { [OTHER] = "93" }
+            assert.same({ REALM, "characters" }, { ns.Characters.Realm() }, "another realm's ID says nothing about this one")
+        end)
+
+        -- Codex review, fifth pass: once server ID 91 was found to stand for two realms, the fact that
+        -- the recorded realm is on 91 was lost, and the namesake on server 92 was taken for the record.
+        it("a realm keeps its server ID after that ID stops naming a realm", function()
+            MailworthyDB.characters = {}
+            record(ME, REALM) -- as an older build saved it
+            ns.Config.SetBankAlt("Bank On A")
+            WowStub.state.name = "Someone Else"
+            ns.Fire("PLAYER_LOGIN") -- the game names the recorded realm for server 91
+            WowStub.state.name, WowStub.state.realm = "Third One", OTHER
+            ns.Fire("PLAYER_LOGIN") -- and then another realm for the same ID
+            assert.is_false(MailworthyDB.realmIDs["91"])
+            assert.equal("91", MailworthyDB.realmServers[REALM])
+            assert.equal("91", MailworthyDB.realmServers[OTHER])
+            MailworthyCharDB.realm = nil
+            WowStub.state.name, WowStub.state.realm, WowStub.state.guid = ME, "", "Player-92-0ABCDEF0"
+            assert.same({ "#92", "placeholder" }, { ns.Characters.Realm() }, "the namesake on server 92")
+            assert.is_nil(ns.Config.BankAlt())
         end)
 
         -- Codex review, third pass: without a GUID the two checks above were skipped.

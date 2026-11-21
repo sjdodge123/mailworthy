@@ -376,6 +376,7 @@ server side.
 | `names` | `{ {name, realm, faction} }`, 40 | Config |
 | `realms` | `[realm] = {firstSeen}` | Config |
 | `realmIDs` *init* | `[GUID server ID] = realm name` as the game named it, or `false` once it named two for the ID | Characters |
+| `realmServers` *init* | `[realm name] = GUID server ID` the game first named it for (kept when `realmIDs[id]` turns `false`) | Characters |
 | `crafterOffers` | `[realm|faction]["name|prof"] = true` | Routes |
 | `fresh` | `[realm|faction][lowername] = {name, day, at}` | Stale |
 | `tierCheck` | `[charKey][skillLine] = {rank, at, recipes, reagents, findings, ...}` | TierCheck |

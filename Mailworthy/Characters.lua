@@ -42,12 +42,13 @@ end
 -- Characters.Realm asks, in order:
 --   1. the game: `GetRealmName()`, when it is a non-empty string. Only this is ever saved:
 --      for the character (MailworthyCharDB.realm) and, with the server ID in its GUID
---      (`Player-<serverID>-<id>`), for the server (MailworthyDB.realmIDs);
+--      (`Player-<serverID>-<id>`), for the server (MailworthyDB.realmIDs) and the realm
+--      (MailworthyDB.realmServers);
 --   2. the realm the game last named for this character (MailworthyCharDB.realm);
 --   3. the realm the game named for another character with this server ID (realmIDs);
 --   4. the account's recorded characters: the one realm this name and faction is known on
---      (what an older Mailworthy saved, before 2. existed), unless that record is known to
---      be of another server, or was itself made from a server ID (`guess`). Only with a
+--      (what an older Mailworthy saved, before 2. existed), unless that record or its realm
+--      is known to be of another server, or it was itself made from a server ID (`guess`). Only with a
 --      server ID of its own: without one a namesake can't be told from the recorded one;
 --   5. a placeholder, a realm of its own, so unnamed realms never share a bank alt:
 --      "#<serverID>" for a server ID not known to stand for two realms, else one for this
@@ -83,6 +84,10 @@ end
 local function learn(realm, id)
     if type(MailworthyCharDB) == "table" and MailworthyCharDB.realm ~= realm then MailworthyCharDB.realm = realm end
     if not id or type(MailworthyDB) ~= "table" then return end
+    -- The realm's own server ID, kept even when that ID stops naming a realm (below): it still
+    -- tells an old record of this realm from a namesake on another server (Codex review, fifth pass).
+    local servers = ns.Util.Store(MailworthyDB, "realmServers")
+    if servers[realm] == nil then servers[realm] = id end
     local ids = ns.Util.Store(MailworthyDB, "realmIDs")
     if ids[id] == nil then
         ids[id] = realm
@@ -99,21 +104,19 @@ end
 
 --- The one named realm the account's recorded characters know this name and faction on, or nil
 --- (none, or more than one). Never a record of another server, or one made from a server ID; nor
---- a realm the game has named for another server ID than `id` (an old record carries no server ID
---- of its own, but its realm may have one by now: Codex review, fourth pass).
+--- a realm the game has named for another server ID than `id` (MailworthyDB.realmServers: an old
+--- record carries no server ID of its own, but its realm may have one by now: Codex review, fourth
+--- pass).
 local function fromCharacters(id)
     local name, faction = ns.PlayerName(), call(UnitFactionGroup, "player")
     if not name or not faction or type(MailworthyDB) ~= "table" then return nil end
-    local elsewhere = {} -- realm -> true: the game named it for another server ID
-    for other, realm in pairs(ns.Util.Table(MailworthyDB.realmIDs)) do
-        if other ~= id and named(realm) then elsewhere[realm] = true end
-    end
+    local servers = ns.Util.Table(MailworthyDB.realmServers)
     local found
     for _, e in pairs(ns.Util.Table(MailworthyDB.characters)) do
         if type(e) == "table" and e.name == name and e.faction == faction and not e.guess
             and (e.server == nil or e.server == id) then
             local realm = named(e.realm)
-            if realm and not Characters.IsPlaceholder(realm) and not elsewhere[realm] then
+            if realm and not Characters.IsPlaceholder(realm) and (servers[realm] == nil or servers[realm] == id) then
                 if found and found ~= realm then return nil end
                 found = realm
             end
