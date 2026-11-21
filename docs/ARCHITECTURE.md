@@ -376,7 +376,7 @@ server side.
 | `names` | `{ {name, realm, faction} }`, 40 | Config |
 | `realms` | `[realm] = {firstSeen}` | Config |
 | `realmIDs` *init* | `[GUID server ID] = realm name` as the game named it, or `false` once it named two for the ID | Characters |
-| `realmGuesses` *init* | `[GUID server ID] = realm name` the account's recorded characters vouch for (a guess: used for a character with no record of its own), or `false` once they vouched for two | Characters |
+| `realmGuesses` *init* | `[GUID server ID] = realm name` the account's recorded characters vouch for (a guess: used for a character with no record of its own, and to pick among several realms its name is recorded on), or `false` once they vouched for two, or once the game named that realm for another server ID | Characters |
 | `realmServers` *init* | `[realm name] = GUID server ID` the game first named it for (kept when `realmIDs[id]` turns `false`) | Characters |
 | `crafterOffers` | `[realm|faction]["name|prof"] = true` | Routes |
 | `fresh` | `[realm|faction][lowername] = {name, day, at}` | Stale |

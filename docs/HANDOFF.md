@@ -757,10 +757,12 @@ call `SendMail` anyway. Every Mailer timer checks the run id and `busy`.
   a character found by its own record now **vouches** for the realm of its server ID
   (`MailworthyDB.realmGuesses[id] = realm`, `vouch`), and a character with no record of its own
   takes that realm (source `siblings`; its record is marked `guess`, so it vouches for nothing and
-  nothing is saved as a fact). Two characters vouching for different realms end the guess
+  nothing is saved as a fact). A character whose name is recorded on several realms takes the
+  vouched one when it is among them: still by its own record (source `characters`, never marked a
+  guess), without vouching. Two characters vouching for different realms end the guess
   (`false`: what was recorded on it is forgotten and a never-seen character gets a realm of its
   own, `#<GUID>`); the game's own name replaces a different guess the same way; a guess for a
-  realm the game named for another server ID is not used. This reverses, for guesses only, the
+  realm the game named for another server ID is ended too, with what was recorded on it. This reverses, for guesses only, the
   review's "only the game's name teaches a server ID": `realmIDs` and `realmServers` are still
   facts. To make the record a character is found by harder to mistake, a record of another class,
   or of a higher level than the character logging in, is a namesake's and is not taken
