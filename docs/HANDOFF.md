@@ -717,7 +717,7 @@ call `SendMail` anyway. Every Mailer timer checks the run id and `busy`.
   the real name once the game gives one); and a namesake on a second realm, never recorded there,
   is taken for the recorded one while the game has named neither realm for this version (old
   records carry no server ID). Assumed throughout: one server ID per realm.
-  Codex review (2026-11-20), three passes, ten findings, all fixed with a spec each. First: the
+  Codex review (2026-11-20), four passes, eleven findings, all fixed with a spec each. First: the
   name's record was asked before the server ID (a namesake on another realm got the first realm's
   bank alt); a realm taken from the server ID was saved through the character's own record and
   outlived the ID being distrusted (now marked `guess`, never saved, forgotten with the ID); unnamed
@@ -730,7 +730,9 @@ call `SendMail` anyway. Every Mailer timer checks the run id and `busy`.
   whose synchronous fallback ran before the ledger's own close handler (`ns.AfterEvent`). Third
   pass, two findings, both about a character with no GUID: the name's record was still asked (a
   namesake got the recorded realm; now never without a server ID), and a login without a GUID
-  erased the server ID its record had (kept now).
+  erased the server ID its record had (kept now). Fourth pass, one finding: an old, server-less
+  record was still taken for a namesake on another server after the game had named the record's
+  realm for a different server ID (`fromCharacters` now skips a realm `realmIDs` ties to another ID).
   Critical path: three cases (mouse: the saved bank alt still gets the mail; controller: an older
   build's saved data; a never-seen character never gets another realm's bank alt).
 

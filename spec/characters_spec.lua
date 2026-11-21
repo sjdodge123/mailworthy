@@ -194,6 +194,24 @@ describe("characters", function()
             assert.is_nil(ns.Config.BankAlt())
         end)
 
+        -- Codex review, fourth pass: an old record has no server ID, but its realm may have one by now.
+        it("an old record of a realm the game has named for another server ID is not this character's", function()
+            MailworthyDB.characters = {}
+            record(ME, REALM) -- as an older build saved it
+            ns.Config.SetBankAlt("Bank On A")
+            WowStub.state.name = "Someone Else" -- the game names that realm for server 91
+            ns.Fire("PLAYER_LOGIN")
+            assert.equal(REALM, MailworthyDB.realmIDs["91"])
+            MailworthyCharDB.realm = nil
+            WowStub.state.name, WowStub.state.realm, WowStub.state.guid = ME, "", "Player-92-0ABCDEF0"
+            assert.same({ "#92", "placeholder" }, { ns.Characters.Realm() }, "the namesake on server 92")
+            assert.is_nil(ns.Config.BankAlt())
+            WowStub.state.guid = "Player-91-0ABCDEF0" -- the recorded character itself still finds its realm
+            assert.same({ REALM, "server" }, { ns.Characters.Realm() })
+            MailworthyDB.realmIDs = { ["93"] = OTHER } -- another realm's ID says nothing about this one
+            assert.same({ REALM, "characters" }, { ns.Characters.Realm() })
+        end)
+
         -- Codex review, third pass: without a GUID the two checks above were skipped.
         it("without a GUID the name's record is never asked, and a record keeps the server ID it has", function()
             MailworthyDB.characters = {}
