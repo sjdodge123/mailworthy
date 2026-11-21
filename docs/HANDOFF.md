@@ -762,7 +762,14 @@ call `SendMail` anyway. Every Mailer timer checks the run id and `busy`.
   guess), without vouching. Two characters vouching for different realms end the guess
   (`false`: what was recorded on it is forgotten and a never-seen character gets a realm of its
   own, `#<GUID>`); the game's own name replaces a different guess the same way; a guess for a
-  realm the game named for another server ID is ended too, with what was recorded on it. This reverses, for guesses only, the
+  realm the game named for another server ID is ended too, with what was recorded on it (so a
+  realm that really had two server IDs would lose its second ID's guessed records until those
+  characters log in again: the one-ID-per-realm assumption, which `fromCharacters` relies on too).
+  Codex review of the vouching, two passes: a name recorded on two realms fell through to the guess
+  and lost its own record (fixed); a contradicted guess left its records in the realm's lists
+  (fixed); with an ended guess, two characters whose names are on several realms shared `#<id>`
+  (fixed: a realm of the character alone); a realm with two server IDs loses a right guess (not
+  changed: the assumption above). This reverses, for guesses only, the
   review's "only the game's name teaches a server ID": `realmIDs` and `realmServers` are still
   facts. To make the record a character is found by harder to mistake, a record of another class,
   or of a higher level than the character logging in, is a namesake's and is not taken

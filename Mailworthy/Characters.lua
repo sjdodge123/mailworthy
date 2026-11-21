@@ -214,10 +214,12 @@ local function resolve()
             -- Still found by its own record (never marked a guess: Codex review), but it vouches for
             -- nothing, as the guess decided. Else no realm is known, as before.
             if usable and several[guess] then return guess, "characters" end
-            return P .. id, "placeholder"
+        elseif usable then
+            return guess, "siblings" -- never seen: the vouched realm
         end
-        -- Never seen: the vouched realm.
-        if usable then return guess, "siblings" end
+        -- Nothing vouched for this server ID: its own placeholder, as before. Else what was vouched
+        -- names two realms, or one the game has elsewhere: the ID may stand for two realms, so a
+        -- realm of this character alone, below (also when its name is on several: Codex review).
         if guess == nil then return P .. id, "placeholder" end
         -- They name two realms for it, or one the game has on another server ID: nothing said of
         -- this ID can be relied on, so a realm of this character alone, below.

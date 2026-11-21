@@ -194,10 +194,20 @@ describe("characters", function()
                 end
                 assert.equal(REALM, MailworthyDB.realmGuesses["91"])
                 assert.truthy(MailworthyDB.characters[ME .. "|" .. OTHER .. "|Alliance"], "the namesake's record is left alone")
-                -- Without a guess for its server ID, or with one that names neither realm: no realm known.
+                -- Without a guess for its server ID: no realm known, the server's placeholder as before.
                 assert.same({ "#92", "placeholder" }, { loginAs(ME, "Player-92-0000000A") })
+                -- A guess that names neither realm, or an ended one: the ID can't be relied on, so a realm
+                -- of this character alone (Codex review, second pass: two such characters on the two
+                -- realms of an ID shared "#91", and with it a bank alt).
                 MailworthyDB.realmGuesses["92"] = "Third Realm"
-                assert.same({ "#92", "placeholder" }, { loginAs(ME, "Player-92-0000000A") })
+                assert.same({ "#Player-92-0000000A", "placeholder" }, { loginAs(ME, "Player-92-0000000A") })
+                MailworthyDB.realmGuesses["92"] = false
+                local one = ns.Util.RealmKey()
+                assert.equal("#Player-92-0000000A|Alliance", one)
+                ns.Config.SetBankAlt("Bank On A")
+                loginAs(ME, "Player-92-0000000B") -- its namesake, on the ID's other realm
+                assert.are_not.equal(one, (ns.Util.RealmKey()))
+                assert.is_nil(ns.Config.BankAlt())
             end)
 
             -- Codex review: a guess that put a realm on another server ID than the game then named for
