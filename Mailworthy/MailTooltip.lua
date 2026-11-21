@@ -12,11 +12,12 @@ S.rowOf = {} -- item row button -> row
 S.pickOf = {} -- a row's pick button -> row
 
 --- Pure: what a press does after the pick on a row's item (`item.choices`, `item.pickState`):
---- "Guild (to Jold)", "Me".
+--- "Guild (to Jold)", "Alt (to Penny)", "Me", "Here".
 local function nextPickText(item)
     local choices = item.choices or {}
-    local nextState = ns.Routes.NextPick(item.pickState or ns.Routes.MINE, choices)
-    local text = ns.Routes.PickLabel(nextState, choices)
+    local nextState = ns.Routes.NextPick(item.pickState or ns.Routes.MINE, choices, item.alt)
+    local text = ns.Routes.PickLabel(nextState, choices, item.bankHere)
+    if nextState == ns.Routes.ALT then text = text .. " (to " .. S.firstName(ns.Config.BankAlt()) .. ")" end
     for _, r in ipairs(choices) do
         if r.key == nextState then text = text .. " (to " .. S.firstName(ns.Routes.Recipient(r)) .. ")" end
     end
@@ -34,7 +35,7 @@ UI.BUSY_LINE = "Sending: locks can't change until it's done."
 function UI.TooltipLines(item, staying, pad, bankAlt, busy)
     local r = item.result or {}
     local verb = pad and "Press" or "Click"
-    local pick = pad and not busy and #(item.choices or {}) > 0 and ns.Features.On("padPick")
+    local pick = pad and not busy and UI.HasPick(item) and ns.Features.On("padPick")
         and (ns.Gamepad.Glyph(ns.Gamepad.FACE_LEFT) .. " " .. nextPickText(item) .. ": where it goes this visit.")
         or nil
     if staying then
@@ -172,7 +173,14 @@ function UI.PickLines(item, pad, busy)
     local function line(state, text)
         lines[#lines + 1] = (state == current and "> " or "   ") .. text
     end
-    line(ns.Routes.MINE, "Me: " .. ns.Routes.PickLabel(ns.Routes.MINE) .. " (its own rule: keep, sell or bank)")
+    if item.bankHere then
+        line(ns.Routes.MINE, "Here: it stays, to bank on this character")
+    else
+        line(ns.Routes.MINE, "Me: " .. ns.Routes.PickLabel(ns.Routes.MINE) .. " (its own rule: keep, sell or bank)")
+    end
+    if item.alt then
+        line(ns.Routes.ALT, "Alt: to " .. S.firstName(ns.Config.BankAlt()) .. " (your bank alt)")
+    end
     for _, r in ipairs(choices) do
         line(r.key, string.format("%s: to %s (%s)", ns.Routes.PickLabel(r.key, choices), S.firstName(ns.Routes.Recipient(r)),
             ns.Routes.Describe(r)))

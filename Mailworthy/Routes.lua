@@ -461,7 +461,13 @@ end
 -- class binding's price rule, Return to sender or a binding naming this character.
 
 Routes.MINE = "mine"
-local picks = {} -- item link -> Routes.MINE or a binding's key
+-- Here or on the alt (operator, 2026-11-21: "For the bank here vs bank alt items, i want the item to still
+-- appear in the UI at the mailbox ... I want to be able to click a toggle between Here/Alt"; "can this use
+-- the same ui interaction that the other toggle does, the me/friend/guild toggle? i want the ui to be
+-- uniform"): on a bank-here row (BH) the item's own rule is "Here", and Alt, after it, mails it to the bank
+-- alt this visit, as a bank pin would. Bindings' keys never take this value (Routes.Key: "<profession>|<name>").
+Routes.ALT = "alt"
+local picks = {} -- item link -> Routes.MINE, Routes.ALT or a binding's key
 
 --- Pure: the bindings a row's button can send `item` to, in order (Routes.Before): those whose
 --- profession or class takes it (the tier table aside), not naming this character. `verdict` is the
@@ -484,12 +490,48 @@ function Routes.Choices(item, verdict, price, settings, routes)
     return list
 end
 
---- Pure: the state after `current` (Routes.MINE or a key) in the cycle mine, then each choice: what one
---- press of the row's button picks. Nil when there is nothing to pick between.
-function Routes.NextPick(current, choices)
-    if #(choices or {}) == 0 then return nil end
+--- Pure: a verdict for what this character banks itself (BH): a bank-here pin, or what its own profession
+--- still uses (Valuation.BankForCraft). Its row's own rule is "Here".
+function Routes.BankHere(verdict)
+    if type(verdict) ~= "table" then return false end
+    return ns.Valuation.BankForCraft(verdict)
+        or (verdict.pinned == true and ns.Valuation.Is(verdict, ns.Valuation.K.pinHere))
+end
+
+--- Pure: a bank-here row's Alt (Routes.ALT) may mail `item` to the bank alt this visit: a BH verdict
+--- (Routes.BankHere), a bank alt that takes this visit's mail (`settings.hold` nil: one is saved, it is
+--- not this character and it isn't skipped), the item's data loaded, and never a hard keep, a failed price
+--- call or a binding naming this character (AGENTS Safety: as for a bank pin). A tag's scan
+--- (`settings.forTags`) offers it too, so the bag tag follows the pick.
+function Routes.AltOffered(item, verdict, price, settings)
+    if not Routes.BankHere(verdict) or (settings and settings.hold) then return false end
+    if ns.Valuation.HardKeep(verdict) or verdict.failed or verdict.forMe then return false end
+    if type(price) == "table" and price.failed then return false end
+    return type(item) == "table" and item.vendor ~= nil
+end
+
+--- Pure: the verdict that mails `item` to the bank alt for a row's Alt (Routes.AltOffered), as a bank pin's
+--- (Valuation.Evaluate, `item.pin` "bank"): banked there. `altPick` keeps the send switches off it, as off a
+--- pin (Bags.ApplySendSwitches): the player asked for exactly this.
+function Routes.ToBankAlt(item, settings)
+    return { action = "mail", route = "bank", listRoute = "common", reason = "bank: you picked Alt", altPick = true,
+        vendor = (item.vendor or 0) * (item.count or 1), postage = (settings and settings.postage or 0) * (item.stacks or 1) }
+end
+
+--- Pure: a row's states in the order its button cycles them: the item's own (Routes.MINE), then Alt when
+--- offered (`alt`: Routes.AltOffered), then each binding (Routes.Choices). One state: nothing to pick.
+function Routes.PickStates(choices, alt)
     local states = { Routes.MINE }
-    for _, r in ipairs(choices) do states[#states + 1] = r.key end
+    if alt then states[#states + 1] = Routes.ALT end
+    for _, r in ipairs(choices or {}) do states[#states + 1] = r.key end
+    return states
+end
+
+--- Pure: the state after `current` (Routes.MINE, Routes.ALT or a key) in Routes.PickStates: what one press
+--- of the row's button picks. Nil when there is nothing to pick between.
+function Routes.NextPick(current, choices, alt)
+    local states = Routes.PickStates(choices, alt)
+    if #states < 2 then return nil end
     for i, s in ipairs(states) do
         if s == current then return states[i % #states + 1] end
     end
@@ -504,14 +546,16 @@ end
 function Routes.Picked(link) return link and picks[link] or nil end
 function Routes.ClearPicks() picks = {} end
 
---- Pure: a row's state as its button names it: "Me" for the item's own verdict, "Friend" for the
---- player's own binding (this character's or all of them), "Guild" for a guild template rule.
-function Routes.PickLabel(state, choices)
-    if state == nil or state == Routes.MINE then return "Me" end
+--- Pure: a row's state as its button names it: "Me" for the item's own verdict ("Here" on a bank-here
+--- row, `here`: Routes.BankHere), "Alt" for the bank alt (Routes.ALT), "Friend" for the player's own
+--- binding (this character's or all of them), "Guild" for a guild template rule.
+function Routes.PickLabel(state, choices, here)
+    if state == Routes.ALT then return "Alt" end
+    if state == nil or state == Routes.MINE then return here and "Here" or "Me" end
     for _, r in ipairs(choices or {}) do
         if r.key == state then return r.scope == "guild" and "Guild" or "Friend" end
     end
-    return "Me"
+    return here and "Here" or "Me"
 end
 
 -- Saved bindings ----------------------------------------------------------------
