@@ -53,9 +53,10 @@ end
 --      server ID of its own: without one a namesake can't be told from the recorded one;
 --   4b. what those characters vouch for: a character found by 4. says which realm its
 --      server ID is on (MailworthyDB.realmGuesses), so a character never seen there finds
---      the realm too. Relied on only once every other realm the account has characters on is
---      tied to a server ID of its own. A character whose name is recorded on several realms
---      first takes the one its own record was found on before (MailworthyCharDB.inferred). On a
+--      the realm too. Relied on only while the account has no characters recorded on another
+--      realm (one the game has not itself put on another server ID): with characters on two
+--      realms, one voucher can't say which. A character whose name is recorded on several realms
+--      takes the one its own record was found on before (MailworthyCharDB.inferred). On a
 --      client that never names the realm nothing else could tell it
 --      (operator, 2026-11-20, after build 71037 was read giving "": "Yes, fix it"). A guess,
 --      never a fact: two characters vouching for different realms end it (false), the
@@ -147,11 +148,14 @@ local function vouch(realm, id)
 end
 
 --- The one named realm the account's recorded characters know this name and faction on; or nil
---- and, when they know it on more than one, the set of those realms. Never a record of another server, or one made from a server ID; nor
+--- and, when they know it on more than one, the set of those realms. Never a record of another server,
+--- or one made from a server ID; nor
 --- a realm the game has named for another server ID than `id` (MailworthyDB.realmServers: an old
 --- record carries no server ID of its own, but its realm may have one by now: Codex review, fourth
---- pass). Nor a record of another class, or of a higher level than this character's: that is a
---- namesake (a character never changes class, and never loses a level).
+--- pass). A sole record of another class, or of a higher level than this character's, is a
+--- namesake's (a character never changes class, and never loses a level): nil. Class and level only
+--- ever reject the one realm found: they never pick among several (a stale record of a deleted
+--- character would then hand its namesake the other realm; Codex review of the vouching).
 local function fromCharacters(id)
     local name, faction = ns.PlayerName(), call(UnitFactionGroup, "player")
     if not name or not faction or type(MailworthyDB) ~= "table" then return nil end
@@ -163,42 +167,37 @@ local function fromCharacters(id)
         if tonumber(e.level) and level and tonumber(e.level) > level then return false end
         return true
     end
-    local found, realms, count = nil, {}, 0
+    local found, realms, count, fits = nil, {}, 0, false
     for _, e in pairs(ns.Util.Table(MailworthyDB.characters)) do
         if type(e) == "table" and e.name == name and e.faction == faction and not e.guess
-            and (e.server == nil or e.server == id) and same(e) then
+            and (e.server == nil or e.server == id) then
             local realm = named(e.realm)
-            if realm and not Characters.IsPlaceholder(realm) and (servers[realm] == nil or servers[realm] == id)
-                and not realms[realm] then
-                realms[realm], count, found = true, count + 1, realm
+            if realm and not Characters.IsPlaceholder(realm) and (servers[realm] == nil or servers[realm] == id) then
+                if not realms[realm] then realms[realm], count, found = true, count + 1, realm end
+                fits = fits or same(e)
             end
         end
     end
-    if count == 1 then return found end
-    return nil, count > 1 and realms or nil
+    if count > 1 then return nil, realms end
+    return count == 1 and fits and found or nil
 end
 
 --- The realm this account's characters vouch for on server ID `id` (4b.), when it can be relied
 --- on; else nil and why not: "none" (nothing vouched), "ended" (they vouched for two realms, or the
---- game has the vouched realm on another server ID), "open" (the account has characters on another
---- realm that nothing ties to a server ID of its own yet: this ID may be that realm's too, so one
---- voucher is not enough; Codex review, third pass).
+--- game has the vouched realm on another server ID), "open" (the account has characters recorded
+--- on another realm, which this ID may be too: one voucher is then not enough). Only a realm the
+--- game itself has named for another server ID is counted out; what characters vouch for is not
+--- (a mistaken voucher would unlock another server's guess; Codex review of the vouching, third
+--- and fourth pass).
 local function vouched(id)
-    local guesses = ns.Util.Table(MailworthyDB.realmGuesses)
-    local guess = guesses[id]
+    local guess = ns.Util.Table(MailworthyDB.realmGuesses)[id]
     if guess == nil then return nil, "none" end
     local servers = ns.Util.Table(MailworthyDB.realmServers)
     if not named(guess) or (servers[guess] ~= nil and servers[guess] ~= id) then return nil, "ended" end
-    local elsewhere = {} -- realm -> true: tied to another server ID, by the game or by a voucher
-    for realm, home in pairs(servers) do
-        if home ~= id then elsewhere[realm] = true end
-    end
-    for other, realm in pairs(guesses) do
-        if other ~= id and named(realm) then elsewhere[realm] = true end
-    end
     for _, e in pairs(ns.Util.Table(MailworthyDB.characters)) do
         local realm = type(e) == "table" and not e.guess and named(e.realm) or nil
-        if realm and realm ~= guess and not Characters.IsPlaceholder(realm) and not elsewhere[realm] then
+        if realm and realm ~= guess and not Characters.IsPlaceholder(realm)
+            and (servers[realm] == nil or servers[realm] == id) then
             return nil, "open"
         end
     end
@@ -241,9 +240,10 @@ local function resolve()
         -- when that is still among them. By its own record (never marked a guess: Codex review),
         -- without vouching.
         if several and mine and several[mine.inferred] then return mine.inferred, "characters" end
-        -- What this account's characters vouch for on this server ID (4b.).
+        -- What this account's characters vouch for on this server ID (4b.): for a character with no
+        -- record of its own (a name on several realms means characters on several: never relied on).
         local guess, why = vouched(id)
-        if guess then return guess, (several and several[guess]) and "characters" or "siblings" end
+        if guess and not several then return guess, "siblings" end
         -- Nothing vouched for this server ID, or not enough yet: its own placeholder, as before.
         -- "ended": what was said of this ID can't be relied on and it may stand for two realms, so
         -- a realm of this character alone, below.
