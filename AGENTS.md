@@ -44,7 +44,14 @@ SavedVariables, feature switches, where each Safety rule is enforced) before rea
   item to any binding whose profession or class takes it, past the profession keep, the cap, the Gear
   switch and the tier table ("my click wins"), and the row shows where it goes; never past a hard keep,
   a pin, a failed price call, a class binding's price rule, Return to sender or a binding naming this
-  character.
+  character. On a bank-here row (BH: what this character's own professions still use, or a bank-here pin;
+  `Routes.BankHere`) the same button names the item's own rule **Here** and, next, **Alt** mails it to the
+  bank alt for the visit like a bank pin (operator, 2026-11-21: "i want to be able to click a toggle between
+  Here/Alt"; "use the same ui interaction that the other toggle does"; `Routes.AltOffered`): past the
+  bank-here pin and the price rules, never past a hard keep, item data not loaded yet, a failed price call
+  or a binding naming this character, and only while the bank alt takes this visit's mail (none while it
+  is skipped, unset, or this character); the send switches don't hold it, and it never sends a bank-here
+  pin to a binding.
 - Re-check each slot right before attaching it; skip anything that changed.
 - Without Auctionator (no price source), the only items mailed are unlocked, tradeable white
   (common) items and the staple trade goods (`Valuation.STAPLES`, whatever their quality)
@@ -118,7 +125,7 @@ textures / font strings on Blizzard frames kept in our own tables, read-only
 ## Critical path (STRICT)
 
 `spec/critical_path_spec.lua` is the shipping gate: a mailbox visit with a realistic
-bag, by mouse and by controller, with and without Auctionator, with a binding, with a bank pin, with vendor trash, with a hunter's
+bag, by mouse and by controller, with and without Auctionator, with a binding, with a bank pin, with a bank-here row's Alt, with vendor trash, with a hunter's
 ammo, with a guild
 template (on and off), with Return to sender (on a main and on the bank alt), with the 5s
 money reserve (before Send and mid-run), with no realm name from the game (`Characters.Realm`: the

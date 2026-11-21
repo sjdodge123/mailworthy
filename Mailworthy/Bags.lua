@@ -274,14 +274,16 @@ end
 --- (result.to), a share that already stays (no bank alt, skipped), a hard keep (none has a
 --- verdict) or a soulbound item; and the Vendor switch needs a price source: without one only
 --- white items and staples go (AGENTS safety), so junk stays.
---- Never for a pinned item either way (operator, 2026-11-13: a pin "needs to be honored"): a switch
---- that is off doesn't hold a bank pin, and Send: V never mails a vendor pin. Send: V mails only what
+--- Never for a pinned item either way (operator, 2026-11-13: a pin "needs to be honored"), nor a row's
+--- Alt (Routes.ToBankAlt, the player's click): a switch that is off doesn't hold a bank pin or an Alt,
+--- and Send: V never mails a vendor pin. Send: V mails only what
 --- has a current auction price a vendor beats ("not worth it"): never grey junk, an item with no
 --- auction price or a failed price call (AGENTS safety: "Grey junk stays, an item whose price call
 --- failed stays"; Codex/operator review of feat/craft-mats-to-alt, 2026-11-13).
 function Bags.ApplySendSwitches(item, settings, priced)
     local r = item.result
-    if settings.forTags or settings.hold or type(r) ~= "table" or r.to or r.held or r.pinned then return end
+    if settings.forTags or settings.hold or type(r) ~= "table" then return end
+    if r.to or r.held or r.pinned or r.altPick then return end
     local tag = ns.Valuation.Verdict(item, ns.Config.BanksHere())
     local key = tag and ns.Valuation.SEND[tag]
     if not key then return end
@@ -405,7 +407,7 @@ end
 
 --- Where an item goes, from its facts: its own verdict (Valuation.Evaluate, a row's "Me"), a binding's
 --- (Routes.Divert: me first, then friends, then the guild), then the row's pick for this mailbox visit
---- (Routes.Pick). Returns { own, result, choices, pickState }. `own` is never written to: what a binding
+--- (Routes.Pick). Returns { own, result, choices, pickState, bankHere, alt }. `own` is never written to: what a binding
 --- that didn't take the item says (capped, pastFor, gearBeaten) and a pick go on `result`, a table of
 --- its own, which the later steps (holdShare, Bags.ApplySendSwitches) may change.
 local function decide(item, ctx)
@@ -421,13 +423,21 @@ local function decide(item, ctx)
     -- it (Routes.Divertible; Codex review, 2026-11-14: "Me" mailed it to the bank alt).
     local moved = diverted ~= nil and not diverted.forMe
     if diverted and diverted.forMe then own = diverted end
-    -- The row's button (Routes.Pick, this mailbox visit): where the player sent it instead.
+    -- The row's button (Routes.Pick, this mailbox visit): where the player sent it instead. A bank-here
+    -- row's own rule is "Here", and Alt mails it to the bank alt (Routes.AltOffered).
     local choices = ns.Routes.Choices(item, own, price, settings, routes)
+    local bankHere = ns.Routes.BankHere(own)
+    local alt = ns.Routes.AltOffered(item, own, price, settings, routes)
     local pickState = result.key or ns.Routes.MINE
-    local pick = #choices > 0 and ns.Routes.Picked(item.link) or nil
+    local pick = (#choices > 0 or alt) and ns.Routes.Picked(item.link) or nil
     if pick == ns.Routes.MINE and moved then
         result, pickState = copy(own), pick
         result.picked = true
+    elseif pick == ns.Routes.ALT then
+        if alt then
+            result, pickState = ns.Routes.ToBankAlt(item, settings, price), pick
+            result.picked = true
+        end
     elseif pick and pick ~= ns.Routes.MINE and pick ~= result.key then
         for _, r in ipairs(choices) do
             if r.key == pick then
@@ -436,7 +446,7 @@ local function decide(item, ctx)
             end
         end
     end
-    return { own = own, result = result, choices = choices, pickState = pickState }
+    return { own = own, result = result, choices = choices, pickState = pickState, bankHere = bankHere, alt = alt }
 end
 
 --- No bank alt, or skipped this visit (settings.hold): its share stays (bindings and returns still go).
@@ -450,6 +460,7 @@ local function value(item, ctx)
     gatherFacts(item, ctx)
     local d = decide(item, ctx)
     item.result, item.choices, item.pickState = d.result, d.choices, d.pickState
+    item.bankHere, item.alt = d.bankHere or nil, d.alt or nil
     holdShare(item, ctx.settings)
     Bags.ApplySendSwitches(item, ctx.settings, ctx.priced)
 end
@@ -468,7 +479,7 @@ local function splitReturns(item, owed, settings)
     local parts = {}
     for i, p in ipairs(split) do
         parts[i] = Bags.Part(item, p.slots, ns.Returns.Result(p.to, #p.slots, settings))
-        parts[i].choices, parts[i].pickState = {}, nil
+        parts[i].choices, parts[i].pickState, parts[i].bankHere, parts[i].alt = {}, nil, nil, nil
     end
     return parts, rest
 end
@@ -541,7 +552,7 @@ local function countMails(result, stacksTo)
 end
 
 --- The bank alt first among the recipients; the Mailing list in recipient groups, then by gain; the
---- Staying list locked first (operator, 2026-11-07: "I click them, they disappear off the menu and then
+--- Staying list locked first, then the rows with a pick button (operator, 2026-11-07: "I click them, they disappear off the menu and then
 --- there's not a quick way to see what's been locked": one press on the row unlocks), then by gain.
 local function sortLists(result)
     for i, to in ipairs(result.totals.recipients) do -- the bank alt first
@@ -562,10 +573,15 @@ local function sortLists(result)
         if oa ~= ob then return oa < ob end
         return byGain(a, b)
     end)
+    -- Then the rows with a pick button (a bank-here row's Here / Alt, a binding's choice; operator,
+    -- 2026-11-21: "i want the item to still appear in the UI at the mailbox"), so they are on the first page.
     local locked = ns.Valuation.K.locked
+    local function picks(item) return item.alt == true or #(item.choices or {}) > 0 end
     table.sort(result.keep, function(a, b)
         local la, lb = ns.Valuation.Is(a.result, locked), ns.Valuation.Is(b.result, locked)
         if la ~= lb then return la end
+        local pa, pb = picks(a), picks(b)
+        if pa ~= pb then return pa end
         return byGain(a, b)
     end)
     result.locked = 0

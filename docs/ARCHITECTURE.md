@@ -89,7 +89,7 @@ function. Specs: the module's own spec first; `critical_path` = `spec/critical_p
 | `Config.lua` | Saved settings over `Valuation.DEFAULTS`; bank alt per realm/faction; flags | `Config.Values/Get/Set/Step/Flag`, `Tooltips` / `CycleTooltips` (item tooltips: full / short / off), `BankAlt`, `SetBankAlt`, `SetBankAltHere`, `IsBankAltHere`, `BanksHere` (pins bank here), `Choices`; `Set` and the bank alt setters fire `Bags.InputsChanged` | config |
 | `Classes.lua` | Class-only items from the tooltip "Classes:" line | `Classes.Of`, `Mine`, `ForOther` (pure), `Token`, `Name` | classes |
 | `ClassSkills.lua` | A class's own skill items: a rogue's locked lockboxes (Classic's item IDs, else the tooltip's "Locked" / "Requires Lockpicking" line; unlocked ones by the bag slot's tooltip), a mage's Comprehension scrolls ("Requires Comprehension") | `ClassSkills.Of`, `Opened` (a bag slot: unlocked / locked / unknown), `Count` (a kind of lockbox's lock states over all bag groups), `Known` (pure), `Read` / `SkillPattern` / `IsLockedLine` (pure), `OfClass`, `ItemsText`, `How`, `Forget`, `ReportLines`; `SKILLS`, `LOCKBOXES` | class_skills |
-| `Routes.lua` | **Bindings**: a profession's materials (or a class's items, its skill's items like materials: `SkillItem`) to a player; skip once; row picks | `Routes.Divert`, `Divertible`, `Matches`, `SkillItem`, `Before`, `Force`, `Choices`, `Pick/Picked/ClearPicks`, `Active`, `List`, `Add/Remove`, `Crafter`, `Recipient`, `ClassPriced`, `PriceKeep`, `GearBeaten`, `Takers` (the binding filter Divert and Choices share), `Skill(route, cache)` (one roster read per scan); every change of a binding, skip or pick fires `Bags.InputsChanged` | routes |
+| `Routes.lua` | **Bindings**: a profession's materials (or a class's items, its skill's items like materials: `SkillItem`) to a player; skip once; row picks | `Routes.Divert`, `Divertible`, `Matches`, `SkillItem`, `Before`, `Force`, `Choices`, `Pick/Picked/ClearPicks`, `MINE` / `ALT`, `PickStates` / `NextPick` / `PickLabel` (the row button's cycle: Me or Here, Alt, then the bindings), `BankHere` / `AltOffered` / `ToBankAlt` (a bank-here row's Alt: to the bank alt this visit), `Active`, `List`, `Add/Remove`, `Crafter`, `Recipient`, `ClassPriced`, `PriceKeep`, `GearBeaten`, `Takers` (the binding filter Divert and Choices share), `Skill(route, cache)` (one roster read per scan); every change of a binding, skip or pick fires `Bags.InputsChanged` | routes |
 | `Comms.lua` | Addon messages between Mailworthys (prefix `Mailworthy`); peers; the name mark | `Comms.Register(letter, def)` (each module registers and owns its message kinds: decode, hear, channels, afterHello), `Kinds`, `RegisterPrefix`, `Announce` (the hello, then each kind's `afterHello` in registration order), `Ask`, `Hear` (dispatches through the registry; a skills or hello message marks the bag tags stale: `BankAlt.Invalidate`), `UpdatePeer(name, fields, create)`, `OnPeersChanged` (synchronous), `OnHeard`, `Assembler()` (multipart messages, per guild key + sender), `SendGuild`, `Whisper`, `Peers/Peer`, `Skill`, `Mark`, `OnMarksChanged` | peer_mark, routes, comms_wire |
 | `Guild.lua` | **Guild template**: GM/officer rules, shared on GUILD, opted into per player | `Guild.Rules`, `Offer`, `Hear`, `Broadcast`, `Ask`, `CanPublish`, `InUse/SetUse/ToggleUse`, `Draft*`, `Publish` | guild |
 | `Stale.lua` | Stale-price nudge (Auctionator's age, or TSM's data age when younger); peers' scan days (display only) | `Stale.OwnAge`, `EffectiveAge` (pure), `Nudge` (pure), `Hear`, `Message`, `Current` | stale |
@@ -116,7 +116,7 @@ function. Specs: the module's own spec first; `critical_path` = `spec/critical_p
 | `MinimapButton.lua` | Minimap button (Settings; Trip line in the tooltip) | `MinimapButton.Create`, `Refresh` | trip |
 | `MailWindow.lua` | **The Mailworthy window** at the mailbox: frame, Create, Layout, Refresh (one fill per block), Show, events; the other `Mail*.lua` files add to the same `ns.MailWindow` table and share state on `MailWindow.shared` (internal) | `MailWindow.Show/Toggle/Refresh/RefreshIfShown`, `Result`, `Frame` | mail_window, ux_views |
 | `MailTooltip.lua` | Row tooltips and the pick lines (mouse and the controller's highlight) | `MailWindow.TooltipLines` (third value: the Square line), `PickLines`, `InstallTooltip` | mail_window |
-| `MailRows.lua` | Mailing and Staying rows, their pick buttons (not D-pad stops: `Nav.Skip`), pagers, Square on a row | `MailWindow.PadPick`, `RowFor`, `PickFor`, `StayReason`, `WhyKept` | mail_window, dpad_reach |
+| `MailRows.lua` | Mailing and Staying rows, their pick buttons (not D-pad stops: `Nav.Skip`), pagers, Square on a row | `MailWindow.PadPick`, `RowFor`, `PickFor`, `HasPick` (choices or a bank-here row's Alt), `StayReason`, `WhyKept` | mail_window, dpad_reach |
 | `MailRecipients.lua` | The "To:" lines and their buttons, Return to sender | `MailWindow.Recipients`, `ToggleReturns` | mail_window, returns |
 | `MailBanners.lua` | One helper for the stale, owed and offer notices (a label and 0-2 buttons) | (internal) | mail_window |
 | `MailBindings.lua` | The bindings block (Skip once; Remove asks "Sure?": `Widgets.ConfirmButton`) | (internal) | mail_window, routes |
@@ -146,9 +146,10 @@ function. Specs: the module's own spec first; `critical_path` = `spec/critical_p
      `Pins.Effective`, `Quests.For`, `Conjured.Is`, `Recipes.Known` (recipes only: `item.known`), `Classes.Of`, `ClassSkills.Of` (`item.classSkill`, `item.ownSkill`; read only on a rogue or mage, or with a binding for that class; a kind of lockbox, `ClassSkills.Count` over `ctx.groups`: `classSkill` only while every box is known locked, `ownSkill` while any is locked or unknown), `Prices.Vendor`,
      `Prices.Lookup` when `Prices.Source()` is set), then:
      `Valuation.Evaluate` (section 4.2) → `Routes.Divert` (section 4.3) → `Routes.Choices`
-     and the row pick (`Routes.Picked` → `Routes.Force`) → `settings.hold` (no bank alt,
+     and the row pick (`Routes.Picked` → `Routes.Force`, or a bank-here row's Alt: `Routes.AltOffered` →
+     `Routes.ToBankAlt`; `item.bankHere`, `item.alt`) → `settings.hold` (no bank alt,
      or skipped for the visit: the bank alt's share stays) → `Bags.ApplySendSwitches` (the
-     Send A/D/B/V switches).
+     Send A/D/B/V switches; never on a pin or an Alt).
    - Return to sender: when `Returns.On()`, `settings.returns = Returns.Current()`; an item
      that is not a hard keep is split by `Returns.Split` into whole stacks per sender
      (`Returns.Result`, no row pick); the rest is valued as usual.
@@ -229,7 +230,13 @@ The verdict (`item.result`) carries `action`, `route`, `reason`, `gain`, `postag
 
 The row pick (`Routes.Pick`, one visit) goes through `Routes.Choices`, which skips the tier
 table, cap, Gear switch and profession keep but not `Divertible`, `ClassPriced`, a binding
-naming this character, or Return to sender.
+naming this character, or Return to sender. On a bank-here row (`Routes.BankHere`: a profession's
+keep or a bank-here pin) the cycle has **Alt** after Here (`Routes.PickStates`): `Routes.AltOffered`
+(a bank alt taking this visit's mail, item data loaded, no hard keep, failed price call, nor a
+binding in force for the item that names this character) → `Routes.ToBankAlt` (route `bank`,
+`altPick`; gain and auction unit price from the item's own rule without the pin or profession keep).
+A main that never sent tags an Alt like a pin (`BankAlt.Refresh`). The Staying list puts rows
+with a pick button right after the locked ones (`Bags` `sortLists`), so they are on its first page.
 
 ### 4.4 Bag tags and tooltip lines
 
@@ -469,7 +476,7 @@ against them.
 | Cap: at or above it the normal rule applies; green/blue against max(auction, vendor) | `Routes.Divert`, `Routes.Units`; `Valuation.DisenchantsHere` |
 | Enchanting Gear switch | `Routes.GearBeaten` (in `Routes.Divert`); wire format `Guild.WireCap` / `ReadCap` |
 | Me first, then friends, then guild | `Valuation.ProfessionKeep` / `NeededBy` → `Routes.Divert` returns nil on `neededBy`; `Routes.Before`; `Guild.Rules` / `Guild.Why` drop what this character has or bound itself |
-| The row pick and what it can't bypass | `Routes.Pick` / `Picked` / `ClearPicks` (`MAIL_CLOSED`), `Routes.Choices` (`Divertible`, then `Routes.Takers`: `ClassPriced`, `IsMe`); `Bags.Evaluate` (returns carry no pick) |
+| The row pick and what it can't bypass | `Routes.Pick` / `Picked` / `ClearPicks` (`MAIL_CLOSED`), `Routes.Choices` (`Divertible`, then `Routes.Takers`: `ClassPriced`, `IsMe`); a bank-here row's Alt: `Routes.AltOffered` (`BankHere`, `settings.hold`, `HardKeep`, failed price, `forMe`, item data); `Bags.Evaluate` (returns carry no pick; `ApplySendSwitches` skips `altPick`) |
 | Re-check each slot right before attaching | `Bags.StillThere` (shared with the vendor) via `Mailer.StillThere` in `sendNext`; attached-count check in `sendMail` |
 | No price source: only whites and `Valuation.STAPLES` (recipes only to their binding) | `Prices.Source`; `Valuation` local `evaluate`; `Routes.Matches` + `Valuation.RecipeProfession` |
 | Priced but no or stale price → bank alt, never a class binding; failed price call stays; grey stays (with a current auction price too when a vendor buys it: `Valuation.IsVendorTrash` in the local `evaluate`, kind `trash`) | `Valuation.Unpriced`; `Prices.Lookup` / `TSMUnit` (`failed`); `Routes.PriceKeep`, `Routes.ClassPriced` |

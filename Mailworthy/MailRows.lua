@@ -3,7 +3,8 @@
 --
 -- A row is one button: a press locks the item (it stays in the bags) or unlocks it. The pick button
 -- (Routes.Pick; operator, 2026-11-14) says where the item goes this mailbox visit, cycling Me (its
--- own verdict) -> each friend binding that takes it -> each guild rule that takes it. Mouse: click
+-- own verdict; "Here" on a bank-here row) -> Alt (a bank-here row: the bank alt; operator, 2026-11-21)
+-- -> each friend binding that takes it -> each guild rule that takes it. Mouse: click
 -- it. Controller: one D-pad stop per row (UX review U4): Square on the highlighted row moves its pick
 -- on (UI.PadPick, PadKey "window" set); the pick button is not a D-pad stop of its own (Nav.Skip).
 local _, ns = ...
@@ -31,6 +32,12 @@ UI.CHIPS = {
 --- The chip for a result: a pinned item's own, else its route's.
 function UI.ChipFor(r)
     return (r.pinned and UI.CHIPS.pinned) or UI.CHIPS[r.route] or UI.CHIPS.common
+end
+
+--- Pure: a row's item has a pick button: a binding could take it (`item.choices`), or it is banked here
+--- and the bank alt could (`item.alt`: Routes.AltOffered; operator, 2026-11-21: Here / Alt).
+function UI.HasPick(item)
+    return type(item) == "table" and (#(item.choices or {}) > 0 or item.alt == true)
 end
 
 --- Pure: a bank-here pin's keep (not a BA pin held this visit).
@@ -126,12 +133,13 @@ end
 -- A row's pick moves on (its button by mouse, Square on the row by controller). Never during a send.
 local function cyclePick(row)
     local item = row.item
-    if not item or ns.Mailer.Busy() or #(item.choices or {}) == 0 then return false end
-    local nextState = ns.Routes.NextPick(item.pickState or ns.Routes.MINE, item.choices)
+    if not item or ns.Mailer.Busy() or not UI.HasPick(item) then return false end
+    local nextState = ns.Routes.NextPick(item.pickState or ns.Routes.MINE, item.choices, item.alt)
     ns.lastCommand = "Mailworthy pick"
     ns.Mailer.Dismiss() -- the list changes: the last run's receipt no longer describes it
     ns.Routes.Pick(item.link, nextState)
-    ns.Log.Add("routes", "picked %s for %s", ns.Routes.PickLabel(nextState, item.choices), tostring(item.link))
+    ns.Log.Add("routes", "picked %s for %s", ns.Routes.PickLabel(nextState, item.choices, item.bankHere),
+        tostring(item.link))
     UI.Refresh()
     return true
 end
@@ -166,17 +174,26 @@ end
 -- can move an item from Staying to Mailing), or nil.
 local function rowShowing(link)
     local lists = { { page = "mail", items = "mail", rows = S.mailRows }, { page = "stay", items = "keep", rows = S.stayRows } }
-    for _, list in ipairs(lists) do
-        for _, row in ipairs(list.rows) do
-            if row.button:IsShown() and row.item and row.item.link == link then return row.button end
+    -- The row with the pick first: what goes back to its sender (Return to sender) shares the link and
+    -- has none (Codex review, 2026-11-21: Square then landed on it and did nothing).
+    for _, wantPick in ipairs({ true, false }) do
+        for _, list in ipairs(lists) do
+            for _, row in ipairs(list.rows) do
+                if row.button:IsShown() and row.item and row.item.link == link
+                    and (not wantPick or UI.HasPick(row.item)) then
+                    return row.button
+                end
+            end
         end
     end
-    for _, list in ipairs(lists) do
-        for i, item in ipairs(S.result and S.result[list.items] or {}) do
-            if item.link == link then
-                S.pages[list.page] = math.floor((i - 1) / #list.rows) + 1
-                UI.Refresh(true)
-                return list.rows[(i - 1) % #list.rows + 1].button
+    for _, wantPick in ipairs({ true, false }) do
+        for _, list in ipairs(lists) do
+            for i, item in ipairs(S.result and S.result[list.items] or {}) do
+                if item.link == link and (not wantPick or UI.HasPick(item)) then
+                    S.pages[list.page] = math.floor((i - 1) / #list.rows) + 1
+                    UI.Refresh(true)
+                    return list.rows[(i - 1) % #list.rows + 1].button
+                end
             end
         end
     end
@@ -209,15 +226,15 @@ local function pickButton(row, parent, name, height)
     S.pickOf[row.pick] = row
 end
 
---- A row's pick button for its item: shown when a binding could take it, named for its state, lit
---- when the player picked it.
+--- A row's pick button for its item: shown when a binding could take it, or the bank alt a bank-here
+--- item (Alt), named for its state, lit when the player picked it.
 local function fillPick(row, item)
     if not row.pick then return end
-    if #(item.choices or {}) == 0 then
+    if not UI.HasPick(item) then
         row.pick:Hide()
         return
     end
-    row.pick:SetText(ns.Routes.PickLabel(item.pickState, item.choices))
+    row.pick:SetText(ns.Routes.PickLabel(item.pickState, item.choices, item.bankHere))
     W.SetToggled(row.pick, item.result and item.result.picked == true)
     row.pick:Show()
 end
