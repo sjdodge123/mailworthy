@@ -6,7 +6,8 @@
 --          docs/RECOMMENDATIONS.md): a meter of what's been paid back so far, a lighter part for what this
 --          Send would pay them (the list's mail to that player, at this character's values), and
 --          Mark part paid (an amount, - / +, two presses) for paying another way
--- Under them, the suggested bindings (MailSuggestions.lua: crafters in the group and your own characters).
+-- Under them, the payback ideas (MailIdeas.lua) and the suggested bindings (MailSuggestions.lua: crafters in
+-- the group and your own characters).
 local _, ns = ...
 
 local UI = ns.MailWindow
@@ -84,6 +85,7 @@ function S.CreateBanners()
     W.Tip(meter.less, "Less", "5s less to mark as paid.")
     W.Tip(meter.more, "More", "5s more to mark as paid (never more than you owe).")
     for _, w in pairs(meter) do w:Hide() end
+    S.CreateIdeas()
     S.CreateSuggestions()
 end
 
@@ -178,6 +180,7 @@ function S.FillBanners(result, ctx, shown)
     else
         owedName, partAmount, S.owedMeter = nil, nil, nil
     end
+    S.FillIdeas(result, ctx, shown) -- payback ideas (MailIdeas.lua), under the owed notice
     -- The suggested bindings: not while a send runs, nor with the switch or the setting off.
     S.FillSuggestions(result, ctx, shown)
 end
@@ -209,5 +212,6 @@ function S.LayoutBanners(y, n)
             y = y - 28
         end
     end
+    y = S.LayoutIdeas(y, n)
     return S.LayoutSuggestions(y, n)
 end

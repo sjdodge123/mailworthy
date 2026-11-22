@@ -55,8 +55,8 @@ the order, but anything run at file load (constants built from other modules,
 | 1 | Foundation | `Core`, `Log`, `Util`, `Blocked`, `Characters`, `Gamepad`, `Locks`, `Palette`, `Pins`, `Border` |
 | 2 | Pricing and rules | `Prices`, `Disenchant`, `Tiers`, `TierData` (fills `ns.Tiers`), `TierCheck`, `Quests`, `Conjured`, `Recipes`, `Ammo`, `Valuation`, `Config`, `Classes`, `ClassSkills` |
 | 3 | Bindings and peers | `Routes`, `Comms`, `Guild`, `Stale`, `Version` |
-| 4 | Scan, send, records | `Bags`, `Mailer`, `Ledger`, `LedgerWire`, `LedgerHooks`, `LedgerExport`, `Contributions`, `Returns`, `Trip`, `Suggest` |
-| 5 | Windows and input | `Widgets`, `MailButton`, `Nav`, `PadKey`, `SettingsUI`, `RoutesUI`, `LedgerUI`, `LocksUI`, `PinsUI`, `PinWarning`, `MinimapButton`, `MailWindow` (+ `MailTooltip`, `MailRows`, `MailRecipients`, `MailBanners`, `MailSuggestions`, `MailBindings`, `MailTotals`, `MailSend`, `MailTabs`), `BankAlt`, `Vendor` |
+| 4 | Scan, send, records | `Bags`, `Mailer`, `Ledger`, `LedgerWire`, `LedgerHooks`, `LedgerExport`, `Contributions`, `Returns`, `Paybacks`, `Trip`, `Suggest` |
+| 5 | Windows and input | `Widgets`, `MailButton`, `Nav`, `PadKey`, `SettingsUI`, `RoutesUI`, `LedgerUI`, `LocksUI`, `PinsUI`, `PinWarning`, `MinimapButton`, `MailWindow` (+ `MailTooltip`, `MailRows`, `MailRecipients`, `MailBanners`, `MailSuggestions`, `MailIdeas`, `MailBindings`, `MailTotals`, `MailSend`, `MailTabs`), `BankAlt`, `Vendor` |
 | 6 | Integrations, report | `BagAddons`, `AuctionatorTags`, `Report` |
 
 ## 3. Module map
@@ -80,7 +80,7 @@ function. Specs: the module's own spec first; `critical_path` = `spec/critical_p
 | `Disenchant.lua` | Era disenchant tables and expected value (port of Disenchantry 1.1.5) | `Disenchant.Outcomes`, `ExpectedValue` (pure), `Value` | disenchant |
 | `Tiers.lua` | Material tiers: the skill at which a profession is done with a material | `Tiers.Threshold`, `Outgrown`, `OutgrownNames`, `PastText`, `Step`, `WorthConverting` (pure) | tiers |
 | `TierData.lua` | **Generated** tier tables (`tools/tiers/build.py` from `tools/tiers/data.py`; edit those) | `Tiers.DONE`, `Tiers.KEEP`, `Tiers.CONVERT` | tiers (indirect) |
-| `TierCheck.lua` | Reads the player's own profession window; materials past the table still used | `TierCheck.Scan`, `Annotate`, `Findings`, `Latest`, `ReportLines` | tier_check |
+| `TierCheck.lua` | Reads the player's own profession window; materials past the table still used | `TierCheck.Scan`, `Crafts` (pure: output -> recipe and reagent counts, `quantityRequired`), `MyCrafts` (this character's, every skill line; Paybacks reads it), `Annotate`, `Findings`, `Latest`, `ReportLines` | tier_check |
 | `Quests.lua` | Items an active quest's objective names | `Quests.For(link)`, `Update`, `Invalidate` | quests |
 | `Conjured.lua` | Conjured items (ID list, else the tooltip's "Conjured Item" line) | `Conjured.Is`, `Known` (pure), `How` | conjured |
 | `Recipes.lua` | Recipes this character already knows (the tooltip's "Already known" line, `ITEM_SPELL_KNOWN`); per visit | `Recipes.Known`, `IsKnownLine` (pure), `Forget`, `ReportLines` | recipes |
@@ -97,11 +97,12 @@ function. Specs: the module's own spec first; `critical_path` = `spec/critical_p
 | `Bags.lua` | **The scan**: bag slots into items, each valued; the preview list (`Evaluate` in named steps: prepare settings, facts, decide, file, return split, sort); the shared last-moment re-check; the scan-inputs signal | `Bags.Evaluate`, `PrepareSettings`, `Settings(opts)` (the one settings builder: window, tags, report, trip), `SettingsLine`, `StillThere(stack, how)` + `RECHECKS`, `OnInputsChanged` / `InputsChanged(why, lazy)`, `Slots`, `Fingerprint` / `FingerprintOf` (pure; bag contents without ammo stack sizes), `Group`, `CurrentSettings`, `ApplySendSwitches`, `SkipBankAlt/BankAltSkipped`, `HoldReason`, `ProfessionKeep`, `Scan` | bags, send_switches |
 | `Mailer.lua` | **The send**: plan 12 stacks per mail, re-check, attach, send, chain | `Mailer.Start`, `Plan` (pure), `Blocker`, `Short` (the list's postage + `RESERVE` against `GetMoney`), `Affords` (pure: postage + the 5s `RESERVE`), `ReserveText`, `PER_MAIL` (the one per-mail count), `StillThere` (`Bags.StillThere` with the mailer's words; ammo of a weapon equipped since the preview stays; so does a stack already attached), `Stop`, `RequestStop`, `Busy`, `Status`, `OnChanged`, `OnSent` | mailer |
 | `Ledger.lua` | Mail ledger: the log and balances (shared internals for its other files on `Ledger.internal`) | `Ledger.Add`, `Debts`, `Net`, `MarkPaid(name, amount)` (no amount, or all of it: back to zero; less: Mark part paid, a `paid` log entry with `part` and `left`), `PaidBack` (paid back so far, of all received), `StepPart` (pure: the part amount, `PART_STEP` 5s, `PART_DEFAULT` 20s), `Store`, `IsOwn`, `OnChanged` | ledger |
-| `LedgerWire.lua` | The ledger's M2 / R2 (and old V2) value exchange; outbox and expect queues; registers those kinds with Comms | `Ledger.Hear*`, `EncodeAnswers`, `DecodeValues`, `DecodeAnswers`, `Flush` | ledger, comms_wire |
-| `LedgerHooks.lua` | What the ledger sees of mail: `RecordSent` (Mailer's own mails), the `SendMail` / take post-hooks, the mail events | `Ledger.RecordSent`, `Install` | ledger |
+| `LedgerWire.lua` | The ledger's M2 / R2 (and old V2) value exchange (a payback's materials value in M2 messages of its own, age field `c`: `craft`); outbox and expect queues; registers those kinds with Comms | `Ledger.Hear*`, `EncodeAnswers`, `DecodeValues`, `DecodeAnswers`, `Flush` | ledger, comms_wire |
+| `LedgerHooks.lua` | What the ledger sees of mail: `RecordSent` (Mailer's own mails; a payback's unpriced item at its materials, capped at what's owed; then `Paybacks.AfterSend`), a taken `craft` value capped at what the sender owed this account, "<name> made you ..." for a payback, the `SendMail` / take post-hooks, the mail events | `Ledger.RecordSent`, `Install` | ledger |
 | `LedgerExport.lua` | The Export log text (MARKED PAID / MARKED PART PAID lines) | `Ledger.ExportText` | ledger, payback |
 | `Contributions.lua` | What this account mailed because of guild rules; `MailworthyAPI.v1.GetGuildExport` | `Contributions.Tag`, `Count`, `Hear`, `Share`, `Export`, `Build` | contributions |
 | `Returns.lua` | Return to sender: per-visit toggle (its button shows only while on or when `Due`); what each sender is owed from the ledger | `Returns.On/Toggle/Available`, `Owed` (pure), `Split` (pure), `Due` (pure), `Result`, `Current` | returns |
+| `Paybacks.lua` | Payback ideas: the needs note (`N2`, whispered with a counted mail's values: level, class, bag sizes, the ammo the ranged weapon fires; `ledger[realm|faction].needs`, 30 days, only from the character it names, for one of this account's), the ideas from this character's own recipes for each player it owes (a bigger bag, the ammo their weapon fires for their level), the payback pick (a choice after the bindings on a made item's row, route `payback`, off until picked), the materials value of an unpriced payback, the chat line at the profession window | `Paybacks.On`, `ShareNeeds`, `MyNeeds`, `EncodeNeeds` / `DecodeNeeds` / `Ideas` / `SlotsFromLine` (pure), `AfterSend`, `HearNeeds`, `Needs`, `Facts`, `ForDebts`, `Targets`, `ChoiceFor`, `Result`, `MaterialsValue`, `Decline` / `Declined`, `Have`, `Remind`, `Reset`; `ROUTE` | paybacks, comms_wire, critical_path, tier_check |
 | `Trip.lua` | "Worth a mailbox trip" nudge away from a mailbox | `Trip.Check`, `Summary`, `TooltipText` | trip |
 | `Suggest.lua` | Suggested bindings' state: fold (account), seen (per realm), Not now (one visit), on / off (switch `crafterOffer`, setting `hideSuggestions`); the chat line away from the mailbox when a crafter in the group could use something (once per player and profession a session, never in combat) | `Suggest.On`, `Folded` / `SetFolded`, `Seen` / `MarkSeen`, `NotNow` / `Hidden`, `Order` / `ItemsText` / `JoinText` / `Key` (pure), `JoinCheck`, `Reset`, `DELAY` | suggest |
 | `Widgets.lua` | Shared window/button/label/footer builders; the window skeleton (`Shell`: title, sub line, legend, Done, Show beside the opener, the end of a Refresh), `ListWindow` (paged rows, empty line, bottom row), `Pager`, `Views` (one window, several views), button explanations (`Tip`: tooltip and the controller highlight), two-press buttons (`ConfirmButton`: Remove, Forget, Publish) | `Widgets.Window`, `Button`, `SetToggled`, `Label`, `Footer`, `PagerBack`, `PlaceBeside` (first `Unanchor`: a window placed beside the one it now places is pinned where it is, never a circular anchor), `Unanchor`, `Shell`, `ListWindow`, `Pager`, `Views`, `Tip` / `ShowTip` / `TipText`, `ConfirmButton(parent, text, confirmText, width, onConfirm, name, onArm)`, `Disarm` / `DisarmAll` / `Armed` / `SetConfirmText`, `CONFIRM_SECONDS` | widgets |
@@ -121,6 +122,7 @@ function. Specs: the module's own spec first; `critical_path` = `spec/critical_p
 | `MailRecipients.lua` | The "To:" lines and their buttons, Return to sender | `MailWindow.Recipients`, `ToggleReturns` | mail_window, returns |
 | `MailBanners.lua` | One helper for the stale and owed notices (a label and 0-2 buttons); under the owed one, the pay-back meter (paid back so far, a lighter part for what this Send would pay that player) and Mark part paid (`MailworthyMailPartLess`, `...PartPaid` (two presses: `Widgets.ConfirmButton`), `...PartMore`); hands over to the suggestions | `MailWindow.OwedText`, `SendShare` / `MeterText` (pure), `StepPart`, `MarkPartPaid`, `OwedState`, `MeterLine` | mail_window, payback, dpad_reach |
 | `MailSuggestions.lua` | The suggested bindings block: one line for one suggestion, else a heading (Fold `MailworthyMailSuggestFold`, More `...SuggestMore`, Not now `...SuggestNotNow`) over up to three rows, each While grouped / This visit (`MailworthyMailOfferVisit[n]`), Bind (`...OfferBind[n]`), Not for (`...OfferNot[n]`); a row's buttons light its list rows (mouse, `Nav.OnSelect`); never a price | `MailWindow.Offer`, `Suggestions`, `OfferText` / `SuggestHeadText` / `ShortText` (pure), `AcceptOffer`, `DeclineOffer` | suggest, mail_window, critical_path, dpad_reach |
+| `MailIdeas.lua` | The payback ideas under the owed notice: a heading (Fold `MailworthyMailIdeasFold`, remembered: `MailworthyDB.ideasFolded`) over up to three rows, each the idea's line and Not for <name> (`MailworthyMailIdeaNot<i>`) | `MailWindow.Ideas`, `IdeaText` (pure) | paybacks, dpad_reach |
 | `MailBindings.lua` | The bindings block (Skip once; Remove asks "Sure?": `Widgets.ConfirmButton`) | (internal) | mail_window, routes |
 | `MailTotals.lua` | Total box, receipt, postage text | `MailWindow.TotalText`, `NoAltText`, `EmptyText`, `PostageText` | mail_window |
 | `MailSend.lua` | **Previewed = sent**: the Send button's state and text, the re-scan compare, Send, Stop | `MailWindow.SendState`, `SendText`, `Changed`, `Send`, `Stop` | mail_window, critical_path |
@@ -147,7 +149,7 @@ function. Specs: the module's own spec first; `critical_path` = `spec/critical_p
    - Per item, the local `value(item)` gathers facts (`Locks.IsItemLocked`,
      `Pins.Effective`, `Quests.For`, `Conjured.Is`, `Recipes.Known` (recipes only: `item.known`), `Classes.Of`, `ClassSkills.Of` (`item.classSkill`, `item.ownSkill`; read only on a rogue or mage, or with a binding for that class; a kind of lockbox, `ClassSkills.Count` over `ctx.groups`: `classSkill` only while every box is known locked, `ownSkill` while any is locked or unknown), `Prices.Vendor`,
      `Prices.Lookup` when `Prices.Source()` is set), then:
-     `Valuation.Evaluate` (section 4.2) → `Routes.Divert` (section 4.3) → `Routes.Choices`
+     `Valuation.Evaluate` (section 4.2) → `Routes.Divert` (section 4.3) → `Routes.Choices` (plus a payback: `Paybacks.ChoiceFor`, once per scan `Paybacks.Targets`)
      and the row pick (`Routes.Picked` → `Routes.Force`, or a bank-here row's Alt: `Routes.AltOffered` →
      `Routes.ToBankAlt`; `item.bankHere`, `item.alt`) → `settings.hold` (no bank alt,
      or skipped for the visit: the bank alt's share stays) → `Bags.ApplySendSwitches` (the
@@ -285,7 +287,8 @@ format below is pinned byte for byte by `spec/comms_wire_spec.lua` (older Mailwo
 | `G2` | `Contributions.Messages` | GUILD | Guild-rule giving totals |
 | `T2` | `Guild.Broadcast` | GUILD | One guild template rule part |
 | `Q2` | `Guild.Ask` | GUILD | Ask for a newer template |
-| `M2` | `LedgerWire` outbox via `Comms.Whisper` | WHISPER | A sent mail's per-item values, to the recipient |
+| `M2` | `LedgerWire` outbox via `Comms.Whisper` | WHISPER | A sent mail's per-item values, to the recipient (a payback's materials value in a message of its own, age `c`) |
+| `N2` | `Paybacks.AfterSend` via the ledger's outbox | WHISPER | The needs note: the sender's level, class, bag sizes, the ammo it fires (once a session per recipient) |
 | `R2` | `LedgerWire` (`Ledger.EncodeAnswers`) | WHISPER | The recipient's settled value when it differs |
 | `V2` | (no longer sent) | WHISPER | Old value format, still decoded by `Ledger.DecodeValues` (`LedgerWire`) |
 
@@ -330,6 +333,7 @@ Every `ns.On` handler, by event. `Blocked.lua` registers `ADDON_ACTION_FORBIDDEN
 | `GUILD_ROSTER_UPDATE` | Guild, Contributions, RoutesUI |
 | `QUEST_LOG_UPDATE` | Quests |
 | `TRADE_SKILL_SHOW`, `TRADE_SKILL_LIST_UPDATE`, `TRADE_SKILL_DATA_SOURCE_CHANGED`, `TRADE_SKILL_UPDATE`, `CRAFT_SHOW`, `CRAFT_UPDATE` | TierCheck |
+| `TRADE_SKILL_SHOW`, `CRAFT_SHOW` | Paybacks (the payback ideas' chat line, 2 s after) |
 | `MERCHANT_SHOW`, `MERCHANT_CLOSED` | Vendor |
 | `INPUT_DEVICE_INTERFACE_TRANSITION` | PadKey, MailButton, Vendor |
 
@@ -381,7 +385,7 @@ server side.
 | `routes` *init* | `[realm|faction] = { binding }` (account scope) | Routes |
 | `peers` *init* | `[realm|faction][lowername] = {name, professions, characters, version, at, skills, release}` | Comms (`release`: Version) |
 | `pins` *init* | `[itemID] = {kind = "bank"|"vendor", link, at}` | Pins |
-| `settings` | `[key] = value` (only what the player touched; defaults in `Valuation.DEFAULTS`, flags in `Config.FLAGS` (`hideSuggestions`: Settings > Suggestions off), `tooltips` = "full" / "short" / "off") | Config |
+| `settings` | `[key] = value` (only what the player touched; defaults in `Valuation.DEFAULTS`, flags in `Config.FLAGS` (`hideSuggestions`: Settings > Suggestions off; `hideNeeds`: Settings > Tell crafters off), `tooltips` = "full" / "short" / "off") | Config |
 | `bankAlts` | `[realm|faction] = name` | Config |
 | `names` | `{ {name, realm, faction} }`, 40 | Config |
 | `realms` | `[realm] = {firstSeen}` | Config |
@@ -392,9 +396,11 @@ server side.
 | `suggestSeen` | `[realm|faction]["name|prof"] = true` (a suggestion the player has looked at) | Suggest |
 | `suggestFolded` | `true` or nil (the suggestions block folded to one line) | Suggest |
 | `fresh` | `[realm|faction][lowername] = {name, day, at}` | Stale |
-| `tierCheck` | `[charKey][skillLine] = {rank, at, recipes, reagents, findings, ...}` | TierCheck |
+| `tierCheck` | `[charKey][skillLine] = {rank, at, recipes, reagents, crafts, findings, ...}` (`crafts[output] = {recipe, reagents = {[itemID] = count}}`) | TierCheck (Paybacks reads) |
 | `mailed` | `[itemID] = {route, listRoute, reason, gain, at, from, to}`, 30 days | Mailer (BankAlt reads) |
-| `ledger` | `[realm|faction] = {log, players, expect, outbox, nextId}` | Ledger (Returns reads) |
+| `ledger` | `[realm|faction] = {log, players, expect, outbox, nextId, needs}` (`needs[lowername]` = a needs note: {name, to, at, level, class, bags, fires}, Paybacks; a payback's log entry carries `payback`, its items `source = "craft"`) | Ledger (Returns, Paybacks read) |
+| `paybackDeclined` | `[realm|faction]["name|itemID"] = true` (Not for <name> on a payback idea) | Paybacks |
+| `ideasFolded` | `true` or nil (the payback ideas folded) | MailIdeas |
 | `guildTemplates` | `[realm|faction|guild] = {rev, from, via, at, rules = { {profession, to, cap, gear} }, use}` | Guild |
 | `guildDrafts`, `guildPublished` | drafts per guild key; `[key][rev] = true` | Guild |
 | `guildGiven`, `guildHeard` | `[guild key][lowername] = {name, total, since, days, ...}` | Contributions |
@@ -443,6 +449,7 @@ All default on (`ns.Features.DEFAULTS` in `Core.lua`; the help line there lists 
 | `crafterOffer` | MailSuggestions, Suggest (all suggestions and the chat line) |
 | `tiers` | Tiers |
 | `tierCheck` | TierCheck |
+| `paybacks` | Paybacks (the needs note, ideas, the payback pick), MailIdeas, Bags (`decide`) |
 | `guildTemplate` | Guild |
 | `ledger` | Ledger, Returns |
 | `returnToSender` | Returns |
@@ -471,6 +478,8 @@ against them.
 | A short-lived binding: only once pressed, never saved; While grouped only to a group member and gone when they leave (after a run already sending); This visit gone at `MAIL_CLOSED` | `Routes.AddTemp` (`InGroup`, not this character, not bound already), `Routes.GroupChanged` / `Routes.AfterRun`, the bindings block lists them first (`MailBindings`), `MAIL_CLOSED` in `Routes`; `MailSuggestions` (accept only on a press, never mid-send); the Send-time compare (`UI.Changed`) catches one that ended after the preview |
 | A guild rule is a binding only when on, authored by a GM/officer in the player's roster, to a roster member | `Guild.Rules` (`InUse`), `Guild.Offer` (`RankOf(author) <= PUBLISHER_RANK`, recipients in roster), `Guild.Hear` (GUILD only); editing: `Guild.CanPublish`, `DraftAdd`, `Publish` |
 | Return to sender: only what the ledger shows was mailed and not mailed back; whole stacks; no system/COD/returned mail; shown like any recipient | `Returns.Owed`, `Returns.Split`, `Returns.Available` (needs `ledger`); `Bags.Evaluate` (no split for a hard keep; returns win over pins and picks); "back to" chip in `MailWindow` |
+| A payback: only once picked on the row, to the player it owes who left a needs note, for an item this character makes that their idea names; never past a hard keep, a pin, a failed price call or a profession keep; its value capped at what's owed | `Paybacks.ChoiceFor` (`Routes.Divertible`), `Paybacks.Targets` (`Ledger.Debts`, `Needs`, `Ideas`), `Bags` `decide` (a choice after the bindings; `Paybacks.Result`); Return to sender still wins (`splitReturns`); `LedgerHooks` `valued` (materials, capped), the take's `craft` cap |
+| The needs note: only to the character just mailed counted materials, only its facts | `Paybacks.AfterSend` (`ShareNeeds`, `entry.counted`), `Paybacks.EncodeNeeds`; read only from the character it names (`HearNeeds`) |
 | Never attach money | `Mailer` local `sendMail` (`SetSendMailCOD(0)`, `SetSendMailMoney(0)`) |
 | Postage never leaves the character with less than 5s | `Mailer.RESERVE`, `Mailer.Affords`: `Mailer.Short` → `Mailer.Blocker` and `UI.SendState` / `UI.PostageText` (before Send); the postage check in `Mailer` local `sendMail` (each mail); money or postage the game won't say: nothing goes |
 | Never mail a locked item | `Valuation.Evaluate` (first check); `Mailer.StillThere` |
@@ -502,7 +511,8 @@ against them.
   a new window or view adds its walk), `padkey_spec`, `nav_spec`, `ux_views_spec`,
   `no_gamepad_taint_spec`.
 - **Everything else**: one `<module>_spec.lua` per module (section 3; `util_spec` for `Util`; `suggest_spec` for
-  `Suggest`, `MailSuggestions` and the short-lived bindings), plus
+  `Suggest`, `MailSuggestions` and the short-lived bindings; `paybacks_spec` for `Paybacks` and `MailIdeas`; `payback_spec`
+  for the meter and Mark part paid), plus
   `send_switches_spec` (Bags.ApplySendSwitches), `pin_mode_spec` (BA/BH, PinWarning),
   `peer_mark_spec` (Comms.Mark).
 - Run: `eval "$(luarocks --lua-version=5.1 path)"`, `busted --lua=luajit`, `luacheck .`

@@ -1,7 +1,7 @@
 # Suggested bindings and paybacks (proposal, 2026-11-22)
 
-Phases 1 (section 1, with the upgrades in 5b) and 2 (the meter and Mark part paid) are built; payback ideas
-(section 2) are not. The operator answered
+Phases 1 (section 1, with the upgrades in 5b), 2 (the meter and Mark part paid) and 3 (payback ideas for
+bags and ammo, section 2) are built; the rest of section 2's table is next. The operator answered
 every question on 2026-11-22 (sections 5b and 6); the interactive sheet is
 [media/recommendations-prototype.html](../media/recommendations-prototype.html) ->
 [.png](../media/recommendations-prototype.png).
@@ -174,8 +174,15 @@ touched (no hook into the profession window: ideas show at the mailbox and in th
    window reminder, which belongs to the paybacks). Short-lived bindings live in memory: a `/reload` ends them.
 2. **Built (2026-11-22):** the meter on the owed notice (paid back so far, what this Send would pay) and Mark
    part paid (notice and ledger window). The "made for you" subject moves to step 3: only a payback pick is one.
-3. `TierCheck` crafts, the needs note, payback ideas for Tailoring bags and Engineering ammo (the two
-   clearest checks), then the rest of the table.
+3. **Built (2026-11-22):** `TierCheck` crafts (`quantityRequired`, verified in Forever's `ProfessionsUtil.lua`),
+   the needs note, payback ideas for bags (any profession's) and ammo, the ideas block, the payback pick,
+   the "made for you" subject, the profession window's chat line, unpriced paybacks at their materials
+   (capped at what's owed on the crafter's side, and at what the crafter owed on the receiver's).
+   The needs note as built: `N2|<from>|<to>|<send time>|<level>|<CLASS or ->|<b1>,<b2>,<b3>,<b4>|<fires: 0, 2, 3>`
+   (main hand and empty slots come with the checks that need them). A materials value travels in an `M2`
+   message of its own with `c` for the scan age, so an older Mailworthy drops only that message.
+4. Next: the rest of the table (armor or a cloak for an empty slot, quivers, stones, potions, food,
+   bandages, wands).
 
 ## 5b. Upgrades (operator, 2026-11-22; the sheet's "Try:" buttons)
 

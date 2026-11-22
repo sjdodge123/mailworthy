@@ -48,6 +48,9 @@ describe("mail ledger", function()
         ns = loadAddon()
         ns.Fire("PLAYER_LOGIN")
         ns.Config.SetBankAlt(BANK_ALT)
+        -- These specs count the value messages a send queues; the needs note that goes with them
+        -- (Paybacks.lua, 2026-11-22) has its own spec, paybacks_spec.
+        ns.Config.Set("hideNeeds", true)
         prices = {}
         _G.Auctionator = { API = { v1 = {
             GetAuctionPriceByItemLink = function(_, l) return prices[l] end,

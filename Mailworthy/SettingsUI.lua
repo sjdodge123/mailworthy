@@ -41,7 +41,7 @@ local win, frame, views, nameBox, nameHint, current, emptyHint, pricesLine, vers
 local choiceRows = {}
 local sendButtons = {} -- verdict tag ("ah", "de", "b", "v") -> its Send switch
 local amountLabel, pctLabel, disenchantButton, minimapButton, tagsButton, glowButton, matsButton, hereButton
-local gatherButton, locksButton, pinButton, tooltipButton, pinWarningButton, pinnedButton, suggestButton
+local gatherButton, locksButton, pinButton, tooltipButton, pinWarningButton, pinnedButton, suggestButton, needsButton
 local summaryButton, reportButton, routingButton
 local tabButtons = {}
 local durationButtons = {}
@@ -335,7 +335,13 @@ local function createMore()
         ns.Config.Set("hideSuggestions", not ns.Config.Flag("hideSuggestions"))
     end, "At the mailbox, suggest crafters in your group and your own characters for your materials, and say in"
         .. " chat when one in your group could use something in your bags.")
-    row("more", ROW + 4, { { suggestButton, LEFT, 0 } })
+    -- The needs note (Paybacks.lua; operator, 2026-11-22: on by default): your level, class, bag sizes and ammo,
+    -- whispered to a player you mail materials to, so their Mailworthy can suggest what they could make you.
+    needsButton = toggle("more", HALF, "Needs", function()
+        ns.Config.Set("hideNeeds", not ns.Config.Flag("hideNeeds"))
+    end, "When you mail a player materials, tell their Mailworthy your level, class, bag sizes and the ammo your"
+        .. " ranged weapon fires, so it can suggest what they could make you back (a bigger bag, ammo). Nothing else.")
+    row("more", ROW + 4, { { suggestButton, LEFT, 0 }, { needsButton, RIGHT, 0 } })
     heading("more", "Windows")
     -- QoL pass D (2026-11-09): the locked items window; the count is in the label.
     locksButton = window("Locks", function() ns.LocksUI.Show(frame) end,
@@ -563,6 +569,9 @@ local function fillMain(bankAlt, here, choices)
     local suggest = not ns.Config.Flag("hideSuggestions")
     suggestButton:SetText("Suggestions: " .. (suggest and "on" or "off"))
     W.SetToggled(suggestButton, suggest)
+    local needs = not ns.Config.Flag("hideNeeds")
+    needsButton:SetText("Tell crafters: " .. (needs and "on" or "off"))
+    W.SetToggled(needsButton, needs)
     minimapButton:SetText("Minimap button: " .. (ns.Config.MinimapShown() and "shown" or "hidden"))
     W.SetToggled(minimapButton, ns.Config.MinimapShown() == true)
     summaryButton:SetText("Bank alt summary...")

@@ -157,6 +157,7 @@ end
 --- Pure: "Enchanting materials" (the profession's materials, for rows and subjects), or
 --- "Mage items" for a class binding.
 function Routes.What(route)
+    if route.payback then return "Made for them" end -- a payback pick (Paybacks.lua)
     if route.class then return (ns.Classes.Name(route.class) or tostring(route.class)) .. " items" end
     return (Routes.ProfessionName(route.profession) or "?") .. " materials"
 end
@@ -223,6 +224,7 @@ end
 --- of their characters that has it. Second return: true when it's another character.
 function Routes.Crafter(route, peer)
     if route.class then return route.to, false end -- the player named: they're the class
+    if route.payback then return route.to, false end -- a payback (Paybacks.lua): the character who mailed us
     if not peer or has(peer.professions, route.profession) then return route.to, false end
     for _, c in ipairs(peer.characters or {}) do
         if has(c.professions, route.profession) then return c.name, true end
@@ -576,7 +578,10 @@ function Routes.PickLabel(state, choices, here)
     if state == Routes.ALT then return "Alt" end
     if state == nil or state == Routes.MINE then return here and "Here" or "Me" end
     for _, r in ipairs(choices or {}) do
-        if r.key == state then return r.scope == "guild" and "Guild" or "Friend" end
+        if r.key == state then
+            if r.payback then return r.label or "Back" end -- the player paid back's first name (Paybacks.lua)
+            return r.scope == "guild" and "Guild" or "Friend"
+        end
     end
     return here and "Here" or "Me"
 end

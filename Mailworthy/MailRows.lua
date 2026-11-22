@@ -26,6 +26,7 @@ UI.CHIPS = {
     vendor = paletteChip("V vendor", P.V), -- a V item mailed because "Send: V" is on
     friend = paletteChip("to a friend", P.F), -- the chip says "to <first name>", in F's colour
     ["return"] = paletteChip("back to sender", P.R), -- the chip says "back to <first name>", in R's colour
+    payback = paletteChip("PB payback", P.R), -- a payback (Paybacks.lua): "PB back to <first name>", in R's colour
     pinned = paletteChip("BA pinned", P.BA), -- a bank pin (Pins.lua) to the bank alt: its tag and glow's colour
 }
 
@@ -402,7 +403,8 @@ local function fillMailRow(row, item)
     row.icon:SetTexture(item.icon)
     row.name:SetText(UI.ItemText(item.link, item.count, item.stacks))
     local to = item.result.to and S.firstName(item.result.to)
-    row.chip:SetText(to and ((item.result.route == "return" and "back to " or "to ") .. to) or chip[1])
+    local route = item.result.route
+    row.chip:SetText(to and ((route == "payback" and "PB back to " or route == "return" and "back to " or "to ") .. to) or chip[1])
     row.chipBg:SetColorTexture(chip[2], chip[3], chip[4], 0.9)
     row.gain:SetText(item.result.gain and ("+" .. S.money(item.result.gain)) or "")
     fillPick(row, item)

@@ -2162,6 +2162,88 @@ describe("critical path: mailing", function()
         assert.equal(0, ns.Routes.Count(), "this visit is over: no binding left")
     end)
 
+    -- Paybacks (operator, 2026-11-22; Paybacks.lua): something this character made that a player it owes could
+    -- use (their Mailworthy's needs note: Bob's bags hold 6, this bag holds 8). A new recipient kind, so: off
+    -- until the row's pick names Bob, only as previewed, never past a hard keep, nothing to Bob when left alone.
+    local function paybackSetup()
+        ns.Ledger.Store().players["bob surname"] = { name = BOB, received = 17400, sent = 0, inItems = {}, outItems = {}, at = 1 }
+        MailworthyDB.tierCheck = { [ns.Characters.Key(ns.Characters.Current())] = { [197] = { rank = 100,
+            crafts = { [5763] = { recipe = "Woolen Bag", reagents = { [2997] = 3, [2320] = 1 } } } } } }
+        ns.Comms.Hear(BOB, ns.Paybacks.EncodeNeeds(BOB, ns.PlayerName(), WowStub.state.serverTime,
+            { level = 24, class = "HUNTER", bags = { 6, 6, 6, 6 } }), "WHISPER")
+        WowStub.setBag(0, 14, WowStub.item(5763, "Woolen Bag", { class = 1, subclass = 0, sell = 50 }))
+        WowStub.state.tooltipLines[5763] = { "8 Slot Bag" }
+    end
+    local function pageTo(itemID) -- the bag's row may be on a later page of the Mailing list
+        for _ = 1, 5 do
+            if ns.MailWindow.PickFor(itemID) then return end
+            _G.MailworthyMailPage:Click()
+        end
+    end
+    local function paybackSubject()
+        for _, mail in ipairs(WowStub.state.sent) do
+            if mail.name == BOB then return mail.subject end
+        end
+    end
+
+    it("a payback picked (mouse): previewed to the player owed, sent as previewed, its subject says so", function()
+        paybackSetup()
+        mailbox()
+        _G.MailworthyMailButton:Click()
+        assert.are_not.equal(BOB, previewed(ns)[5763], "off until picked")
+        pageTo(5763)
+        local pick = ns.MailWindow.PickFor(5763)
+        assert.truthy(pick, "the bag's row has the pick button")
+        pick:Click()
+        local preview = previewed(ns)
+        assert.equal(BOB, preview[5763], "picked: to Bob, in the list before anything is sent")
+        assert.truthy(table.concat(ns.MailWindow.Texts().to, "\n"):find(BOB, 1, true), "named on a To: line")
+        _G.MailworthyMailSend:Click()
+        deliver(ns)
+        assertSafeAndComplete(ns, preview, { [BANK_ALT] = true, [BOB] = true })
+        assert.truthy(tostring(paybackSubject()):find("^Mailworthy: made for you"), tostring(paybackSubject()))
+    end)
+
+    it("a payback picked (controller): Square on the row, then Send mails as previewed", function()
+        paybackSetup()
+        WowStub.state.gamepadUI = true
+        WowStub.state.activeFrame = MailFrame
+        mailbox()
+        local watcher = _G.MailworthyPadWatcher
+        local function press(name)
+            WowStub.state.now = WowStub.state.now + 1
+            _G[name]:Click()
+            watcher.scripts.OnUpdate(watcher, 0.2)
+        end
+        watcher.scripts.OnUpdate(watcher, 0.2)
+        press("MailworthyPadTriangle")
+        pageTo(5763)
+        ns.Nav.Select(ns.MailWindow.RowFor(5763))
+        press("MailworthyPadSquare")
+        local preview = previewed(ns)
+        assert.equal(BOB, preview[5763])
+        ns.Nav.Select(_G.MailworthyMailSend)
+        press("MailworthyPadCross")
+        deliver(ns)
+        assertSafeAndComplete(ns, preview, { [BANK_ALT] = true, [BOB] = true })
+    end)
+
+    it("a payback left alone, or on a locked item: nothing goes to the player owed", function()
+        paybackSetup()
+        mailbox()
+        _G.MailworthyMailButton:Click()
+        local preview = previewed(ns)
+        _G.MailworthyMailSend:Click()
+        deliver(ns)
+        assertSafeAndComplete(ns, preview, { [BANK_ALT] = true })
+        assert.equal(0, sentTo(BOB))
+        WowStub.setBag(0, 14, WowStub.item(5763, "Woolen Bag", { class = 1, subclass = 0, sell = 50 }))
+        ns.Locks.ToggleItem(5763, WowStub.link(5763, "Woolen Bag"), "spec")
+        ns.Fire("BAG_UPDATE_DELAYED")
+        assert.is_nil(ns.MailWindow.PickFor(5763), "locked: no pick")
+        assert.is_nil(previewed(ns)[5763])
+    end)
+
     -- A binding's price cap and an Enchanting binding's Gear switch (operator, 2026-11-11). Neither adds
     -- a recipient: they only move an item from the friend back to the normal rule. So: what the
     -- preview shows after the change is exactly what is sent, and nobody else gets mail.

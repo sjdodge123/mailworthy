@@ -28,15 +28,28 @@ function Ledger.EncodeValues(from, to, at, id, items)
         if #parts > 0 then messages[#messages + 1] = head .. table.concat(parts, ";") end
         parts = {}
     end
+    -- A payback's value from its materials (source "craft", Paybacks.lua) goes in messages of its own, its age
+    -- field "c": an older Mailworthy drops that message alone and values the item itself, as it did.
+    local craft = {}
     for _, it in ipairs(items or {}) do
         local key = tostring(it.itemID) .. ":" .. tostring(it.count or 1)
         seen[key] = (seen[key] or 0) + 1
         if it.value and it.itemID then
+            local isCraft = it.source == "craft"
             local part = string.format("%d:%d:%d:%s:%d", it.itemID, it.count or 1, math.floor(it.value),
-                tonumber(it.age) and tostring(math.floor(it.age)) or "", seen[key])
-            if #head + #table.concat(parts, ";") + #part + 1 > ns.Comms.MAX_MESSAGE then flush() end
-            parts[#parts + 1] = part
+                isCraft and "c" or (tonumber(it.age) and tostring(math.floor(it.age)) or ""), seen[key])
+            if isCraft then
+                craft[#craft + 1] = part
+            else
+                if #head + #table.concat(parts, ";") + #part + 1 > ns.Comms.MAX_MESSAGE then flush() end
+                parts[#parts + 1] = part
+            end
         end
+    end
+    flush()
+    for _, part in ipairs(craft) do
+        if #head + #table.concat(parts, ";") + #part + 1 > ns.Comms.MAX_MESSAGE then flush() end
+        parts[#parts + 1] = part
     end
     flush()
     return messages
@@ -57,7 +70,7 @@ function Ledger.DecodeValues(rest, kind)
     if kind == "V" then
         from, to, at, list = tostring(rest):match("^([^|]+)|([^|]+)|(%d+)|([%d:;]+)$")
     else
-        from, to, at, id, list = tostring(rest):match("^([^|]+)|([^|]+)|(%d+)|(%d+)|([%d:;]+)$")
+        from, to, at, id, list = tostring(rest):match("^([^|]+)|([^|]+)|(%d+)|(%d+)|([%dc:;]+)$")
         if not id or #id > 10 then return nil end
     end
     from, to = goodNames(from, to)
@@ -68,13 +81,15 @@ function Ledger.DecodeValues(rest, kind)
         if kind == "V" then
             item, count, value, age = part:match("^(%d+):(%d+):(%d+):?(%d*)$")
         else
-            item, count, value, age, k = part:match("^(%d+):(%d+):(%d+):(%d*):(%d+)$")
+            item, count, value, age, k = part:match("^(%d+):(%d+):(%d+):(c?%d*):(%d+)$")
             if not k or #k > 2 then return nil end
         end
         if not item or #age > 3 then return nil end
+        local craft = age == "c" or nil -- a payback valued by its materials (Paybacks.lua)
+        if age:find("c", 1, true) and not craft then return nil end
         item, count, value, age = tonumber(item), tonumber(count), tonumber(value), tonumber(age)
         if item < 1 or count < 1 or count > Ledger.MAX_COUNT or value > Ledger.MAX_COPPER then return nil end
-        items[#items + 1] = { itemID = item, count = count, value = value, age = age, k = tonumber(k) }
+        items[#items + 1] = { itemID = item, count = count, value = value, age = age, k = tonumber(k), craft = craft }
         if #items > Ledger.RECEIVE_SLOTS then return nil end
     end
     if #items == 0 then return nil end
@@ -245,7 +260,7 @@ function Ledger.HearValues(sender, msg)
     expect[key] = tableOr(expect[key])
     for _, it in ipairs(msg.items) do
         table.insert(expect[key], { at = msg.at, to = msg.to, itemID = it.itemID, count = it.count, value = it.value,
-            age = it.age, id = msg.id, k = it.k })
+            age = it.age, id = msg.id, k = it.k, craft = it.craft })
     end
     while #expect[key] > Ledger.MAX_EXPECT do table.remove(expect[key], 1) end
     ns.Log.Add("ledger", "values from %s: %d item(s) mailed to %s", msg.from, #msg.items, msg.to)
@@ -262,7 +277,7 @@ function Ledger.Claim(from, itemID, count, to)
         if e.itemID == itemID and e.count == count and tostring(e.to):lower() == tostring(clean(to)):lower() then
             table.remove(list, i)
             return tonumber(e.value) and { value = tonumber(e.value), age = tonumber(e.age), at = tonumber(e.at), to = e.to,
-                id = tonumber(e.id), k = tonumber(e.k) } or nil
+                id = tonumber(e.id), k = tonumber(e.k), craft = e.craft == true or nil } or nil
         end
     end
     return nil

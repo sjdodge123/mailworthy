@@ -552,7 +552,7 @@ function Valuation.Verdict(item, banksHere)
     if r.action == "mail" then
         -- Where the mailbox sends it, as the window does (operator, 2026-11-13: tags that ignored
         -- bindings and Return to sender disagreed with the window).
-        if r.route == "return" then return "return" end
+        if r.route == "return" or r.route == "payback" then return "return" end -- back to who mailed it
         if r.to then return "friend" end
         if r.route == "bank" then return "b" end
         return (r.route == "ah" or r.route == "de") and r.route or nil
