@@ -1,0 +1,616 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Settings: Mail routing</title>
+<!-- Prototype (2026-11-22): a top-level way from Mailworthy's settings to mail routing (bindings).
+     Operator: "I believe in the current setup you have to go to Settings, bags and more,
+     friends/guild and then set your bindings. I think there should be a top level Mail routing
+     button on the settings."
+     Shows today's path (SettingsUI.lua: tabs Mailing / Bags and more, the solo fold into
+     "Friends and guild...", RoutesUI.lua's list), the proposal (B: a Mail routing... button on the
+     top row, recommended; A: a third tab), and where Friends / Guild / Mail ledger go.
+     Interactive: click the buttons, or use the arrow keys (D-pad), Enter (Cross) and Esc (Circle).
+     Names are made up (same cast as bindings-prototype.html). Not built: no Lua changes. -->
+<style>
+  :root {
+    --gold: #ffd100; --text: #f2e8d0; --dim: #b9ad92; --edge: #8a6a2a; --edge-hi: #e0b44c;
+    --panel: #15110c; --row: #221b12; --row-alt: #1c160f; --green: #1eff00; --white: #ffffff;
+    --mint: #33ff99; --note: #9ec7ff; --friend: #f2993f;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    font: 13px/1.35 "Trebuchet MS", "Segoe UI", Arial, sans-serif; color: var(--text); min-height: 100vh;
+    background: radial-gradient(ellipse at 30% 20%, #3a4a3a 0%, #1d241c 45%, #0d110d 100%) fixed;
+  }
+  .page { padding: 18px 24px 30px; max-width: 1560px; }
+  .banner h1 { margin: 0 0 4px; font: bold 20px Georgia, serif; color: var(--gold); }
+  .banner p { margin: 0 0 12px; color: var(--dim); max-width: 900px; }
+  .scen { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; align-items: center; }
+  .scen span.l { color: var(--dim); font-size: 12px; margin-right: 4px; min-width: 56px; }
+  .layout { display: grid; grid-template-columns: 1000px 1fr; gap: 28px; align-items: start; }
+  @media (max-width: 1300px) { .layout { grid-template-columns: 1fr; } }
+  @media (max-width: 700px) { .page { padding: 14px 16px; } .windows { flex-direction: column; } }
+
+  /* Today vs proposal: the presses to Add a binding */
+  .paths { display: grid; grid-template-columns: auto 1fr auto; gap: 4px 10px; align-items: center;
+    background: rgba(0,0,0,.28); border: 1px solid #3a2e1c; border-radius: 6px; padding: 8px 12px; margin: 4px 0 12px; }
+  .paths .who { color: var(--gold); font-weight: bold; font-size: 12px; }
+  .paths .n { color: var(--dim); font-size: 12px; text-align: right; white-space: nowrap; }
+  .paths .n b { color: var(--mint); font-size: 14px; }
+  .paths .n.old b { color: #ff9a6a; }
+  .step { display: inline-block; padding: 1px 8px; margin: 1px 0; border: 1px solid #6b5a3a; border-radius: 3px;
+    background: #221b12; font-size: 12px; color: var(--gold); }
+  .step.cmd { color: var(--note); border-color: #3e5a7a; }
+  .step.mint { color: var(--mint); border-color: var(--mint); }
+  .arrow { color: var(--dim); margin: 0 3px; }
+
+  .live { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; min-height: 22px; margin-bottom: 8px; font-size: 12px; }
+  .live .l { color: var(--dim); }
+  .live .got { color: var(--mint); font-weight: bold; }
+  .windows { display: flex; gap: 16px; align-items: flex-start; }
+  .closed { width: 420px; padding: 30px 16px; border: 2px dashed #4a3c22; border-radius: 10px; color: var(--dim); text-align: center; }
+
+  .frame {
+    position: relative; background: var(--panel); border: 3px solid var(--edge); flex: none;
+    border-radius: 10px; box-shadow: 0 0 0 1px #000, inset 0 0 0 1px var(--edge-hi), 0 12px 30px rgba(0,0,0,.6);
+  }
+  .frame.top { box-shadow: 0 0 0 1px #000, inset 0 0 0 1px var(--edge-hi), 0 0 0 3px rgba(255,209,0,.25), 0 12px 30px rgba(0,0,0,.6); }
+  .frame.settings { width: 420px; }
+  .frame.routing { width: 560px; }
+  .title {
+    height: 34px; display: flex; align-items: center; gap: 8px; padding: 0 12px;
+    font: bold 15px Georgia, "Times New Roman", serif; color: var(--gold);
+    background: linear-gradient(#3b2d18, #241a0d); border-bottom: 2px solid var(--edge); border-radius: 7px 7px 0 0;
+  }
+  .title img { width: 22px; height: 22px; }
+  .title .x { margin-left: auto; width: 18px; height: 18px; border-radius: 50%; background: #8b1a1a; cursor: pointer;
+    color: #fff; font: bold 12px Arial; display: grid; place-items: center; border: 1px solid #d9a; }
+  .content { padding: 10px 14px 10px 18px; }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; height: 22px; padding: 0 8px; flex: none;
+    font: bold 11px "Trebuchet MS", Arial, sans-serif; color: var(--gold); cursor: pointer; position: relative;
+    background: linear-gradient(#9b1c1c, #5c0d0d); border: 1px solid #e0b44c; border-radius: 4px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.25); white-space: nowrap; user-select: none;
+  }
+  .btn.grey { background: linear-gradient(#4a4036, #2b241c); }
+  .btn.on { color: var(--mint); border-color: var(--mint); background: linear-gradient(#1f4a30, #10281a); }
+  .btn.armed { color: #ff9a6a; border-color: #ff9a6a; }
+  .btn.small { min-width: 0; padding: 0 7px; }
+  .btn.hl { outline: 2px solid var(--gold); outline-offset: 1px; box-shadow: 0 0 9px rgba(255,209,0,.85); }
+  .btn.left { justify-content: flex-start; padding-left: 10px; }
+  .new::after { content: "new"; position: absolute; top: -8px; right: -6px; font: bold 9px Arial; color: #0d110d;
+    background: var(--mint); border-radius: 6px; padding: 0 4px; line-height: 13px; }
+  .newline { border-left: 3px solid var(--mint); padding-left: 7px; margin-left: -10px; }
+  .row { display: flex; gap: 6px; align-items: center; margin: 4px 0; min-height: 24px; }
+  .row .sp { flex: 1; }
+  .h4 { font: bold 13px Georgia, serif; color: var(--gold); margin: 10px 0 3px; display: flex; gap: 8px; align-items: baseline; }
+  .h4 .num { display: inline-grid; place-items: center; width: 17px; height: 17px; border-radius: 50%; background: #4a3a18;
+    border: 1px solid var(--edge-hi); font: bold 10px Arial; color: var(--gold); }
+  .h4 small { color: var(--dim); font: 11px "Trebuchet MS", Arial, sans-serif; }
+  .lbl { color: var(--white); }
+  .gold { color: var(--gold); }
+  .mint { color: var(--mint); }
+  .dim { color: var(--dim); }
+  .small-t { font-size: 11px; }
+  .sub { color: var(--dim); font-size: 12px; margin: 0 0 6px; }
+  .prices { color: #8f8f8f; font-size: 11px; }
+  .legend { color: var(--dim); font-size: 11px; margin-top: 6px; border-top: 1px solid #2d2416; padding-top: 5px; }
+  .legend b { color: var(--text); }
+  .hint { color: var(--mint); font-size: 12px; min-height: 16px; margin: 4px 0; }
+
+  .binding { background: var(--row); border: 1px solid #3a2e1c; border-radius: 4px; padding: 4px 8px; margin: 4px 0; }
+  .binding:nth-child(even) { background: var(--row-alt); }
+  .binding .l1, .binding .l2 { display: flex; gap: 6px; align-items: center; min-height: 23px; }
+  .binding .toname { color: var(--friend); }
+  .binding .captext { color: var(--dim); font-size: 12px; width: 230px; }
+  .empty { color: var(--dim); font-size: 12px; padding: 4px 2px; }
+  .compact { font-size: 12px; padding: 2px 0 2px 6px; }
+  .compact .toname { color: var(--friend); }
+  .linebox { background: var(--row); border: 1px solid #3a2e1c; border-radius: 4px; padding: 4px 8px; }
+  .steplabel { margin: 2px 0 6px; } .steplabel .gold { font-weight: bold; }
+
+  .tipbar { margin-top: 10px; padding: 6px 10px; min-height: 30px; background: rgba(8,8,20,.9); border: 1px solid #5a5a7a;
+    border-radius: 4px; font-size: 12px; color: var(--text); max-width: 996px; }
+  .tipbar b { color: var(--gold); }
+  .toast { color: var(--note); font-size: 12px; min-height: 18px; margin-top: 6px; }
+
+  table.ways { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 12px; max-width: 996px; }
+  table.ways th { text-align: left; color: var(--gold); font: bold 12px Georgia, serif; padding: 4px 8px; border-bottom: 1px solid var(--edge); }
+  table.ways td { padding: 4px 8px; vertical-align: top; }
+  table.ways tr:nth-child(odd) td { background: var(--row); }
+  table.ways tr:nth-child(even) td { background: var(--row-alt); }
+  table.ways td:first-child { color: var(--white); white-space: nowrap; }
+  table.ways .chg { color: var(--mint); }
+
+  .snaps { display: flex; gap: 14px; align-items: flex-start; flex-wrap: wrap; }
+  .snap .cap { color: var(--dim); font-size: 12px; margin: 4px 0 6px; max-width: 320px; }
+  .snap .cap b { color: var(--gold); }
+  .snap .zoom { zoom: 0.76; pointer-events: none; }
+  .notes h2 { margin: 0 0 6px; font: bold 15px Georgia, serif; color: var(--gold); }
+  .notes h2:not(:first-child) { margin-top: 16px; }
+  .notes ul, .notes ol { margin: 0; padding-left: 18px; color: var(--text); }
+  .notes li { margin: 4px 0; }
+  .notes .dim { color: var(--dim); }
+  .notes code { color: var(--note); font-size: 12px; }
+  .notes .q { border-left: 3px solid var(--gold); padding: 4px 10px; background: rgba(0,0,0,.25); margin: 6px 0; }
+  .notes .rec { color: var(--mint); font-weight: bold; }
+  .kbd { display: inline-block; padding: 0 5px; border: 1px solid #6b5a3a; border-radius: 3px; background: #221b12; font-size: 11px; color: var(--gold); }
+  .scen .btn { height: 24px; font-size: 12px; padding: 0 10px; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="banner"><h1>Mail routing, one press from Settings</h1>
+    <p>Today your bindings are three presses deep: Settings, the <b>Bags and more</b> tab, then <b>Friends...</b> (or
+      <b>Friends and guild...</b> while you use none of them), then <b>Add a binding...</b>. The proposal puts a
+      <b>Mail routing...</b> button on the settings' top row, next to the two tabs. It opens one window that lists your
+      bindings, the guild's rules and the bank alt, in the order Mailworthy uses them, with <b>Add a binding...</b> right
+      under your bindings. Click a button to try it, or use <span class="kbd">←</span><span class="kbd">↑</span><span class="kbd">→</span><span class="kbd">↓</span>
+      (D-pad), <span class="kbd">Enter</span> (Cross) and <span class="kbd">Esc</span> (Circle).</p></div>
+
+  <div class="paths">
+    <span class="who">Today</span>
+    <span><span class="step cmd">/mw</span><span class="arrow">›</span><span class="step">Bags and more</span><span class="arrow">›</span><span class="step">Friends and guild...</span>
+      <span class="dim">or</span> <span class="step">Friends (2 bindings)...</span><span class="arrow">›</span><span class="step">Add a binding...</span></span>
+    <span class="n old"><b>3</b> presses</span>
+    <span class="who">Proposal</span>
+    <span><span class="step cmd">/mw</span><span class="arrow">›</span><span class="step mint">Mail routing...</span><span class="arrow">›</span><span class="step">Add a binding...</span>
+      <span class="dim">(from either tab)</span></span>
+    <span class="n"><b>2</b> presses</span>
+  </div>
+
+  <div class="scen"><span class="l">Design:</span>
+    <span class="btn grey" data-mode="today">Today</span>
+    <span class="btn grey" data-mode="button">B: Mail routing button (recommended)</span>
+    <span class="btn grey" data-mode="tab">A: Mail routing tab</span></div>
+  <div class="scen"><span class="l">Player:</span>
+    <span class="btn grey" data-who="solo">Solo: no bindings yet</span>
+    <span class="btn grey" data-who="busy">Two bindings, guild rules on</span>
+    <span class="btn grey" id="reopen">Reopen Settings (/mw)</span>
+    <span class="btn grey" id="reset">Reset</span></div>
+
+  <div class="layout">
+    <div>
+      <div class="live" id="live"></div>
+      <div class="windows" id="windows"></div>
+      <div class="tipbar" id="tipbar"></div>
+      <div class="toast" id="toast"></div>
+      <table class="ways" id="ways"></table>
+      <div class="h4" style="margin-top:18px">Bags and more, before and after <small>(snapshots; the live windows are above)</small></div>
+      <div class="snaps" id="snaps"></div>
+    </div>
+
+    <div class="notes">
+      <h2>Today (as built)</h2>
+      <ul>
+        <li>Settings opens with <code>/mw</code>, the minimap button, or the mailbox window's <b>Settings</b> button, on the tab you
+          last used (Mailing the first time). Its top row has two tabs: <b>Mailing</b> and <b>Bags and more</b>.</li>
+        <li><b>Bags and more › Windows</b> has <b>Friends (N bindings)...</b>, <b>Guild (rules on)...</b> and <b>Mail ledger...</b>.
+          While you have no binding, no guild template in use and nothing in the ledger (solo, <code>SettingsUI.Solo</code>), those three
+          are one <b>Friends and guild...</b> button.</li>
+        <li><b>Friends...</b> opens the Friends window ("Send materials to friends") on its list. With no binding of your own it skips
+          the list and opens straight on Add, step 1. <b>Friends and guild...</b> always opens the list, which has
+          <b>Guild...</b> and <b>Mail ledger...</b> on its bottom row.</li>
+        <li>Then <b>Add a binding...</b>, pick a player, pick the profession. That's 3 presses from Settings to step 1
+          (2 when Friends... skips the list), plus 1 if Settings opened on Mailing <span class="dim">(counted above)</span>.</li>
+        <li>Outside Settings: <code>/mw friends</code> (or <code>bindings</code>), <code>/mw guild</code>, <code>/mw ledger</code>, and the
+          mailbox window's <b>Friends...</b> by its Bindings heading, which shows only while this visit has binding rows.</li>
+      </ul>
+
+      <h2>The proposal</h2>
+      <ul>
+        <li><span class="rec">B, recommended:</span> a third button, <b>Mail routing...</b>, on the top row. The tabs narrow from 182 to
+          120 px to make room. It isn't a tab: it opens the routing window next to Settings, like <b>Locked items...</b>. It's
+          on both tabs, so it's always one press away.</li>
+        <li>The Friends window becomes <b>Mail routing</b> and always opens on its list, which reads in the order Mailworthy routes items
+          (after what this character's own professions keep): <b>1</b> your bindings (cap, scope and Remove, as today) with
+          <b>Add a binding...</b> right under them; <b>2</b> the guild's rules: whose template, how many rules, <b>Guild rules: on / off</b>
+          on the line, and <b>Guild...</b> for the rules themselves; <b>3</b> the bank alt, who gets the rest, with
+          <b>Change...</b> (opens Settings' picker).</li>
+        <li>A: a third tab, <b>Mail routing</b>, inside Settings. At 420 px the binding rows' steppers don't fit, so the tab shows a short
+          read-only list plus Add a binding..., Edit bindings..., the guild line and Mail ledger.... Editing still happens in the
+          routing window, so your bindings would show in two places, and the tab would be a new view to test.</li>
+        <li>Why B: one list of bindings, Settings keeps its size, and the window is the Friends window you already use.
+          To build it: one button in <code>SettingsUI</code> (<code>RoutesUI.Show(frame, "list")</code>) and the guild and bank alt lines
+          in <code>RoutesUI</code>'s list view. What gets mailed doesn't change, and no Blizzard UI is touched.</li>
+      </ul>
+
+      <h2>Where Friends, Guild and Mail ledger go</h2>
+      <ul>
+        <li><b>Bags and more › Windows</b> keeps Locked items, Pinned items, Bank alt summary and Report: two rows instead of three or four.
+          Friends, Guild, Mail ledger and Friends and guild... move to Mail routing, and the solo fold isn't needed any more.</li>
+        <li>Guild: <b>Mail routing › Guild rules: on / off</b> (1 press) or <b>Guild...</b> (its rules; the guild master's and officers' editor). <code>/mw guild</code> stays.</li>
+        <li>Mail ledger: <b>Mail routing › Mail ledger...</b>. <code>/mw ledger</code> stays.</li>
+        <li>A solo player gets the same button. Its list says "None yet", with Add a binding... under it and the guild and bank alt lines below.</li>
+        <li>The mailbox window's <b>Friends...</b> opens the same window, renamed <b>Routing...</b>. <code>/mw friends</code> and
+          <code>/mw bindings</code> stay, and <code>/mw routing</code> is new. The "Ways in" table under the windows lists every way in, so nothing becomes unreachable.</li>
+      </ul>
+
+      <h2>Mouse, keyboard and controller</h2>
+      <ul>
+        <li>Every new control is a plain <code>W.Button</code> in a window that already uses <code>Nav</code>, so each is a D-pad stop:
+          <b>Mail routing...</b> (Left / Right along the top row, Down into the tab), and in the routing list <b>Add a binding...</b>,
+          <b>Guild rules: on / off</b>, <b>Guild...</b> and <b>Change...</b>. Cross presses, Circle closes the top window.</li>
+        <li>No right-click, hover-only or typing-only action. A button's tooltip also shows when the highlight is on it (<code>Widgets.Tip</code>),
+          which the bar under the windows imitates.</li>
+        <li><code>spec/dpad_reach_spec.lua</code>: B adds no view, but three walks change. "settings: Mailing, Bags and more" gets one more
+          stop on each tab, three fewer on Bags and more with a binding, and loses the solo <i>Friends and guild...</i> check. "friends: the list"
+          gets the new stops, and "friends for a solo player" opens from Mail routing.... A would add a view, "settings, Mail routing", which needs a walk of its own.</li>
+        <li>When it's built: <code>docs/ARCHITECTURE.md</code> rows for SettingsUI, RoutesUI and the new <code>/mw routing</code>. The critical path doesn't change (no new way to mail).</li>
+      </ul>
+
+      <h2>Open questions</h2>
+      <div class="q">1. A button on the top row (B, recommended) or a third tab (A)?</div>
+      <div class="q">2. Take Friends, Guild and Mail ledger off Bags and more so there's one way in (recommended), or keep them there as well? You asked
+        for Guild in Settings on 2026-11-07. After the change it's Mail routing, then <b>Guild rules: on / off</b> or <b>Guild...</b>.</div>
+      <div class="q">3. Name: "Mail routing" for the window, and "Routing..." for the mailbox window's button too? Or keep "Friends" there?</div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var BANK = "Penny Ledgerwick";
+  var BUSY_BINDINGS = [
+    { prof: "Enchanting", to: "Bob Thornfield", cap: "5g each or more: to my bank alt", scope: "All my characters" },
+    { prof: "Leatherworking", to: "Tilda Marrow", cap: "2g each or more: to my bank alt", scope: "This character" }
+  ];
+  var CANDIDATES = [
+    { name: "Harl Brightwater", where: "party, online", profs: ["First Aid", "Cooking"], detail: "First Aid 112, Cooking 80" },
+    { name: "Vela Moonbrook", where: "guild, online", profs: ["Enchanting", "Tailoring"], detail: "Enchanting 150, Tailoring 95" },
+    { name: "Garrick Holt", where: "guild", profs: ["Blacksmithing", "Mining"], detail: "Blacksmithing 120, Mining 140" },
+    { name: "Rowan Ashby", where: "your character", profs: ["Alchemy", "Herbalism"], detail: "Alchemy 60, Herbalism 75" }
+  ];
+  var OTHER_PROFS = ["Tailoring", "Engineering", "Leatherworking"];
+  var GUILD_RULES = [
+    "Mining materials to Garrick Holt · 2g each or more: to my bank alt",
+    "Herbalism materials to Ysolde Fen · no price cap",
+    "Enchanting materials to Vela Moonbrook · Gear: only when disenchanting pays more"
+  ];
+  var MODE_LABEL = { today: "Today", button: "B: Mail routing button", tab: "A: Mail routing tab" };
+
+  var S;
+  function reset(keep) {
+    var mode = keep ? S.mode : "button", who = keep ? S.who : "busy";
+    S = { mode: mode, who: who, setOpen: true, tab: "mailing", rOpen: false, rView: "list", fromList: false, picked: null,
+      focus: "settings", hl: { settings: 0, routing: 0 }, path: ["/mw"], presses: 0, reached: null, armed: null, hint: "",
+      bindings: who === "busy" ? BUSY_BINDINGS.slice() : [], guildOn: who === "busy", template: who === "busy" };
+    toast("");
+  }
+
+  var prop = function () { return S.mode !== "today"; };
+  var esc = function (s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;"); };
+  function solo() { return S.bindings.length === 0 && !S.template; }
+
+  // A button: a D-pad stop (data-act). o: { w, cls, tip, isNew }
+  function btn(act, label, o) {
+    o = o || {};
+    var cls = "btn " + (o.cls || "grey") + (o.isNew && prop() ? " new" : "");
+    return '<span class="' + cls + '" data-act="' + act + '" data-tip="' + esc(o.tip || "") + '"'
+      + (o.w ? ' style="width:' + o.w + 'px"' : "") + '>' + label + '</span>';
+  }
+  function titleBar(text, win) {
+    return '<div class="title"><img src="logo-512.png" alt=""><span>' + text + '</span><span class="x" data-close="' + win + '">x</span></div>';
+  }
+  var LEGEND = '<div class="legend"><b>&#9747;</b> press &nbsp; <b>&#9711;</b> close &nbsp; <b>D-pad</b> move</div>';
+
+  // Settings ------------------------------------------------------------------------------
+  function tabBtn(t, label, w, isNew) {
+    return btn("tab:" + t, label, { w: w, cls: S.tab === t ? "on" : "", isNew: isNew,
+      tip: { mailing: "The bank alt and what gets mailed.", more: "Tags, pins, tooltips and Mailworthy's other windows.",
+        routing: "Your bindings, the guild's rules and the bank alt, in the order Mailworthy routes mail." }[t] });
+  }
+  function windowsGrid() {
+    var list = [["locks", "Locked items (2)..."], ["pinned", "Pinned items (3)..."]];
+    if (!prop()) {
+      if (solo()) list.push(["friendsGuild", "Friends and guild..."]);
+      else {
+        list.push(["friends", S.bindings.length ? "Friends (" + S.bindings.length + " binding" + (S.bindings.length === 1 ? "" : "s") + ")..." : "Friends..."]);
+        list.push(["guild", S.template ? (S.guildOn ? "Guild (rules on)..." : "Guild (rules off)...") : "Guild..."]);
+        list.push(["ledger", "Mail ledger..."]);
+      }
+    }
+    list.push(["summary", "Bank alt summary..."], ["report", "Report..."]);
+    var tips = { locks: "This character's locked items, each with Unlock.", pinned: "The account's pinned items, each with Unpin.",
+      friendsGuild: "Bindings for friends, the guild's template and the mail ledger: one button until you use one of them.",
+      friends: "Bindings: a profession's materials mailed to a friend, a guild member or one of your characters.",
+      guild: "Your guild's template: turn the guild rules on or off; the guild master and officers edit it.",
+      ledger: "What other players mailed you beyond what you mailed back, and the whole mail log.",
+      summary: "On your bank alt (or without one): what to list, disenchant or sell to a vendor.",
+      report: "A copyable report for a bug report." };
+    var h = "";
+    for (var i = 0; i < list.length; i += 2) {
+      h += '<div class="row">' + btn(list[i][0], list[i][1], { w: 182, tip: tips[list[i][0]] })
+        + (list[i + 1] ? btn(list[i + 1][0], list[i + 1][1], { w: 182, tip: tips[list[i + 1][0]] }) : "") + '</div>';
+    }
+    return h;
+  }
+  function settingsHTML() {
+    var three = prop(), w = three ? 120 : 182;
+    var h = '<div class="frame settings' + (S.focus === "settings" ? " top" : "") + '" data-win="settings">' + titleBar("Mailworthy settings", "settings")
+      + '<div class="content"><div class="row">' + tabBtn("mailing", "Mailing", w) + tabBtn("more", "Bags and more", w);
+    if (S.mode === "button") h += btn("openRouting", "Mail routing...", { w: w, isNew: true,
+      tip: "Mail routing: your bindings, the guild's rules and the bank alt, with Add a binding." });
+    if (S.mode === "tab") h += tabBtn("routing", "Mail routing", w, true);
+    h += '</div>';
+    if (S.tab === "mailing") {
+      h += '<div class="row"><span class="gold">Bank alt:</span><span><span class="mint">' + BANK + '</span> <span class="dim small-t">priest 14</span></span><span class="sp"></span>'
+        + btn("change", "Change...", { w: 96, tip: "Pick the character that receives the mail, or say this character is the bank alt." }) + '</div>'
+        + '<div class="h4">What gets mailed</div>'
+        + '<div class="row"><span class="lbl">Gain at least <b>50s</b></span><span class="sp"></span>' + btn("noop", "-", { w: 32 }) + btn("noop", "+", { w: 32 }) + '</div>'
+        + '<div class="row"><span class="lbl">and at least <b>20%</b> over the vendor price</span><span class="sp"></span>' + btn("noop", "-", { w: 32 }) + btn("noop", "+", { w: 32 }) + '</div>'
+        + '<div class="row"><span class="lbl">Auction listing</span><span class="sp"></span>' + btn("noop", "12h", { w: 56 }) + btn("noop", "24h", { w: 56, cls: "on" }) + btn("noop", "48h", { w: 56 }) + '</div>'
+        + '<div class="row">' + btn("noop", "Profession materials: on (BH)", { w: 372, cls: "on" }) + '</div>'
+        + '<div class="row">' + btn("noop", "Disenchant value: on", { w: 182, cls: "on" }) + btn("noop", "Sell what I gather: off", { w: 182 }) + '</div>'
+        + '<div class="row"><span class="lbl">Send by tag</span><span class="sp"></span>' + ["AH: on", "DE: on", "BA: on", "V: on"].map(function (t) {
+          return btn("noop", t, { w: 62, cls: "on" }); }).join("") + '</div>';
+    } else if (S.tab === "more") {
+      h += '<div class="h4">In your bags</div>'
+        + '<div class="row">' + btn("noop", "Bag tags: bank alt + after Send", { w: 182 }) + btn("noop", "Lock glow: in Mailworthy", { w: 182 }) + '</div>'
+        + '<div class="row">' + btn("noop", "Pins: BA to bank alt", { w: 182 }) + btn("noop", "Item tooltips: full", { w: 182 }) + '</div>'
+        + '<div class="row">' + btn("noop", "Pin warning: on", { w: 182, cls: "on" }) + btn("noop", "Minimap button: shown", { w: 182, cls: "on" }) + '</div>'
+        + '<div class="h4">Windows' + (prop() ? ' <small>Friends, Guild and Mail ledger moved to Mail routing</small>' : "") + '</div>' + windowsGrid();
+    } else { // A: the Mail routing tab, a short read-only list (420 px: no room for the binding rows' steppers)
+      h += '<div class="h4"><span class="num">1</span>Your bindings</div>';
+      h += S.bindings.length ? S.bindings.map(function (b) {
+        return '<div class="compact">' + b.prof + ' materials <span class="toname">to ' + b.to + '</span> <span class="dim">· ' + b.cap.split(":")[0] + '</span></div>';
+      }).join("") : '<div class="empty">None yet.</div>';
+      h += '<div class="row">' + btn("a:add", "Add a binding...", { w: 182, isNew: true, tip: "Pick a player, then the profession whose materials they get." })
+        + btn("a:edit", "Edit bindings...", { w: 182, isNew: true, tip: "The routing window: caps, scope and Remove." }) + '</div>';
+      h += '<div class="h4"><span class="num">2</span>Guild rules</div>' + guildLine(true);
+      h += '<div class="h4"><span class="num">3</span>Bank alt <small>the rest worth selling</small></div>'
+        + '<div class="compact"><span class="mint">' + BANK + '</span> <span class="dim">· change it on the Mailing tab</span></div>'
+        + '<div class="row">' + btn("ledger", "Mail ledger...", { w: 182, tip: "What other players mailed you beyond what you mailed back, and the whole mail log." }) + '</div>';
+    }
+    h += '<div class="row"><span class="prices">Prices: Auctionator (scanned 2 hours ago)</span><span class="sp"></span>' + btn("done:settings", "Done", { w: 80 }) + '</div>'
+      + LEGEND + '</div></div>';
+    return h;
+  }
+
+  // The guild line: whose template, on / off, Guild... (in the routing list; `compact` for tab A).
+  function guildLine(compact) {
+    var text = S.template ? "<span>Maribel Stoneward's template <span class=\"dim\">(guild master) · " + GUILD_RULES.length + " rules</span></span>"
+      : '<span class="dim">No guild template in use.</span>';
+    var h = '<div class="' + (compact ? "compact" : "row linebox newline") + '">' + text + (compact ? "</div><div class=\"row\">" : '<span class="sp"></span>');
+    if (S.template) h += btn("guildToggle", "Guild rules: " + (S.guildOn ? "on" : "off"), { w: compact ? 182 : 120, cls: S.guildOn ? "on" : "", isNew: true,
+      tip: "Turn the guild's rules on or off for your materials." });
+    h += btn(compact ? "a:guild" : "r:guild", "Guild...", { w: compact ? 182 : 90, isNew: !compact,
+      tip: "The guild's template and its rules; the guild master and officers edit it here." });
+    return h + '</div>';
+  }
+
+  // The routing window (today: the Friends window) -------------------------------------------------
+  function bindingRows() {
+    if (!S.bindings.length) return '<div class="empty">None yet: press Add a binding to pick a player, then the profession whose materials they get.</div>';
+    return S.bindings.map(function (b, i) {
+      return '<div class="binding"><div class="l1">' + b.prof + ' materials <span class="toname">to ' + b.to + '</span><span class="sp"></span>'
+        + btn("r:remove:" + i, S.armed === i ? "Sure?" : "Remove", { w: 80, cls: S.armed === i ? "armed" : "", tip: "Two presses: Sure? for 3 seconds, the second removes it." }) + '</div>'
+        + '<div class="l2"><span class="captext">' + b.cap + '</span>' + btn("noop", "-", { w: 26 }) + btn("noop", "+", { w: 26 })
+        + btn("noop", b.scope, { w: 150, tip: "All my characters, or this character only." }) + '</div></div>';
+    }).join("");
+  }
+  function routingHTML() {
+    var title = S.rView === "guild" ? "Guild materials" : prop() ? "Mail routing" : "Send materials to friends";
+    var h = '<div class="frame routing' + (S.focus === "routing" ? " top" : "") + '" data-win="routing">' + titleBar(title, "routing") + '<div class="content">';
+    if (S.rView === "list") {
+      if (!prop()) {
+        h += '<div class="sub">Each binding mails a profession\'s materials to one player, every time, until you remove it.</div>'
+          + '<div class="h4">Bindings</div>' + bindingRows() + '<div class="hint">' + S.hint + '</div>'
+          + '<div class="row">' + btn("r:add", "Add a binding...", { w: 140 })
+          + btn("r:guild", S.template ? (S.guildOn ? "Guild (rules on)..." : "Guild (rules off)...") : "Guild...", { w: 126 })
+          + '<span class="sp"></span>' + btn("ledger", "Mail ledger...", { w: 120 }) + btn("done:routing", "Done", { w: 80 }) + '</div>';
+      } else {
+        h += '<div class="sub newline">In this order: what this character\'s professions still use stays here, then your bindings, then the guild\'s rules; the bank alt gets the rest worth selling.</div>'
+          + '<div class="h4"><span class="num">1</span>Your bindings <small>you, then friends</small></div>' + bindingRows()
+          + '<div class="row">' + btn("r:add", "Add a binding...", { w: 140, tip: "Pick a player, then the profession whose materials they get." }) + '</div>'
+          + '<div class="h4"><span class="num">2</span>Guild rules</div>' + guildLine(false)
+          + '<div class="h4"><span class="num">3</span>Bank alt <small>the rest worth selling</small></div>'
+          + '<div class="row linebox newline"><span><span class="mint">' + BANK + '</span> <span class="dim small-t">priest 14</span></span><span class="sp"></span>'
+          + btn("r:change", "Change...", { w: 96, isNew: true, tip: "Opens Settings on the bank alt picker, next to this window." }) + '</div>'
+          + '<div class="hint">' + S.hint + '</div>'
+          + '<div class="row">' + btn("ledger", "Mail ledger...", { w: 120, tip: "What other players mailed you beyond what you mailed back, and the whole mail log." })
+          + '<span class="sp"></span>' + btn("done:routing", "Done", { w: 80 }) + '</div>';
+      }
+    } else if (S.rView === "add1") {
+      h += '<div class="steplabel"><span class="dim">1 of 2</span>&nbsp; <span class="gold">Who gets the materials?</span></div>'
+        + CANDIDATES.map(function (c, i) {
+          return '<div class="row">' + btn("r:pick:" + i, c.name + ' &nbsp;<span class="dim">' + c.where + " · " + c.detail + '</span>', { w: 512, cls: "grey left" }) + '</div>';
+        }).join("")
+        + '<div class="row">' + btn("noop", "Refresh list", { w: 100 }) + '<span class="sp"></span>' + btn("r:back", "Back", { w: 100 }) + btn("done:routing", "Done", { w: 80 }) + '</div>';
+    } else if (S.rView === "add2") {
+      var c = CANDIDATES[S.picked];
+      h += '<div class="steplabel"><span class="dim">2 of 2</span>&nbsp; <span class="gold">What should ' + c.name.split(" ")[0] + ' get?</span></div>'
+        + '<div class="sub">' + c.name + ': ' + c.where + '</div>'
+        + profOptions(c).map(function (p, i) {
+          return '<div class="row">' + btn("r:bind:" + i, p + " materials" + (c.profs.indexOf(p) >= 0 ? ' &nbsp;<span class="dim">(theirs)</span>' : ""), { w: 512, cls: "grey left" }) + '</div>';
+        }).join("")
+        + '<div class="row"><span class="sp"></span>' + btn("r:back", "Back", { w: 100 }) + btn("done:routing", "Done", { w: 80 }) + '</div>';
+    } else { // guild
+      if (S.template) {
+        h += '<div class="steplabel"><span class="gold">Guild template</span> for Ironleaf Traders</div>'
+          + '<div class="row"><span class="dim">Shared by Maribel Stoneward (guild master)</span><span class="sp"></span>'
+          + btn("guildToggle", "Guild rules: " + (S.guildOn ? "on" : "off"), { w: 140, cls: S.guildOn ? "on" : "" }) + '</div>'
+          + '<div class="sub">While on, the materials these rules name go to that member, after your own bindings.</div>'
+          + GUILD_RULES.map(function (r) { return '<div class="compact">' + r + '</div>'; }).join("");
+      } else {
+        h += '<div class="steplabel"><span class="gold">Guild template</span></div>'
+          + '<div class="sub">Nobody in your guild has shared a template yet. The guild master and officers write one here.</div>';
+      }
+      h += '<div class="row"><span class="sp"></span>' + (S.fromList ? btn("r:back", "Back", { w: 100 }) : "") + btn("done:routing", "Done", { w: 80 }) + '</div>';
+    }
+    return h + LEGEND + '</div></div>';
+  }
+  function profOptions(c) {
+    return c.profs.concat(OTHER_PROFS.filter(function (p) { return c.profs.indexOf(p) < 0; }));
+  }
+
+  // Ways in ---------------------------------------------------------------------------------
+  function waysHTML() {
+    var p = prop(), A = S.mode === "tab";
+    var rows = [
+      ["Settings (/mw, minimap, mailbox's Settings)", "Bags and more › Friends... / Friends and guild...",
+        p ? (A ? "the <b>Mail routing</b> tab (Edit bindings... opens the window)" : "<b>Mail routing...</b> on the top row, on both tabs") : null],
+      ["Guild", "Bags and more › Guild... (or Friends and guild... › Guild...)", p ? "Mail routing › Guild rules: on / off, or Guild..." : null],
+      ["Mail ledger", "Bags and more › Mail ledger... (or Friends and guild... › Mail ledger...)", p ? "Mail routing › Mail ledger..." : null],
+      ["Mailbox window", "Friends... by the Bindings heading (while this visit has binding rows)", p ? "the same button, renamed Routing..., opens Mail routing" : null],
+      ["Slash commands", "/mw friends, /mw bindings, /mw guild, /mw ledger", p ? "all stay; /mw routing is added" : null]
+    ];
+    return '<tr><th>Ways in</th><th>Today</th><th>' + (p ? MODE_LABEL[S.mode] : "After the change") + '</th></tr>'
+      + rows.map(function (r) {
+        return '<tr><td>' + r[0] + '</td><td>' + r[1] + '</td><td class="' + (r[2] ? "chg" : "dim") + '">' + (r[2] || "pick B or A above") + '</td></tr>';
+      }).join("");
+  }
+
+  // Static snapshots of the Bags and more tab (not D-pad stops: their data-* hooks are renamed).
+  function snapshots() {
+    var keep = S, out = "";
+    [["today", "solo", "<b>Today, solo:</b> Friends, Guild and Mail ledger are one Friends and guild..."],
+     ["today", "busy", "<b>Today, with a binding:</b> Friends (N bindings)..., Guild... and Mail ledger..."],
+     ["button", "busy", "<b>After (B):</b> they're in Mail routing; Bags and more keeps four windows"]].forEach(function (c) {
+      S = Object.assign({}, keep, { mode: c[0], who: c[1], tab: "more", focus: null, guildOn: true,
+        bindings: c[1] === "busy" ? BUSY_BINDINGS.slice() : [], template: c[1] === "busy" });
+      out += '<div class="snap"><div class="cap">' + c[2] + '</div><div class="zoom">'
+        + settingsHTML().replace(/data-(act|close|win)=/g, "data-static-$1=") + '</div></div>';
+    });
+    S = keep;
+    return out;
+  }
+
+  // Render, D-pad --------------------------------------------------------------------------------
+  function stops(win) { return Array.prototype.slice.call(document.querySelectorAll('[data-win="' + win + '"] .btn[data-act]')); }
+  function render() {
+    if (!S.setOpen && !S.rOpen) S.focus = null;
+    else if (S.focus === "routing" && !S.rOpen) S.focus = "settings";
+    else if (S.focus === "settings" && !S.setOpen) S.focus = "routing";
+    var h = S.setOpen ? settingsHTML() : '<div class="closed">Settings is closed. Press <b>Reopen Settings (/mw)</b> above.</div>';
+    if (S.rOpen) h += routingHTML();
+    document.getElementById("windows").innerHTML = h;
+    document.getElementById("ways").innerHTML = waysHTML();
+    document.querySelectorAll("[data-mode]").forEach(function (b) { b.classList.toggle("on", b.dataset.mode === S.mode); });
+    document.querySelectorAll("[data-who]").forEach(function (b) { b.classList.toggle("on", b.dataset.who === S.who); });
+    var list = S.focus ? stops(S.focus) : [];
+    if (S.focus && S.hl[S.focus] >= list.length) S.hl[S.focus] = Math.max(0, list.length - 1);
+    if (list.length) { list[S.hl[S.focus]].classList.add("hl"); showTip(list[S.hl[S.focus]]); } else showTip(null);
+    var live = '<span class="l">Presses since /mw: <b>' + S.presses + '</b></span><span>'
+      + S.path.map(function (p, i) { return '<span class="step' + (i === 0 ? " cmd" : "") + '">' + p + '</span>'; }).join('<span class="arrow">›</span>') + '</span>';
+    if (S.reached !== null) live += '<span class="got">Add a binding, step 1: ' + S.reached + ' press' + (S.reached === 1 ? "" : "es") + '</span>';
+    document.getElementById("live").innerHTML = live;
+  }
+  function showTip(b) {
+    var t = b && b.dataset.tip;
+    document.getElementById("tipbar").innerHTML = b ? '<b>' + b.textContent + '</b>' + (t ? ": " + esc(t) : "") : '<span class="dim">No window open.</span>';
+  }
+  function toast(t) { var el = document.getElementById("toast"); if (el) el.textContent = t || ""; }
+
+  function openR(view, fromList) {
+    S.rOpen = true; S.rView = view; S.fromList = !!fromList; S.focus = "routing"; S.hl.routing = 0; S.picked = null; S.armed = null;
+  }
+  function press(act, label) {
+    S.presses++;
+    S.path.push(label.replace(/\s+/g, " ").trim());
+    var parts = act.split(":"), kind = parts[0];
+    toast("");
+    if (kind !== "r" || parts[1] !== "remove") S.armed = null;
+    if (kind === "tab") { S.tab = parts[1]; S.hl.settings = Math.min(S.hl.settings, 2); }
+    else if (act === "openRouting" || act === "friendsGuild") openR("list");
+    else if (act === "friends") openR(S.bindings.length ? "list" : "add1");
+    else if (act === "guild") openR("guild");
+    else if (act === "a:add") openR("add1");
+    else if (act === "a:edit") openR("list");
+    else if (act === "a:guild") openR("guild");
+    else if (act === "guildToggle") { S.guildOn = !S.guildOn; }
+    else if (act === "ledger") toast("Opens the Mail ledger window next to this one (unchanged).");
+    else if (act === "change") toast("Opens the bank alt picker (unchanged).");
+    else if (act === "r:change") toast("Opens Settings on the bank alt picker, next to this window. Picking returns you here.");
+    else if (act === "r:add") { S.rView = "add1"; S.hl.routing = 0; S.hint = ""; }
+    else if (kind === "r" && parts[1] === "pick") { S.picked = +parts[2]; S.rView = "add2"; S.hl.routing = 0; }
+    else if (kind === "r" && parts[1] === "bind") {
+      var c = CANDIDATES[S.picked], p = profOptions(c)[+parts[2]];
+      S.bindings.push({ prof: p, to: c.name, cap: "no price cap", scope: "All my characters" });
+      S.hint = p + " materials now go to " + c.name.split(" ")[0] + ". Remove it any time.";
+      S.rView = "list"; S.picked = null; S.hl.routing = 0;
+    } else if (kind === "r" && parts[1] === "remove") {
+      var i = +parts[2];
+      if (S.armed === i) { S.bindings.splice(i, 1); S.armed = null; S.hint = "Binding removed."; } else S.armed = i;
+    } else if (act === "r:guild") openR("guild", true);
+    else if (act === "r:back") {
+      if (S.rView === "add2") S.rView = "add1"; else S.rView = "list";
+      S.hl.routing = 0;
+    } else if (act === "done:settings") { S.setOpen = false; S.focus = S.rOpen ? "routing" : null; }
+    else if (act === "done:routing") { S.rOpen = false; S.focus = S.setOpen ? "settings" : null; }
+    else toast("Unchanged: this button works as it does today.");
+    if (S.reached === null && S.rOpen && S.rView === "add1") S.reached = S.presses;
+    render();
+  }
+  function closeWin(win) {
+    if (win === "routing") S.rOpen = false; else S.setOpen = false;
+    S.focus = S.rOpen ? "routing" : S.setOpen ? "settings" : null;
+    render();
+  }
+
+  // Nav.Pick-like: the nearest stop in the pressed direction; Down from the bottom row wraps to the top-left.
+  function move(dir) {
+    if (!S.focus) return;
+    var list = stops(S.focus); if (!list.length) return;
+    var cur = list[S.hl[S.focus]].getBoundingClientRect(), cx = cur.left + cur.width / 2, cy = cur.top + cur.height / 2;
+    var best = -1, bestScore = 1e9;
+    list.forEach(function (b, i) {
+      var r = b.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2, dx = x - cx, dy = y - cy, main, side;
+      if (dir === "up") { main = -dy; side = Math.abs(dx); } else if (dir === "down") { main = dy; side = Math.abs(dx); }
+      else if (dir === "left") { main = -dx; side = Math.abs(dy); } else { main = dx; side = Math.abs(dy); }
+      if ((dir === "up" || dir === "down") && main < 8) return;
+      if ((dir === "left" || dir === "right") && (main < 8 || side > 12)) return;
+      var score = main + side * 2;
+      if (score < bestScore) { bestScore = score; best = i; }
+    });
+    if (best < 0 && dir === "down") best = 0;
+    if (best >= 0) { S.hl[S.focus] = best; render(); }
+  }
+
+  document.addEventListener("click", function (e) {
+    var x = e.target.closest("[data-close]");
+    if (x) { closeWin(x.dataset.close); return; }
+    var b = e.target.closest(".btn[data-act]");
+    if (b) {
+      var win = b.closest("[data-win]").dataset.win;
+      S.focus = win; S.hl[win] = stops(win).indexOf(b);
+      press(b.dataset.act, b.textContent);
+      return;
+    }
+    var f = e.target.closest("[data-win]");
+    if (f) { S.focus = f.dataset.win; render(); return; }
+    var m = e.target.closest("[data-mode]");
+    if (m) { S.mode = m.dataset.mode; reset(true); render(); return; }
+    var w = e.target.closest("[data-who]");
+    if (w) { S.who = w.dataset.who; reset(true); render(); return; }
+    if (e.target.id === "reopen") { S.setOpen = true; S.focus = "settings"; S.path = ["/mw"]; S.presses = 0; S.reached = null; render(); }
+    if (e.target.id === "reset") { reset(true); render(); }
+  });
+  document.addEventListener("mouseover", function (e) {
+    var b = e.target.closest(".btn[data-act]");
+    if (b) showTip(b);
+  });
+  document.addEventListener("keydown", function (e) {
+    var k = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right" }[e.key];
+    if (k) { move(k); e.preventDefault(); return; }
+    if (e.key === "Enter" && S.focus) {
+      var b = stops(S.focus)[S.hl[S.focus]];
+      if (b) press(b.dataset.act, b.textContent);
+      e.preventDefault();
+    } else if ((e.key === "Escape" || e.key === "Backspace") && S.focus) { closeWin(S.focus); e.preventDefault(); }
+  });
+
+  reset(false);
+  document.getElementById("snaps").innerHTML = snapshots();
+  // The sheet opens on the proposal, one press in: Mail routing... from the Mailing tab.
+  S.hl.settings = 2;
+  press("openRouting", "Mail routing...");
+  S.hl.routing = stops("routing").indexOf(document.querySelector('[data-win="routing"] [data-act="r:add"]'));
+  render();
+})();
+</script>
+</body>
+</html>
