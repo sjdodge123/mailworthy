@@ -96,7 +96,7 @@ local function accept(row, forGood)
     if route then
         local what = ns.Routes.What(route)
         ns.Print(forGood
-            and string.format("Bound: %s to %s. Check the list, then press Send. Remove it under Bindings or Friends...", what, s.name)
+            and string.format("Bound: %s to %s. Check the list, then press Send. Remove it under Bindings or Mail routing...", what, s.name)
             or string.format("%s to %s %s. Check the list, then press Send.", what, s.name, ns.Routes.TEMP[s.scope]))
     else
         ns.Print("Not bound: " .. tostring(why) .. ".")
@@ -163,7 +163,7 @@ function S.CreateSuggestions()
             return row.s and row.s.scope == "group" and "Their materials go to them until one of you leaves the group."
                 or "Their materials go to them this visit only."
         end)
-        W.Tip(row.bind, "Bind", "A binding that stays until you remove it (Bindings or Friends...).")
+        W.Tip(row.bind, "Bind", "A binding that stays until you remove it (Bindings or Mail routing...).")
         W.Tip(row.notFor, "Not for them", "Never suggest this player for this profession again.")
         for _, b in ipairs({ row.short, row.bind, row.notFor }) do lit(b, row) end
         for _, w in ipairs({ row.label, row.short, row.bind, row.notFor }) do w:Hide() end

@@ -4,10 +4,12 @@
 --     listing length, disenchant value, profession materials, sell what I gather, send by tag
 --     (AH / DE / BA / V);
 --   "Bags and more" (tab): in your bags (tags, lock glow, pins, item tooltips, pin warning, minimap
---     button) and the windows (locked items, pinned items, friends, guild, mail ledger, bank alt
---     summary, report). A player with no binding, no guild template in use and nothing in the ledger
---     sees one "Friends and guild..." button for the first three (UX review U1); they come back
---     the moment one is in use;
+--     button) and the windows (locked items, pinned items, bank alt summary, report);
+--   "Mail routing..." (a button on the tabs' row, on both tabs; not a tab: operator, 2026-11-22,
+--     media/settings-routing-prototype.png, "go with B, move them, call it Mail routing"): the Mail
+--     routing window (RoutesUI) on its list: the bindings, the guild's rules, the bank alt, and from
+--     there Guild... and Mail ledger... (before, Bags and more had Friends / Guild / Mail ledger, folded
+--     into "Friends and guild..." for a solo player);
 --   pick view (Change... / Choose...; a bank alt is optional since 2026-11-08): the known
 --     characters, "This character is my bank alt" (a main on another WoW account),
 --     an optional typed name, Back. Picking saves and returns to the settings.
@@ -33,13 +35,14 @@ UI.MAX_CHOICES = 6
 UI.TABS = { "mailing", "more" }
 local WIDTH, ROW, VERSION_ROW, TOP = 420, 26, 20, -74
 local LEFT, RIGHT, HALF = 24, 214, 182 -- the two columns of half-width buttons
+local THIRD = 120 -- the tabs' row: Mailing, Bags and more, Mail routing...
 
 local win, frame, views, nameBox, nameHint, current, emptyHint, pricesLine, versionLine, changeButton
 local choiceRows = {}
 local sendButtons = {} -- verdict tag ("ah", "de", "b", "v") -> its Send switch
 local amountLabel, pctLabel, disenchantButton, minimapButton, tagsButton, glowButton, matsButton, hereButton
 local gatherButton, locksButton, pinButton, tooltipButton, pinWarningButton, pinnedButton, suggestButton
-local friendsButton, guildButton, ledgerButton, summaryButton, reportButton, friendsGuildButton
+local summaryButton, reportButton, routingButton
 local tabButtons = {}
 local durationButtons = {}
 local typedLabel, useNameButton, backButton, doneButton
@@ -108,6 +111,7 @@ function UI.Choose(name)
     end
     UI.Refresh()
     if saved and ns.MailWindow then ns.MailWindow.RefreshIfShown() end -- the list now has somewhere to go
+    if ns.RoutesUI then ns.RoutesUI.RefreshIfShown() end -- its bank alt line
 end
 
 --- "This character is my bank alt": the character receiving the mail says so itself
@@ -128,6 +132,7 @@ function UI.ToggleHere()
     end
     if ns.BankAlt then ns.BankAlt.Redraw() end
     UI.Refresh()
+    if ns.RoutesUI then ns.RoutesUI.RefreshIfShown() end -- its bank alt line
 end
 
 -- Layout by rows ---------------------------------------------------------------------------
@@ -184,16 +189,21 @@ local function toggle(viewName, width, name, onClick, tipText)
     end, tipText)
 end
 
--- Tabs: Mailing / Bags and more --------------------------------------------------------------
+-- Tabs: Mailing / Bags and more, then Mail routing... -----------------------------------------
 
 local function createTabs()
     for i, t in ipairs(UI.TABS) do
-        local b = button({ "mailing", "more" }, t == "mailing" and "Mailing" or "Bags and more", HALF,
+        local b = button({ "mailing", "more" }, t == "mailing" and "Mailing" or "Bags and more", THIRD,
             t == "mailing" and "TabMailing" or "TabMore", function() UI.SetTab(t) end,
             t == "mailing" and "The bank alt and what gets mailed." or "Tags, pins, tooltips and Mailworthy's other windows.")
-        at(b, i == 1 and LEFT or RIGHT, -44)
+        at(b, LEFT + (i - 1) * (THIRD + 6), -44)
         tabButtons[t] = b
     end
+    -- Not a tab: it opens the Mail routing window beside the settings, like Locked items... does.
+    routingButton = button({ "mailing", "more" }, "Mail routing...", THIRD, "Routing", function()
+        ns.RoutesUI.Show(frame)
+    end, "Where your mail goes: your bindings (Add a binding...), the guild's rules and the bank alt.")
+    at(routingButton, LEFT + 2 * (THIRD + 6), -44)
 end
 
 -- Mailing: the bank alt on one row, what gets mailed ----------------------------------------
@@ -332,31 +342,14 @@ local function createMore()
         "This character's locked items, each with Unlock (also one no longer in your bags).")
     pinnedButton = window("Pinned", function() ns.PinsUI.Show(frame) end,
         "The account's pinned items, each with Unpin (also one no longer in your bags).")
-    friendsButton = window("Friends", function() ns.RoutesUI.Show(frame) end,
-        "Bindings: a profession's materials mailed to a friend, a guild member or one of your characters.")
-    -- 2026-11-07: "I want a new button for guild inside the mailworthy settings"
-    guildButton = window("Guild", function() ns.RoutesUI.ShowGuild(frame) end,
-        "Your guild's template: turn the guild rules on or off; the guild master and officers edit it.")
-    ledgerButton = window("Ledger", function() ns.LedgerUI.Show(frame) end,
-        "What other players mailed you beyond what you mailed back, and the whole mail log.")
-    friendsGuildButton = window("FriendsGuild", function() ns.RoutesUI.Show(frame, "list") end,
-        "Bindings for friends, the guild's template and the mail ledger: one button until you use one of them.")
+    -- Friends, Guild and Mail ledger moved to the Mail routing window (operator, 2026-11-22).
     summaryButton = window("Summary", function()
         if ns.BankAlt then ns.BankAlt.ShowWindow(frame) end
     end, "On your bank alt (or without one): what to list, disenchant or sell to a vendor.")
     reportButton = window("Report", function() UI.OpenReport() end,
         "A copyable report for a bug report: settings, switches, the last send and the log.")
     rows.more[#rows.more + 1] = { grid = function()
-        local list = { locksButton, pinnedButton }
-        local folded = UI.Solo()
-        for _, b in ipairs({ friendsButton, guildButton, ledgerButton }) do
-            if folded then b:Hide() else list[#list + 1] = b end
-        end
-        if folded then list[#list + 1] = friendsGuildButton else friendsGuildButton:Hide() end
-        list[#list + 1] = summaryButton
-        list[#list + 1] = reportButton
-        for _, b in ipairs(list) do b:Show() end
-        return list
+        return { locksButton, pinnedButton, summaryButton, reportButton }
     end }
 end
 
@@ -509,28 +502,6 @@ local function fillPicker(bankAlt, here, choices)
     return shown, marked
 end
 
---- Pure: the Guild button: "Guild..." / "Guild (rules on)..." / "Guild (new template)...".
-function UI.GuildButtonText(inGuild, template)
-    if not inGuild or not template then return "Guild..." end
-    if template.use == nil then return "Guild (new template)..." end
-    return template.use and "Guild (rules on)..." or "Guild (rules off)..."
-end
-
---- A player who mails only a bank alt (UX review U1): no binding of their own or the account's, no
---- guild template in use (on, new, or a draft being written), nothing in the mail ledger. Settings
---- then folds Friends, Guild and Mail ledger into one "Friends and guild..." button.
-function UI.Solo()
-    if #ns.Routes.Personal() > 0 then return false end
-    if ns.Guild.On() and ns.Guild.Mine() then
-        if ns.Guild.InUse() then return false end
-        local template = ns.Guild.Template()
-        if template and template.use == nil then return false end
-        if ns.Guild.CanPublish() and #(ns.Guild.Draft() or {}) > 0 then return false end
-    end
-    if ns.Ledger.On() and #(ns.Ledger.Debts() or {}) > 0 then return false end
-    return true
-end
-
 --- Pure: the Profession materials button's label for Config.Values `v` (U8: short; the tooltip says
 --- the rest): "Profession materials: on (BH)" / "on my bank alt (BA)" / "off".
 function UI.MatsText(v)
@@ -594,12 +565,6 @@ local function fillMain(bankAlt, here, choices)
     W.SetToggled(suggestButton, suggest)
     minimapButton:SetText("Minimap button: " .. (ns.Config.MinimapShown() and "shown" or "hidden"))
     W.SetToggled(minimapButton, ns.Config.MinimapShown() == true)
-    local bindings = #ns.Routes.Personal()
-    friendsButton:SetText(bindings == 0 and "Friends..."
-        or string.format("Friends (%d binding%s)...", bindings, bindings == 1 and "" or "s"))
-    guildButton:SetText(UI.GuildButtonText(ns.Guild.On() and ns.Guild.Mine() ~= nil, ns.Guild.On() and ns.Guild.Template()))
-    ledgerButton:SetText("Mail ledger...")
-    friendsGuildButton:SetText("Friends and guild...")
     summaryButton:SetText("Bank alt summary...")
     reportButton:SetText("Report...")
     locksButton:SetText(ns.LocksUI.ButtonText(ns.Locks.Count()))
@@ -704,8 +669,6 @@ end
 
 ns.On("PLAYER_LOGIN", function()
     UI.Create()
-    -- Friends / Guild / Mail ledger fold and unfold with what is in use (UX review U1).
-    ns.Ledger.OnChanged(UI.RefreshIfShown)
 end)
 -- A new Mailworthy user can be a name on screen (Comms.Mark): redraw.
 ns.Comms.OnMarksChanged(UI.RefreshIfShown)

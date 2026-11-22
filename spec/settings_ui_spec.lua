@@ -219,35 +219,77 @@ describe("settings window", function()
     describe("Bags and more (UX review U1, U3)", function()
         before_each(function() _G.MailworthySettingsTabMore:Click() end)
 
-        it("a solo player gets one Friends and guild... button; any binding, guild template or debt brings the three back",
+        -- Operator, 2026-11-22: "go with B, move them, call it Mail routing" (media/settings-routing-prototype.png).
+        it("Mail routing... on the tabs' row of both tabs opens the routing list; Friends, Guild and Mail ledger moved there",
             function()
-                assert.is_true(ns.SettingsUI.Solo())
-                assert.is_true(_G.MailworthySettingsFriendsGuild:IsShown())
-                for _, name in ipairs({ "Friends", "Guild", "Ledger" }) do
-                    assert.is_false(_G["MailworthySettings" .. name]:IsShown(), name)
+                assert.is_true(_G.MailworthySettingsRouting:IsShown())
+                assert.equal("Mail routing...", _G.MailworthySettingsRouting:GetText())
+                for _, name in ipairs({ "Friends", "Guild", "Ledger", "FriendsGuild" }) do
+                    assert.is_nil(_G["MailworthySettings" .. name], name .. " left Bags and more")
                 end
-                _G.MailworthySettingsFriendsGuild:Click()
-                assert.is_true(ns.RoutesUI.Frame():IsShown())
-                assert.equal("list", ns.RoutesUI.View(), "the list (with Guild... and Mail ledger...), not step 1")
-                ns.RoutesUI.Frame():Hide()
-
-                ns.Routes.Add("Bob Surname", 333)
+                assert.is_nil(ns.SettingsUI.Solo, "no solo fold any more")
+                ns.Routes.Add("Bob Surname", 333) -- a binding changes nothing here
                 ns.SettingsUI.Refresh()
-                assert.is_false(ns.SettingsUI.Solo())
-                assert.is_false(_G.MailworthySettingsFriendsGuild:IsShown())
-                for _, name in ipairs({ "Friends", "Guild", "Ledger" }) do
-                    assert.is_true(_G["MailworthySettings" .. name]:IsShown(), name)
+                assert.is_true(_G.MailworthySettingsLocks:IsShown())
+                assert.is_true(_G.MailworthySettingsReport:IsShown())
+                _G.MailworthySettingsRouting:Click()
+                local routing = ns.RoutesUI.Frame()
+                assert.is_true(routing:IsShown())
+                assert.equal("list", ns.RoutesUI.View())
+                assert.equal("Mail routing", ns.RoutesUI.TITLE.routing)
+                for _, name in ipairs({ "Add", "Guild", "ChangeAlt", "Ledger", "Remove1" }) do
+                    assert.is_true(_G["MailworthyFriends" .. name]:IsShown(), name)
                 end
-                ns.Routes.Remove(ns.Routes.List()[1].key)
-                assert.is_true(ns.SettingsUI.Solo())
-                local store = ns.Ledger.Store()
-                store.players["bob surname"] = { name = "Bob Surname", received = 1000, sent = 0, inItems = {}, outItems = {}, at = 1 }
-                assert.is_false(ns.SettingsUI.Solo(), "something in the ledger")
-                store.players["bob surname"] = nil
-                WowStub.state.guild = { clubId = 3, name = "Bank Of Azeroth", rank = 0, members = {} }
-                ns.Guild.DraftAdd("Rettana Quilwrit", 197)
-                assert.is_false(ns.SettingsUI.Solo(), "a guild template being written")
+                routing:Hide()
+                _G.MailworthySettingsTabMailing:Click()
+                assert.is_true(_G.MailworthySettingsRouting:IsShown(), "on the Mailing tab too")
             end)
+
+        it("Change... in Mail routing opened from Settings: no circular anchors (Codex review)", function()
+            ns.SettingsUI.Show()
+            local settings, routing = ns.SettingsUI.Frame(), ns.RoutesUI.Frame()
+            settings.GetLeft = function() return 100 end
+            settings.GetRight = function() return 520 end
+            settings.GetEffectiveScale = function() return 1 end
+            routing.GetWidth = function() return 560 end
+            routing.GetEffectiveScale = function() return 1 end
+            local screen = _G.UIParent
+            screen.GetRight = function() return 1365 end
+            screen.GetEffectiveScale = function() return 1 end
+            _G.MailworthySettingsRouting:Click()
+            local _, rel = routing:GetPoint(1)
+            assert.equal(settings, rel, "the routing window beside the settings")
+            _G.MailworthyFriendsChangeAlt:Click()
+            assert.equal("pick", ns.SettingsUI.View())
+            local _, srel = settings:GetPoint(1)
+            assert.equal(routing, srel, "the settings placed by the routing window")
+            assert.is_true(routing:GetNumPoints() > 0)
+            for i = 1, routing:GetNumPoints() do
+                local _, r = routing:GetPoint(i)
+                assert.are_not.equal(settings, r, "the routing window no longer hangs on the settings")
+            end
+        end)
+
+        it("Change... with Settings already open behind: the controller moves to the picker (Codex review)", function()
+            WowStub.state.showOnce = true -- Show on a shown frame fires no OnShow, as in game
+            ns.SettingsUI.Show()
+            ns.HandleSlash("routing")
+            assert.equal(ns.RoutesUI.Frame(), ns.Nav.Root())
+            _G.MailworthyFriendsChangeAlt:Click()
+            assert.equal("pick", ns.SettingsUI.View())
+            assert.equal(ns.SettingsUI.Frame(), ns.Nav.Root(), "the D-pad drives the picker, not the window behind it")
+        end)
+
+        it("the routing list's bank alt line follows the settings' picker", function()
+            ns.Config.ClearBankAlt()
+            ns.SettingsUI.Refresh()
+            _G.MailworthySettingsRouting:Click()
+            assert.equal("Choose...", _G.MailworthyFriendsChangeAlt:GetText())
+            _G.MailworthyFriendsChangeAlt:Click()
+            assert.equal("pick", ns.SettingsUI.View())
+            ns.SettingsUI.Choose("Roknua Themicrulah")
+            assert.equal("Change...", _G.MailworthyFriendsChangeAlt:GetText(), "the open routing window redrew")
+        end)
 
         it("Pin warning: on / off, the switch /mw pinwarning was the only way to", function()
             local b = _G.MailworthySettingsPinWarning

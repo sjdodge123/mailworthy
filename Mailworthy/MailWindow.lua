@@ -155,7 +155,7 @@ function UI.Layout(n)
     if n.routes > 0 then
         at(S.routesHead, 24, y)
         at(S.friendsButton, -24, y + 4, "TOPRIGHT")
-        at(S.guildButton, -120, y + 4, "TOPRIGHT")
+        at(S.guildButton, -140, y + 4, "TOPRIGHT")
         y = y - 22
         for i, row in ipairs(S.routeRows) do
             if i <= n.routes then

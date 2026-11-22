@@ -247,18 +247,23 @@ function Nav.CloseTop()
     return root
 end
 
+--- `frame` is the window on top now: the controller drives it, from its top-left button. On every
+--- OnShow, and from Widgets.Shell's Show for a window already open (raised over the one that
+--- opened it, which fires no OnShow; Codex review, 2026-11-22).
+function Nav.Raise(frame)
+    remembered[frame] = nil -- a window that opens starts at its top-left button
+    for i = #roots, 1, -1 do
+        if roots[i] == frame then table.remove(roots, i) end
+    end
+    roots[#roots + 1] = frame
+end
+
 --- Register a window to navigate; the highlight is ours, a gold frame drawn
 --- around the selected button. Call at login (it creates a frame).
 function Nav.Attach(frame)
     if highlights[frame] then return end
     roots[#roots + 1] = frame
-    frame:HookScript("OnShow", function(self)
-        remembered[self] = nil -- a window that opens starts at its top-left button
-        for i = #roots, 1, -1 do
-            if roots[i] == self then table.remove(roots, i) end
-        end
-        roots[#roots + 1] = self
-    end)
+    frame:HookScript("OnShow", Nav.Raise)
     local highlight = CreateFrame("Frame", (frame:GetName() or "Mailworthy") .. "NavHighlight", frame)
     highlights[frame] = highlight
     highlight:SetFrameLevel(frame:GetFrameLevel() + 20)

@@ -1,11 +1,14 @@
--- The friends window (/mw friends, the settings' Friends button, the Mailworthy
--- window's Friends button; media/ux-pass-prototype.png), one view at a time:
---   list: the player's own bindings (then Guild... and Mail ledger...), each with its price cap stepper, scope (all my
---     characters / this character), for an Enchanting binding its Gear switch on a third line
---     ("Gear: all green and blue" / "Gear: only when disenchanting pays more";
---     media/disenchant-binding-prototype.png), where the mail goes (the friend, or the
---     character of theirs that has the profession, as their own Mailworthy
---     reported) and Remove; then "Add a binding...";
+-- The Mail routing window (/mw routing, friends or bindings; the settings' Mail routing... button, the
+-- Mailworthy window's Mail routing... button; media/settings-routing-prototype.png, operator 2026-11-22:
+-- "go with B, move them, call it Mail routing"; before, the friends window), one view at a time:
+--   list (always where it opens), in the order Mailworthy routes: the player's own bindings, each with
+--     its price cap stepper, scope (all my characters / this character), for an Enchanting binding its
+--     Gear switch on a third line ("Gear: all green and blue" / "Gear: only when disenchanting pays
+--     more"; media/disenchant-binding-prototype.png), where the mail goes (the friend, or the
+--     character of theirs that has the profession, as their own Mailworthy reported) and Remove;
+--     then "Add a binding..."; the guild's rules (whose template, its rules, "Guild rules: on / off"
+--     in one press, Guild...); the bank alt (who gets the rest, Change... / Choose...: the settings'
+--     picker); Mail ledger... on the bottom row;
 --   add, step 1: pick a player (party, guild, own characters, Mailworthy users;
 --     online first; their professions shown); step 2: pick the profession (theirs
 --     suggested). Binding saves and returns to the list; Back goes one step back.
@@ -18,7 +21,7 @@
 --     rules being edited, each with its cap stepper and Remove (the Enchanting rule with its
 --     Gear switch too; a member reads it on the rule's cap line), "Add a rule...",
 --     "Publish to guild".
--- With no bindings and no guild template it opens straight on step 1. Every control is a
+-- Every control is a
 -- button, so the controller drives it (PadKey "settings" set, Nav); nothing needs typing.
 local _, ns = ...
 
@@ -36,13 +39,16 @@ local GUILD_LINE = -66   -- the guild template line in the guild view
 local GUILD_HELP = -96   -- what the rules do, under it
 local GUILD_TOP = -138   -- the first rule row in the guild view
 local LIST_TOP = -72
-UI.TITLE = { friends = "Send materials to friends", guild = "Guild materials" }
+UI.TITLE = { routing = "Mail routing", guild = "Guild materials" }
+UI.SUB = "Where your mail goes, in order: your bindings, the guild's rules, then the bank alt."
+local GUILD_TEXT_WIDTH = WIDTH - 56 - 120 - 90 - 12 -- the list's guild line, left of its two buttons
 
 local W = ns.Widgets
 
 local win, frame, views, bindHead, stepLabel, chosenLabel, emptyBindings, bindPager, candPager, refreshButton
 local addButton, backButton, doneButton, ledgerButton, guildButton, hint
 local guildLabel, guildToggle, publishButton
+local guildHead, guildLine, guildListToggle, bankHead, bankLine, changeAltButton -- the list's guild and bank alt lines
 local bindingRows, candidateRows, professionRows = {}, {}, {}
 local candidates, picked = {}, nil
 local view = "list"
@@ -146,7 +152,6 @@ local function createBindingRows()
                 setHint("Binding removed.")
                 UI.Refresh()
                 ns.MailWindow.RefreshIfShown()
-                ns.SettingsUI.RefreshIfShown() -- Friends / Guild / Mail ledger may fold again (UX review U1)
             end
         end, "MailworthyFriendsRemove" .. i, function()
             setHint(row.kind == "draft" and "Press Remove again to take this rule out of the draft."
@@ -208,21 +213,22 @@ local function placeRow(row, y)
     at(row.gear, 24, y - 24 - GEAR_LINE)
 end
 
+-- "Guild rules: on / off" (or "Use guild rules"), in the guild view and on the list's guild line.
+local function toggleGuildRules()
+    local was = ns.Guild.InUse()
+    if ns.Guild.ToggleUse() then
+        setHint(was and "Guild rules off: your materials no longer follow the guild template."
+            or "Guild rules on: the guild's rules apply after your own bindings and professions.")
+        ns.MailWindow.RefreshIfShown()
+    end
+    UI.Refresh()
+end
+
 local function createGuild()
     guildLabel = W.Label(frame, "GameFontHighlight")
     guildLabel:SetWidth(WIDTH - 56 - 160)
     guildLabel:SetJustifyH("LEFT")
-    guildToggle = W.Button(frame, "", 140, function()
-        local was = ns.Guild.InUse()
-        if ns.Guild.ToggleUse() then
-            setHint(was and "Guild rules off: your materials no longer follow the guild template."
-                or "Guild rules on: the guild's rules apply after your own bindings and professions.")
-            ns.MailWindow.RefreshIfShown()
-            local settings = ns.SettingsUI.Frame()
-            if settings and settings:IsShown() then ns.SettingsUI.Refresh() end
-        end
-        UI.Refresh()
-    end, "MailworthyFriendsGuildRules")
+    guildToggle = W.Button(frame, "", 140, toggleGuildRules, "MailworthyFriendsGuildRules")
     -- Two presses (UX review U7): it goes to every member of the guild.
     publishButton = W.ConfirmButton(frame, "Publish to guild", "Sure?", 150, function()
         local ok, err = ns.Guild.Publish()
@@ -282,12 +288,11 @@ end
 
 function UI.Create()
     if frame then return frame end
-    win = W.Shell({ name = "MailworthyFriendsFrame", width = WIDTH, height = 400, title = UI.TITLE.friends,
-        sub = "Each binding mails a profession's materials to one player, every time, until you remove it.",
-        log = "friends window", refresh = function() UI.Refresh() end })
+    win = W.Shell({ name = "MailworthyFriendsFrame", width = WIDTH, height = 400, title = UI.TITLE.routing,
+        sub = UI.SUB, log = "mail routing window", refresh = function() UI.Refresh() end })
     frame = win.frame
     bindHead = W.Label(frame, "GameFontNormal")
-    bindHead:SetText("Bindings")
+    bindHead:SetText("Your bindings")
     createBindingRows()
     createGuild()
     createAdd()
@@ -296,17 +301,38 @@ function UI.Create()
     hint:SetWidth(WIDTH - 56)
     doneButton = win.Done("MailworthyFriendsDone")
     ledgerButton = W.Button(frame, "Mail ledger...", 120, function() ns.LedgerUI.Show(frame) end, "MailworthyFriendsLedger")
-    -- The guild view from the list (UX review U1: Settings' "Friends and guild..." opens this window).
-    guildButton = W.Button(frame, "Guild...", 126, function() UI.OpenGuild(true) end, "MailworthyFriendsGuild")
+    W.Tip(ledgerButton, nil, "What other players mailed you beyond what you mailed back, and the whole mail log.")
+    -- The list's guild line: whose template, Guild rules: on / off, and Guild... (the guild view; its
+    -- Back returns here). 2026-11-07: "I want a new button for guild inside the mailworthy settings":
+    -- since 2026-11-22 it is Settings > Mail routing... > Guild....
+    guildHead = W.Label(frame, "GameFontNormal")
+    guildHead:SetText("Guild rules")
+    guildLine = W.Label(frame, "GameFontHighlight")
+    guildLine:SetWidth(GUILD_TEXT_WIDTH)
+    guildLine:SetJustifyH("LEFT")
+    guildListToggle = W.Button(frame, "", 120, toggleGuildRules, "MailworthyFriendsListGuildRules")
+    W.Tip(guildListToggle, nil, "Turn the guild's rules on or off for your materials: they apply after your own bindings.")
+    guildButton = W.Button(frame, "Guild...", 90, function() UI.OpenGuild(true) end, "MailworthyFriendsGuild")
+    W.Tip(guildButton, nil, "The guild's template and its rules; the guild master and officers edit it here.")
+    -- The bank alt line: who gets the rest worth selling; Change... opens the settings' picker.
+    bankHead = W.Label(frame, "GameFontNormal")
+    bankHead:SetText("Bank alt: the rest worth selling")
+    bankLine = W.Label(frame, "GameFontHighlight")
+    bankLine:SetWidth(WIDTH - 56 - 110)
+    bankLine:SetJustifyH("LEFT")
+    changeAltButton = W.Button(frame, "Change...", 96, function() ns.SettingsUI.Show(frame, "pick") end,
+        "MailworthyFriendsChangeAlt")
+    W.Tip(changeAltButton, nil, "Pick the character that receives the mail, or say this character is the bank alt.")
     local pooled = { emptyBindings, bindPager.next, candPager.next, refreshButton, guildToggle, publishButton,
-        addButton, backButton }
+        addButton, backButton, guildListToggle }
     for _, row in ipairs(bindingRows) do
         for _, w in ipairs(row.widgets) do pooled[#pooled + 1] = w end
     end
     for _, b in ipairs(candidateRows) do pooled[#pooled + 1] = b end
     for _, b in ipairs(professionRows) do pooled[#pooled + 1] = b end
     views = W.Views({
-        list = { win.sub, bindHead, addButton, guildButton, ledgerButton, doneButton },
+        list = { win.sub, bindHead, addButton, guildHead, guildLine, guildButton, bankHead, bankLine, changeAltButton,
+            ledgerButton, doneButton },
         guild = { stepLabel, guildLabel, chosenLabel, doneButton },
         add = { stepLabel, chosenLabel, backButton, doneButton },
     }, pooled)
@@ -415,6 +441,54 @@ local function hintLine(y)
     end
     hint:Hide()
     return y - 10
+end
+
+--- Pure: the list's guild line and its toggle's text (nil: no toggle). `on`: the guild template
+--- feature; `guild`: the player's guild, or nil; `fromText`: the author (with the Mailworthy mark).
+function UI.GuildLineText(on, guild, template, fromText)
+    if not on then return "Switched off (/mw feature guildTemplate on).", nil end
+    if not guild then return "Not in a guild.", nil end
+    if not template then return "No guild template yet.", nil end
+    local n = #(template.rules or {})
+    local text = string.format("From %s: %d rule%s", fromText or tostring(template.from), n, n == 1 and "" or "s")
+    local _, toggle = UI.GuildText(template, false, fromText)
+    return text .. (template.use == nil and " |cff33ff99(new)|r" or ""), toggle
+end
+
+--- The list's guild and bank alt lines, from `y` (under Add a binding...); returns the y under them.
+local function fillListLines(y)
+    at(guildHead, 20, y)
+    y = y - 22
+    local on = ns.Guild.On()
+    local template = on and ns.Guild.Template() or nil
+    local text, toggle = UI.GuildLineText(on, on and ns.Guild.Mine() or nil, template,
+        template and withMark(template.from) or nil)
+    guildLine:SetText(text)
+    at(guildLine, 28, y - 4)
+    at(guildButton, -24, y, "TOPRIGHT")
+    if toggle then
+        guildListToggle:SetText(toggle)
+        W.SetToggled(guildListToggle, ns.Guild.InUse())
+        at(guildListToggle, -24 - 90 - 6, y, "TOPRIGHT")
+        guildListToggle:Show()
+    else
+        guildListToggle:Hide()
+    end
+    y = y - 32
+    at(bankHead, 20, y)
+    y = y - 22
+    local bankAlt = ns.Config.BankAlt()
+    local mark
+    if bankAlt then
+        local _, m = ns.Comms.Mark(bankAlt)
+        marked = marked or m
+        mark = m and ns.Comms.MARK or nil
+    end
+    bankLine:SetText(ns.SettingsUI.BankAltText(bankAlt, ns.Config.IsBankAltHere(), ns.Config.Choices(), mark))
+    at(bankLine, 28, y - 4)
+    changeAltButton:SetText(bankAlt and "Change..." or "Choose...")
+    at(changeAltButton, -24, y, "TOPRIGHT")
+    return y - 30
 end
 
 --- Pure: what the guild view says under the template line.
@@ -536,7 +610,7 @@ function UI.Refresh()
     if not frame then return end
     local list, guild, add = view == "list", view == "guild", view == "add"
     marked = false
-    win.title:SetText((guild or (add and target == "guild")) and UI.TITLE.guild or UI.TITLE.friends)
+    win.title:SetText((guild or (add and target == "guild")) and UI.TITLE.guild or UI.TITLE.routing)
     views.Show(view)
     local y
     if list then
@@ -546,12 +620,10 @@ function UI.Refresh()
             "None yet: press Add a binding to pick a player, then the profession whose materials they get.")
         addButton:SetText("Add a binding...")
         addButton:Show()
-        guildButton:SetText(ns.SettingsUI.GuildButtonText(ns.Guild.On() and ns.Guild.Mine() ~= nil,
-            ns.Guild.On() and ns.Guild.Template()))
-        y = hintLine(y)
         at(addButton, 24, y)
-        at(guildButton, 172, y)
-        at(ledgerButton, -134, y, "TOPRIGHT")
+        y = fillListLines(y - 34)
+        y = hintLine(y)
+        at(ledgerButton, 24, y)
         at(doneButton, -24, y, "TOPRIGHT")
     elseif guild then
         local canPublish = ns.Guild.On() and ns.Guild.CanPublish()
@@ -638,17 +710,15 @@ function UI.Bind(i)
     picked, view = nil, "list"
     UI.Refresh()
     ns.MailWindow.RefreshIfShown()
-    ns.SettingsUI.RefreshIfShown() -- the first binding: Friends, Guild and Mail ledger unfold (UX review U1)
 end
 
 --- `opener`: the Mailworthy window whose button opened it (placed beside that), or nil (centred).
---- `startView`: "list" opens on the bindings even with none (Settings' "Friends and guild...": the
---- list has Guild... and Mail ledger...); otherwise no bindings opens on step 1.
-function UI.Show(opener, startView)
+--- It opens on the list, bindings or none (Add a binding... is one press from there).
+function UI.Show(opener)
     if not frame then UI.Create() end
     win.Show(opener, function()
         picked, target, guildFromList = nil, "me", false
-        view = (startView == "list" or #ns.Routes.Personal() > 0) and "list" or "add"
+        view = "list"
         bindPager.page, candPager.page = 1, 1
         setHint("")
         UI.Reload("shown")
