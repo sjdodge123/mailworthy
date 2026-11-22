@@ -128,8 +128,8 @@ than at the vendor goes to your bank alt. The rest stays in your bags to vendor.
   past a lock, a quest's item, a conjured item, an item in use or a profession tool; Return to
   sender beats it, as it beats every pin.
   `/mw feature vendorButton off` removes the button, `/mw feature padVendor off` the controller key.
-- **Send a profession's materials to a friend** (`/mw friends`, or the settings'
-  **Friends...** button): pick a guild member, party member or one of your own
+- **Send a profession's materials to a friend** (`/mw routing` or `/mw friends`, or the settings'
+  **Mail routing...** button, then **Add a binding...**): pick a guild member, party member or one of your own
   characters (online players first; their professions are shown and suggested), then the
   profession. From then on that profession's primary materials (dust, essences and shards for
   an enchanter, plus green and blue weapons and armor for them to disenchant; cloth for a
@@ -185,7 +185,8 @@ than at the vendor goes to your bank alt. The rest stays in your bags to vendor.
   looted it). Without such a binding nothing changes. On a rogue or a
   mage, its own lockboxes or scrolls stay in the bags ("Keep my professions' materials"); the
   row's button still sends one to a friend, and a bank pin to the bank alt.
-- **Guild template** (`/mw guild`, or **Guild...** in Mailworthy settings): the guild master
+- **Guild template** (`/mw guild`, or **Mail routing...** in Mailworthy settings, then **Guild...**; **Guild rules: on / off**
+  is on the Mail routing list too): the guild master
   (or an officer, the rank right below) presses **Add a rule...** and sets one rule per
   profession: "Enchanting to Bob", "Alchemy (herbs) to Ann", "Tailoring (cloth) to me", each
   with a price cap (and, for the Enchanting rule, the same **Gear** button as a binding of your
@@ -217,7 +218,7 @@ than at the vendor goes to your bank alt. The rest stays in your bags to vendor.
   backpack button (profession bags and the reagent bag don't count). Your bags are only
   valued at or under 4 free slots, out of combat, when something in them changed. Without a bank alt it speaks up only when a
   binding would mail. Nothing is sent. `/mw feature tripNudge off` hides it.
-- **Mail ledger** (`/mw ledger`, Settings > Mail ledger, Friends): Mailworthy logs every mail
+- **Mail ledger** (`/mw ledger`, Settings > Mail routing... > Mail ledger...): Mailworthy logs every mail
   your characters send (its own and Blizzard's Send button) and every item or gold you take
   out of the mailbox: date, both names, subject, each item with its count and value. **Export
   log...** puts all of it in a copy box, so you can show where items went. From the same log,
@@ -300,9 +301,9 @@ than at the vendor goes to your bank alt. The rest stays in your bags to vendor.
   keep are untouched.
 
 ```
-/mw                   settings: bank alt (pick, type, or "This character is my bank alt"), minimum gain, disenchant, listing length, tags, lock glow, profession materials, friends, guild, minimap button
+/mw                   settings: bank alt (pick, type, or "This character is my bank alt"), minimum gain, disenchant, listing length, tags, lock glow, profession materials, Mail routing..., minimap button
 /mw scan              what Mailworthy would mail and why, with the numbers (sends nothing)
-/mw friends           send a profession's materials to a guild member, party member or one of your characters (bindings)
+/mw routing           where your mail goes: your bindings (Add a binding...), the guild's rules, the bank alt (also /mw friends)
 /mw guild             your guild's template: guild rules on / off; the guild master and officers edit and publish it
 /mw summary           on your bank alt: what to list, disenchant or vendor
 /mw locks             this character's locked items, each with Unlock (also for one no longer in your bags)

@@ -13,16 +13,17 @@ local W = ns.Widgets
 --- A binding row's text while it shows, for specs.
 function UI.RouteLine(i) return S.routeRows[i] and S.routeRows[i].text:IsShown() and S.routeRows[i].text:GetText() or nil end
 
---- At login: the heading and its Friends... and Guild rules buttons.
+--- At login: the heading and its Mail routing... (the Mail routing window; was Friends... until 2026-11-22) and
+--- Guild rules buttons.
 function S.CreateBindingsHead()
     local frame = S.frame
     S.routesHead = W.Label(frame, "GameFontNormal")
     S.routesHead:SetText("Bindings")
-    S.friendsButton = W.Button(frame, "Friends...", 90, function() ns.RoutesUI.Show(frame) end, "MailworthyMailFriends")
+    S.friendsButton = W.Button(frame, "Mail routing...", 110, function() ns.RoutesUI.Show(frame) end, "MailworthyMailFriends")
     S.guildButton = W.Button(frame, "Guild rules: on", 130, function()
         if ns.Guild.SetUse(false) then
             ns.Print("Guild rules off: your materials no longer follow the guild template. "
-                .. "Turn them back on in Settings... > Guild...")
+                .. "Turn them back on in Settings... > Mail routing...")
         end
         UI.Refresh()
     end, "MailworthyMailGuildRules")
@@ -58,10 +59,10 @@ end
 
 --- Pure: the last row when more bindings apply than show. Own bindings come first in the list,
 --- so when the first hidden one is a guild rule, all the hidden ones are: those are in the Guild
---- window, not Friends (2026-11-07, Codex review).
+--- view, which the Mail routing window's list reaches (2026-11-07, Codex review; 2026-11-22: Mail routing).
 function UI.MoreText(n, guildOnly)
-    return string.format("|cffaaaaaa+ %d more: %s|r", n, guildOnly and "guild rules, Settings... > Guild..."
-        or "press Friends...")
+    return string.format("|cffaaaaaa+ %d more: %s|r", n, guildOnly and "guild rules, Mail routing... > Guild..."
+        or "press Mail routing...")
 end
 
 --- Pure: a binding row's grey tags: "(guild, skill 120)", "(skill 120)", "(guild)" or "". The skill
