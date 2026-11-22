@@ -163,7 +163,29 @@ local function newWidget(kind, name)
         if key == "RegisterEvent" then return function(_, ev) self.events[ev] = true end end
         if key == "UnregisterEvent" then return function(_, ev) self.events[ev] = nil end end
         if key == "SetFocus" then return function() WowStub.focusCalls = WowStub.focusCalls + 1 end end
-        if key == "Show" then return function() self.shown = true; runHooks("OnShow") end end
+        if key == "Show" then
+            return function()
+                local was = self.shown
+                self.shown = true
+                if not was or not s().showOnce then runHooks("OnShow") end
+            end
+        end
+        if key == "GetNumPoints" then
+            return function()
+                local n = 0
+                for _ in pairs(rawget(self, "points") or {}) do n = n + 1 end
+                return n
+            end
+        end
+        if key == "GetPoint" then
+            return function(_, i)
+                local n = 0
+                for _, p in pairs(rawget(self, "points") or {}) do
+                    n = n + 1
+                    if n == (i or 1) then return unpack(p) end
+                end
+            end
+        end
         if key == "Hide" then return function() self.shown = false; runHooks("OnHide") end end
         if key == "IsShown" then return function() return self.shown end end
         if key == "SetAlpha" then return function(_, a) rawset(self, "alpha", a) end end

@@ -96,7 +96,7 @@ function UI.AcceptOffer()
     local o = offer
     local route, why = ns.Routes.Add(o.name, o.profession)
     if route then
-        ns.Print(string.format("Bound: %s to %s. Check the list, then press Send. Remove it under Bindings or Friends...",
+        ns.Print(string.format("Bound: %s to %s. Check the list, then press Send. Remove it under Bindings or Mail routing...",
             ns.Routes.What(route), o.name))
     else
         ns.Print("Not bound: " .. tostring(why) .. ".")

@@ -66,7 +66,7 @@ describe("window views", function()
         r = reachable()
         -- Two views since the UX review (U2): Mailing, then Bags and more.
         assert.equal("mailing", ns.SettingsUI.Tab())
-        for _, name in ipairs({ "TabMailing", "TabMore", "Change", "AmountUp", "AmountDown", "PercentUp", "PercentDown",
+        for _, name in ipairs({ "TabMailing", "TabMore", "Routing", "Change", "AmountUp", "AmountDown", "PercentUp", "PercentDown",
             "Duration1", "Duration3", "Disenchant", "Mats", "Gather", "SendAuction", "SendDisenchant", "SendBank",
             "SendVendor", "Done" }) do
             assert.truthy(r["MailworthySettings" .. name], "Mailing reaches " .. name)
@@ -82,22 +82,23 @@ describe("window views", function()
         assert.equal("more", ns.SettingsUI.Tab())
         assert.is_true(ns.Nav.Current():IsVisible())
         r = reachable()
-        for _, name in ipairs({ "TabMailing", "TabMore", "Tags", "Glow", "Pins", "Tooltips", "PinWarning", "Minimap",
-            "Locks", "Pinned", "FriendsGuild", "Summary", "Report", "Done" }) do
+        for _, name in ipairs({ "TabMailing", "TabMore", "Routing", "Tags", "Glow", "Pins", "Tooltips", "PinWarning",
+            "Minimap", "Locks", "Pinned", "Summary", "Report", "Done" }) do
             assert.truthy(r["MailworthySettings" .. name], "Bags and more reaches " .. name)
         end
-        -- A solo player (UX review U1): Friends, Guild and Mail ledger are one button.
-        for _, name in ipairs({ "Friends", "Guild", "Ledger", "Change", "AmountUp", "Disenchant", "SendVendor" }) do
+        -- Friends, Guild and Mail ledger are in Mail routing (operator, 2026-11-22), with a binding or none.
+        for _, name in ipairs({ "Friends", "Guild", "Ledger", "FriendsGuild", "Change", "AmountUp", "Disenchant",
+            "SendVendor" }) do
             assert.is_nil(r["MailworthySettings" .. name], "Bags and more: no " .. name)
         end
         assertNoBlankButtons()
         ns.Routes.Add("Bob Surname", 333)
         ns.SettingsUI.Refresh()
         r = reachable()
-        for _, name in ipairs({ "Friends", "Guild", "Ledger" }) do
-            assert.truthy(r["MailworthySettings" .. name], "a binding: " .. name .. " is back")
+        for _, name in ipairs({ "Friends", "Guild", "Ledger", "FriendsGuild" }) do
+            assert.is_nil(r["MailworthySettings" .. name], "a binding: still no " .. name)
         end
-        assert.is_nil(r.MailworthySettingsFriendsGuild)
+        assert.truthy(r.MailworthySettingsRouting)
         assertNoBlankButtons()
         -- Widgets.Views knows each view's buttons: every one that shows is a D-pad stop.
         for _, name in ipairs(ns.SettingsUI.Views().Buttons("more")) do
@@ -116,11 +117,20 @@ describe("window views", function()
         assert.equal("main", ns.SettingsUI.View())
     end)
 
-    it("friends: no bindings opens on step 1; step 2; the list after binding", function()
+    it("mail routing: no bindings opens on the list; Add a binding... step 1, step 2; the list after binding", function()
         ns.RoutesUI.Show()
         tick()
-        assert.equal("add", ns.RoutesUI.View())
+        assert.equal("list", ns.RoutesUI.View(), "the list, bindings or none (2026-11-22)")
         local r = reachable()
+        for _, name in ipairs({ "Add", "Guild", "ChangeAlt", "Ledger", "Done" }) do
+            assert.truthy(r["MailworthyFriends" .. name], "the empty list reaches " .. name)
+        end
+        assert.is_nil(r.MailworthyFriendsPick1)
+        assertNoBlankButtons()
+        press(_G.MailworthyFriendsAdd)
+        assert.equal("add", ns.RoutesUI.View())
+        assert.is_true(ns.Nav.Current():IsVisible(), "the highlight left the hidden list")
+        r = reachable()
         assert.truthy(r.MailworthyFriendsPick1)
         assert.truthy(r.MailworthyFriendsRefresh)
         assert.truthy(r.MailworthyFriendsBack)
@@ -142,7 +152,7 @@ describe("window views", function()
         assert.equal("list", ns.RoutesUI.View())
         assert.is_true(ns.Nav.Current():IsVisible())
         r = reachable()
-        for _, name in ipairs({ "Remove1", "CapUp1", "CapDown1", "Scope1", "Add", "Guild", "Ledger", "Done" }) do
+        for _, name in ipairs({ "Remove1", "CapUp1", "CapDown1", "Scope1", "Add", "Guild", "ChangeAlt", "Ledger", "Done" }) do
             assert.truthy(r["MailworthyFriends" .. name], "reaches " .. name)
         end
         assert.is_nil(r.MailworthyFriendsRemove2)
@@ -199,7 +209,7 @@ describe("window views", function()
             geometry(friends, 0, 0)
             friends.GetWidth = function() return 560 end
             local fpoints = anchor(friends)
-            _G.MailworthySettingsFriends:Click()
+            _G.MailworthySettingsRouting:Click()
             assert.same({ "TOPRIGHT", settings, "TOPLEFT" }, fpoints[#fpoints], "no room on the right: left of settings")
         end)
     end)
