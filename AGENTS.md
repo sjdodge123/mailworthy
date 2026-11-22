@@ -11,7 +11,12 @@ SavedVariables, feature switches, where each Safety rule is enforced) before rea
 - Mail goes **only** to the recipients shown in the preview, and only after the
   player presses Send: the saved bank alt, and, for a binding (`Routes.lua`), the
   bound player, or the character of theirs that has the bound profession as their
-  own Mailworthy reported it (never their bank alt for the AH). A guild template rule
+  own Mailworthy reported it (never their bank alt for the AH). A binding can be short-lived, from a
+  suggestion (`Suggest.lua`, `Routes.AddTemp`; operator, 2026-11-22): **While grouped** (a player in this
+  character's group, until either leaves it) or **This visit** (one of this account's characters, until the
+  mailbox closes), made only when the player presses it, never saved, under the same rules as any binding (a
+  run already sending when its player leaves the group finishes as previewed; it ends after). A
+  guild template rule
   (`Guild.lua`) is a binding only once the player turned the guild rules on, only when its
   author is a guild master or officer in their own roster (any member may pass a copy on), and
   only to a player in that roster (operator, 2026-11-07). With **Return to sender**
@@ -125,7 +130,8 @@ textures / font strings on Blizzard frames kept in our own tables, read-only
 ## Critical path (STRICT)
 
 `spec/critical_path_spec.lua` is the shipping gate: a mailbox visit with a realistic
-bag, by mouse and by controller, with and without Auctionator, with a binding, with a bank pin, with a bank-here row's Alt, with vendor trash, with a hunter's
+bag, by mouse and by controller, with and without Auctionator, with a binding, with a suggested binding
+(While grouped, This visit, its player leaving the group), with a bank pin, with a bank-here row's Alt, with vendor trash, with a hunter's
 ammo, with a guild
 template (on and off), with Return to sender (on a main and on the bank alt), with the 5s
 money reserve (before Send and mid-run), with no realm name from the game (`Characters.Realm`: the

@@ -2034,6 +2034,134 @@ describe("critical path: mailing", function()
         assert.equal(0, ns.Routes.Count())
     end)
 
+    -- Suggested bindings (operator, 2026-11-22; docs/RECOMMENDATIONS.md): a crafter in the group is offered
+    -- a short-lived binding, "While grouped", an alt "This visit". A new way a recipient gets added, so:
+    -- only once pressed, only as previewed after that, never past a hard keep (the Silk Cloth in use), and
+    -- gone once they leave the group or the visit is over.
+    local GRACE = "Grace Thorn"
+    local function tailorInGroup()
+        WowStub.state.guild = { clubId = 7, name = "Bank Of Azeroth", members = {
+            { name = GRACE, level = 26, online = true, professions = { 197 }, ranks = { 80 } } } }
+        WowStub.state.group = { members = { { name = GRACE, online = true } } }
+        -- Linen under the 10s cap; the Wool Cloth (90s each) is over it and follows the normal rule.
+        WowStub.setBag(0, 13, WowStub.item(2589, "Linen Cloth", { count = 20, sell = 10, class = 7, subclass = 5 }))
+        prices[WowStub.link(2589, "Linen Cloth")] = 40
+    end
+    local function countTo(preview, name)
+        local n = 0
+        for _, to in pairs(preview) do if to == name then n = n + 1 end end
+        return n
+    end
+
+    it("a group member's suggestion taken While grouped (mouse): previewed to them, then exactly that is sent", function()
+        tailorInGroup()
+        mailbox()
+        _G.MailworthyMailButton:Click()
+        local suggestion = ns.MailWindow.Offer()
+        assert.truthy(suggestion, "the linen would go to the tailor in the group")
+        assert.equal(GRACE, suggestion.name)
+        assert.equal("While grouped", _G.MailworthyMailOfferVisit.text)
+        assert.equal(0, countTo(previewed(ns), GRACE), "suggested, not bound: nothing goes there yet")
+        _G.MailworthyMailOfferVisit:Click()
+        local preview = previewed(ns)
+        assert.equal(GRACE, preview[2589], "the list shows the linen going to her before anything is sent")
+        assert.equal(BANK_ALT, preview[2592], "the wool is over the cap: the normal rule")
+        assert.is_nil(preview[4306], "the Silk Cloth in use never goes")
+        assert.equal(suggestion.count, countTo(preview, GRACE), "it took what the suggestion said, no more")
+        assert.truthy(table.concat(ns.MailWindow.Texts().to, "\n"):find(GRACE, 1, true), "named on a To: line")
+        _G.MailworthyMailSend:Click()
+        deliver(ns)
+        assertSafeAndComplete(ns, preview, { [BANK_ALT] = true, [GRACE] = true })
+        assert.is_true(sentTo(GRACE) >= 1)
+        assert.equal(0, ns.Routes.Count() - #ns.Routes.Temp(), "nothing saved: it lasts while grouped")
+    end)
+
+    it("a group member's suggestion taken While grouped (controller): Cross on it, then Send mails as previewed", function()
+        tailorInGroup()
+        WowStub.state.gamepadUI = true
+        WowStub.state.activeFrame = MailFrame
+        mailbox()
+        local watcher = _G.MailworthyPadWatcher
+        watcher.scripts.OnUpdate(watcher, 0.2)
+        _G.MailworthyPadTriangle:Click()
+        watcher.scripts.OnUpdate(watcher, 0.2)
+        assert.is_true(_G.MailworthyMailOfferVisit:IsShown())
+        ns.Nav.Select(_G.MailworthyMailOfferVisit)
+        WowStub.state.now = WowStub.state.now + 1
+        _G.MailworthyPadCross:Click()
+        local preview = previewed(ns)
+        assert.equal(GRACE, preview[2589])
+        ns.Nav.Select(_G.MailworthyMailSend)
+        WowStub.state.now = WowStub.state.now + 1
+        _G.MailworthyPadCross:Click()
+        deliver(ns)
+        assertSafeAndComplete(ns, preview, { [BANK_ALT] = true, [GRACE] = true })
+    end)
+
+    it("a While grouped binding ends when they leave the group: nothing goes to them after", function()
+        tailorInGroup()
+        mailbox()
+        _G.MailworthyMailButton:Click()
+        _G.MailworthyMailOfferVisit:Click()
+        assert.equal(GRACE, previewed(ns)[2589])
+        WowStub.state.group = nil -- she left before Send
+        ns.Fire("GROUP_ROSTER_UPDATE")
+        assert.equal(0, #ns.Routes.Temp())
+        _G.MailworthyMailSend:Click()
+        deliver(ns)
+        assert.equal(0, sentTo(GRACE), "nothing to a player no longer bound")
+        ns.MailWindow.Refresh()
+        assert.equal(0, countTo(previewed(ns), GRACE))
+    end)
+
+    it("a group member leaving mid-send: the run pressed finishes as previewed, then the binding ends (Codex review)", function()
+        tailorInGroup()
+        mailbox()
+        _G.MailworthyMailButton:Click()
+        _G.MailworthyMailOfferVisit:Click()
+        local preview = previewed(ns)
+        assert.equal(GRACE, preview[2589])
+        _G.MailworthyMailSend:Click()
+        assert.is_true(ns.Mailer.Busy())
+        WowStub.state.group = nil
+        ns.Fire("GROUP_ROSTER_UPDATE")
+        assert.equal(1, #ns.Routes.Temp(), "nothing changes the list during a run")
+        deliver(ns)
+        assertSafeAndComplete(ns, preview, { [BANK_ALT] = true, [GRACE] = true })
+        assert.equal(0, #ns.Routes.Temp(), "ended once the run was over")
+        ns.MailWindow.Refresh()
+        assert.equal(0, countTo(previewed(ns), GRACE))
+    end)
+
+    it("a suggestion left alone, or Not now: nothing goes to the group member", function()
+        tailorInGroup()
+        mailbox()
+        _G.MailworthyMailButton:Click()
+        _G.MailworthyMailSuggestNotNow:Click()
+        assert.is_nil(ns.MailWindow.Offer())
+        local preview = previewed(ns)
+        _G.MailworthyMailSend:Click()
+        deliver(ns)
+        assertSafeAndComplete(ns, preview, { [BANK_ALT] = true })
+        assert.equal(0, sentTo(GRACE))
+        assert.equal(0, ns.Routes.Count())
+    end)
+
+    it("an alt's suggestion taken This visit: sent as previewed, and over when the mailbox closes", function()
+        ownEnchanter()
+        mailbox()
+        _G.MailworthyMailButton:Click()
+        assert.equal("This visit", _G.MailworthyMailOfferVisit.text)
+        _G.MailworthyMailOfferVisit:Click()
+        local preview = previewed(ns)
+        assert.equal(SADIE, preview[6515])
+        _G.MailworthyMailSend:Click()
+        deliver(ns)
+        assertSafeAndComplete(ns, preview, { [BANK_ALT] = true, [SADIE] = true })
+        ns.Fire("MAIL_CLOSED")
+        assert.equal(0, ns.Routes.Count(), "this visit is over: no binding left")
+    end)
+
     -- A binding's price cap and an Enchanting binding's Gear switch (operator, 2026-11-11). Neither adds
     -- a recipient: they only move an item from the friend back to the normal rule. So: what the
     -- preview shows after the change is exactly what is sent, and nobody else gets mail.

@@ -3,7 +3,7 @@
 --   stale  prices are old: rescan Auctionator (Stale.lua)
 --   owed   pay back: what another player mailed this account beyond what it mailed back (Ledger.lua),
 --          with Mail ledger...; only this side ever shows
---   offer  a crafter of your own takes some of the list (Routes.Offer): Bind, and "Not for <name>"
+-- Under them, the suggested bindings (MailSuggestions.lua: crafters in the group and your own characters).
 local _, ns = ...
 
 local UI = ns.MailWindow
@@ -52,16 +52,13 @@ local function placeBanner(b, y)
     return y - b.def.height
 end
 
-local stale, owed, offerBanner
-local offer -- the own-crafter binding on offer (Routes.Offer), or nil
+local stale, owed
 
 function S.CreateBanners()
     stale = banner({ height = 32, labelY = 0, buttonY = 0 })
     owed = banner({ height = 30, labelY = -2, buttonY = 4, buttons = {
         { "Mail ledger...", 110, function() ns.LedgerUI.Show(S.frame) end, "MailworthyMailLedger" } } })
-    offerBanner = banner({ height = 40, labelY = 2, buttonY = 2, buttons = {
-        { "Bind", 60, function() UI.AcceptOffer() end, "MailworthyMailOfferBind" },
-        { "Not for them", 140, function() UI.DeclineOffer() end, "MailworthyMailOfferNot" } } })
+    S.CreateSuggestions()
 end
 
 --- The pay-back line for the ledger's debts (Ledger.Debts: most first), or nil; the name carries
@@ -74,67 +71,18 @@ function UI.OwedText(debts)
     return text
 end
 
---- Pure: the own-crafter offer's line (Routes.Offer): "Sadie Ember is your enchanter (skill 140).
---- Send them the 3 items that disenchant instead?"
-function UI.OfferText(o)
-    local craft = ns.Routes.CRAFTER[o.profession]
-    local who = craft and string.format("%s is your %s", o.name, craft)
-        or string.format("%s has %s", o.name, tostring(ns.Routes.ProfessionName(o.profession)))
-    local what = string.format("%d item%s %s", o.count, o.count == 1 and "" or "s",
-        -- "that disenchant" only when every one is gear: dust and recipes are not disenchanted.
-        o.profession == ns.Routes.ENCHANTING and o.gearOnly and (o.count == 1 and "that disenchants" or "that disenchant")
-            or "they craft with")
-    return string.format("|cffffd100%s|r%s. Send them the %s instead?", who,
-        o.skill and string.format(" (skill %d)", o.skill) or "", what)
-end
-
---- Bind (mouse, or Cross on it): the offer becomes an ordinary personal binding, and the list
---- redraws with its items going "to <name>" before anything is sent.
-function UI.AcceptOffer()
-    if not offer or ns.Mailer.Busy() then return end
-    ns.lastCommand = "Mailworthy offer Bind"
-    local o = offer
-    local route, why = ns.Routes.Add(o.name, o.profession)
-    if route then
-        ns.Print(string.format("Bound: %s to %s. Check the list, then press Send. Remove it under Bindings or Mail routing...",
-            ns.Routes.What(route), o.name))
-    else
-        ns.Print("Not bound: " .. tostring(why) .. ".")
-    end
-    ns.Mailer.Dismiss()
-    UI.Refresh()
-end
-
---- "Not for <name>": this character and profession are never offered again.
-function UI.DeclineOffer()
-    if not offer then return end
-    ns.Routes.DismissOffer(offer.name, offer.profession)
-    ns.Log.Add("ui", "offer declined: %s for %s", tostring(offer.profession), tostring(offer.name))
-    UI.Refresh(true)
-end
-
---- The binding on offer right now, for specs and the report.
-function UI.Offer() return offer end
-
---- The notices for a scan; sets `shown.stale`, `shown.owed`, `shown.offer` (UI.Layout).
+--- The notices for a scan; sets `shown.stale`, `shown.owed`, `shown.suggest` (UI.Layout).
 function S.FillBanners(result, ctx, shown)
     local okStale, nudge = pcall(ns.Stale.Current)
     shown.stale = setBanner(stale, okStale and ns.Stale.Text(nudge) or nil)
     shown.owed = setBanner(owed, UI.OwedText(ns.Ledger.On() and ns.Ledger.Debts() or {}))
-    -- The own-crafter offer: not while a send runs, nor with the switch off.
-    offer = nil
-    if ns.Features.On("crafterOffer") and not ctx.busy then
-        local okOffer, found = pcall(ns.Routes.Offer, result, ctx.bankAlt)
-        if okOffer then offer = found else ns.Log.Add("ui", "offer error: %s", tostring(found)) end
-    end
-    shown.offer = setBanner(offerBanner, offer and UI.OfferText(offer) or nil,
-        offer and { nil, "Not for " .. S.firstName(offer.name) } or nil)
+    -- The suggested bindings: not while a send runs, nor with the switch or the setting off.
+    S.FillSuggestions(result, ctx, shown)
 end
 
 --- Place the notices that show from `y` down (UI.Layout); returns the y under them.
 function S.LayoutBanners(y, n)
     if n.stale then y = placeBanner(stale, y) end
     if n.owed then y = placeBanner(owed, y) end
-    if n.offer then y = placeBanner(offerBanner, y) end
-    return y
+    return S.LayoutSuggestions(y, n)
 end

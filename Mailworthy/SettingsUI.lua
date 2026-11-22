@@ -41,7 +41,7 @@ local win, frame, views, nameBox, nameHint, current, emptyHint, pricesLine, vers
 local choiceRows = {}
 local sendButtons = {} -- verdict tag ("ah", "de", "b", "v") -> its Send switch
 local amountLabel, pctLabel, disenchantButton, minimapButton, tagsButton, glowButton, matsButton, hereButton
-local gatherButton, locksButton, pinButton, tooltipButton, pinWarningButton, pinnedButton
+local gatherButton, locksButton, pinButton, tooltipButton, pinWarningButton, pinnedButton, suggestButton
 local summaryButton, reportButton, routingButton
 local tabButtons = {}
 local durationButtons = {}
@@ -329,7 +329,13 @@ local function createMore()
         ns.Config.Set("minimapHidden", ns.Config.MinimapShown())
         if ns.MinimapButton then ns.MinimapButton.Refresh() end
     end, "Mailworthy's button on the minimap (click: these settings).")
-    row("more", ROW + 4, { { pinWarningButton, LEFT, 0 }, { minimapButton, RIGHT, 0 } })
+    row("more", ROW, { { pinWarningButton, LEFT, 0 }, { minimapButton, RIGHT, 0 } })
+    -- Suggested bindings (Suggest.lua; operator, 2026-11-22: a Settings switch to turn them off for good).
+    suggestButton = toggle("more", HALF, "Suggestions", function()
+        ns.Config.Set("hideSuggestions", not ns.Config.Flag("hideSuggestions"))
+    end, "At the mailbox, suggest crafters in your group and your own characters for your materials, and say in"
+        .. " chat when one in your group could use something in your bags.")
+    row("more", ROW + 4, { { suggestButton, LEFT, 0 } })
     heading("more", "Windows")
     -- QoL pass D (2026-11-09): the locked items window; the count is in the label.
     locksButton = window("Locks", function() ns.LocksUI.Show(frame) end,
@@ -554,6 +560,9 @@ local function fillMain(bankAlt, here, choices)
     local warn = not ns.Config.Flag("hidePinWarning")
     pinWarningButton:SetText("Pin warning: " .. (warn and "on" or "off"))
     W.SetToggled(pinWarningButton, warn)
+    local suggest = not ns.Config.Flag("hideSuggestions")
+    suggestButton:SetText("Suggestions: " .. (suggest and "on" or "off"))
+    W.SetToggled(suggestButton, suggest)
     minimapButton:SetText("Minimap button: " .. (ns.Config.MinimapShown() and "shown" or "hidden"))
     W.SetToggled(minimapButton, ns.Config.MinimapShown() == true)
     summaryButton:SetText("Bank alt summary...")

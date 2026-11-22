@@ -130,6 +130,49 @@ local function rowButton(name, parent, height)
     return b, bg
 end
 
+-- A suggestion's rows, lit while its button has the mouse or the controller's highlight
+-- (MailSuggestions.lua): a gold wash over the row, on the row's own texture.
+local litLinks = nil -- link -> true, or nil
+
+local function litTexture(b)
+    local t = b:CreateTexture(nil, "BACKGROUND", nil, 1)
+    t:SetAllPoints()
+    t:SetColorTexture(1, 0.82, 0, 0.18)
+    t:Hide()
+    return t
+end
+
+local function applyLit(row)
+    if not row.lit then return end
+    if litLinks and row.item and litLinks[row.item.link] then row.lit:Show() else row.lit:Hide() end
+end
+
+--- Light the list rows holding `items` (each { link }), or none (nil).
+function S.LightRows(items)
+    if items and #items > 0 then
+        litLinks = {}
+        for _, item in ipairs(items) do
+            if item.link then litLinks[item.link] = true end
+        end
+    else
+        litLinks = nil
+    end
+    for _, row in ipairs(S.mailRows) do applyLit(row) end
+    for _, row in ipairs(S.stayRows) do applyLit(row) end
+end
+
+--- Is the row with this item ID lit (specs)?
+function UI.RowLit(itemID)
+    for _, rowsOf in ipairs({ S.mailRows, S.stayRows }) do
+        for _, row in ipairs(rowsOf) do
+            if row.button:IsShown() and row.item and row.item.itemID == itemID then
+                return row.lit ~= nil and row.lit:IsShown()
+            end
+        end
+    end
+    return false
+end
+
 -- A row's pick moves on (its button by mouse, Square on the row by controller). Never during a send.
 local function cyclePick(row)
     local item = row.item
@@ -245,6 +288,7 @@ local function createMailRows()
         local b, bg = rowButton("MailworthyMailRow" .. i, S.frame, S.MAIL_ROW - 2)
         bg:SetColorTexture(1, 1, 1, i % 2 == 0 and 0.03 or 0.06)
         row.button = b
+        row.lit = litTexture(b)
         row.icon = b:CreateTexture(nil, "ARTWORK")
         row.icon:SetSize(22, 22)
         row.icon:SetPoint("LEFT", 8, 0)
@@ -276,6 +320,7 @@ local function createStayRows()
         local b, bg = rowButton("MailworthyStayRow" .. i, S.frame, S.STAY_ROW - 1)
         bg:SetColorTexture(1, 1, 1, i % 2 == 0 and 0.02 or 0.05)
         row.button = b
+        row.lit = litTexture(b)
         row.name = W.Label(b, "GameFontHighlightSmall")
         row.name:SetPoint("LEFT", 8, 0)
         row.name:SetWidth(220)
@@ -340,6 +385,7 @@ local function fillList(rows, items, page, perPage, fill)
     for i, row in ipairs(rows) do
         local item = items[first + i]
         row.item = item
+        applyLit(row)
         if item then
             fill(row, item)
             row.button:Show()

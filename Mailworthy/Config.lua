@@ -75,7 +75,7 @@ ns.On("PLAYER_LOGIN", function() Config.FirstSeen() end)
 -- in the bags away from the mailbox too (off: only while a mailbox is open).
 -- tooltips: how much Mailworthy adds to item tooltips, Config.Tooltips (not a boolean).
 Config.FLAGS = { minimapHidden = true, tagsEverywhere = true, glowEverywhere = true, hidePinWarning = true,
-    tooltips = true }
+    tooltips = true, hideSuggestions = true }
 
 -- Item tooltips (a CurseForge request, 2026-11-14: "make the item tooltip text either reduced or
 -- hidden"): "full" (the verdict, its numbers, why it was mailed), "short" (one line: the tag, plus
