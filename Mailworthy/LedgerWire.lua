@@ -224,8 +224,11 @@ function Ledger.HearAnswers(whisperer, msg)
                 if n == a.k then it = x end
             end
         end
-        if it and it.value and not it.agreed and a.value * Ledger.PRICE_CAP >= it.value
-            and a.value <= it.value * Ledger.PRICE_CAP then
+        -- A payback valued by its materials (`craft`): the receiver caps it at what this account owed them, which
+        -- can be far under a third of it, down to 0 (Codex review, 2026-11-22): any lower answer is taken.
+        local inRange = it and it.value and ((it.craft and a.value >= 0 and a.value <= it.value)
+            or (a.value * Ledger.PRICE_CAP >= it.value and a.value <= it.value * Ledger.PRICE_CAP))
+        if it and it.value and not it.agreed and inRange then
             local delta = a.value - it.value
             it.mine, it.value, it.agreed, it.source = it.value, a.value, entry.other, "agreed"
             local p = player(entry.other)

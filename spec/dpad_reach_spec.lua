@@ -371,7 +371,7 @@ describe("D-pad reach in every view", function()
     -- Payback ideas (2026-11-22): under the owed notice, a heading with Fold and a row each with Not for <name>.
     it("the mailbox window with payback ideas: open and folded", function()
         ns.Ledger.Store().players["bob surname"] = { name = BOB, received = 10000, sent = 0, inItems = {}, outItems = {}, at = 1 }
-        MailworthyDB.tierCheck = { [ns.Characters.Key(ns.Characters.Current())] = { [197] = { rank = 100,
+        MailworthyDB.tierCheck = { [ns.Characters.Key(ns.Characters.Current())] = { [186] = { rank = 100,
             crafts = { [5763] = { recipe = "Woolen Bag", reagents = { [2589] = 3 } } } } } }
         ns.Comms.Hear(BOB, ns.Paybacks.EncodeNeeds(BOB, ns.PlayerName(), WowStub.state.serverTime,
             { level = 24, bags = { 6, 6, 6, 6 } }), "WHISPER")

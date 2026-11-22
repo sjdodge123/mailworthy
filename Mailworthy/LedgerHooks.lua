@@ -26,16 +26,36 @@ local function valued(items, owed)
         local count = tonumber(it.count) or 1
         local v = { itemID = tonumber(it.itemID), name = it.name or Ledger.NameOf(it.link) or ("item " .. tostring(it.itemID)),
             count = count, value = unit and unit * count or nil, source = unit and "mine" or nil, age = unit and age or nil }
-        if not unit and owed and owed > 0 and ns.Paybacks then
+        if not unit and owed and ns.Paybacks then
             local each = ns.Paybacks.MaterialsValue(it.itemID)
             if each then
-                v.value, v.source = math.min(each * count, owed), "craft"
+                -- Once the cap is used up the rest still travels as a craft value, of 0 (Codex review, 2026-11-22:
+                -- without it the receiver priced them its own way and the payback made a debt).
+                v.value, v.source, v.craft = math.min(each * count, math.max(0, owed)), "craft", true
                 owed = owed - v.value
             end
         end
         out[#out + 1] = v
     end
     return out
+end
+
+--- The value a payback's stack of `count` `itemID` counted when it went to `other` (its materials value, or the
+--- value agreed for it), the newest not yet returned; marks it returned. nil when there is none.
+function Ledger.PaybackSent(other, itemID, count)
+    local log = store().log
+    for i = #log, 1, -1 do
+        local e = log[i]
+        if e.dir == "sent" and e.payback and e.counted and tostring(e.other):lower() == tostring(clean(other)):lower() then
+            for _, x in ipairs(e.items or {}) do
+                if x.craft and not x.back and x.itemID == tonumber(itemID) and x.count == tonumber(count) and x.value then
+                    x.back = true
+                    return x.value
+                end
+            end
+        end
+    end
+    return nil
 end
 
 --- A mail that went (MAIL_SEND_SUCCESS): { to, subject, items = { { itemID, link, name, count } },
@@ -156,6 +176,12 @@ local function commit(take)
         local link, count = take.item.link or ("item:" .. take.item.itemID), take.item.count
         local unit, age = Ledger.UnitValue(link)
         local value, source = unit and unit * count or nil, unit and "mine" or nil
+        -- A payback coming back as returned mail undoes what its send counted, materials value and all
+        -- (Codex review, 2026-11-22: an unpriced one undid nothing).
+        if h.returned and not unit then
+            local back = Ledger.PaybackSent(h.sender, take.item.itemID, count)
+            if back then value, source = back, "returned payback" end
+        end
         local claim = not h.returned and Ledger.Claim(h.sender, take.item.itemID, count, ns.PlayerName()) or nil
         if claim then -- their value and ours, each as it stood when the mail went
             local daysAgo = Ledger.ScanDay(now()) - Ledger.ScanDay(claim.at or now())

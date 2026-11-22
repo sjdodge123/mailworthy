@@ -331,7 +331,8 @@ function Paybacks.Result(item, route, settings)
 end
 
 --- What one of `itemID` is worth in materials at this character's prices (copper), or nil: none of its
---- reagents priced, or not something this character makes.
+--- reagents priced, or not something this character makes. A craft that makes several (200 rounds of ammo)
+--- shares its materials among them (Codex review, 2026-11-22).
 function Paybacks.MaterialsValue(itemID)
     local craft = ns.TierCheck.MyCrafts()[tonumber(itemID) or -1]
     if not craft then return nil end
@@ -342,7 +343,7 @@ function Paybacks.MaterialsValue(itemID)
         local unit = ns.Ledger.UnitValue(link or ("item:" .. rid))
         if unit then total, any = total + unit * need, true end
     end
-    return any and total or nil
+    return any and math.floor(total / math.max(1, tonumber(craft.yield) or 1)) or nil
 end
 
 -- The reminder at the profession window --------------------------------------------------------------

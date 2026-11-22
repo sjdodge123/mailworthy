@@ -2167,7 +2167,8 @@ describe("critical path: mailing", function()
     -- until the row's pick names Bob, only as previewed, never past a hard keep, nothing to Bob when left alone.
     local function paybackSetup()
         ns.Ledger.Store().players["bob surname"] = { name = BOB, received = 17400, sent = 0, inItems = {}, outItems = {}, at = 1 }
-        MailworthyDB.tierCheck = { [ns.Characters.Key(ns.Characters.Current())] = { [197] = { rank = 100,
+        -- Under this character's own profession (MyCrafts reads only those): the recipe is what matters here.
+        MailworthyDB.tierCheck = { [ns.Characters.Key(ns.Characters.Current())] = { [186] = { rank = 100,
             crafts = { [5763] = { recipe = "Woolen Bag", reagents = { [2997] = 3, [2320] = 1 } } } } } }
         ns.Comms.Hear(BOB, ns.Paybacks.EncodeNeeds(BOB, ns.PlayerName(), WowStub.state.serverTime,
             { level = 24, class = "HUNTER", bags = { 6, 6, 6, 6 } }), "WHISPER")

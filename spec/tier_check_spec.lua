@@ -63,7 +63,8 @@ describe("tier check (the profession window against the tier table)", function()
                 for i, item in ipairs(r.reagents) do
                     slots[i] = { reagents = { { itemID = item } }, quantityRequired = r.quantities and r.quantities[i] or 1 }
                 end
-                return { recipeID = id, outputItemID = r.output, reagentSlotSchematics = slots }
+                return { recipeID = id, outputItemID = r.output, reagentSlotSchematics = slots,
+                    quantityMin = r.yield or 1, quantityMax = r.yield or 1 }
             end,
         }
     end
@@ -170,6 +171,8 @@ describe("tier check (the profession window against the tier table)", function()
     describe("reading the window (C_TradeSkillUI)", function()
         it("saves what each learned recipe makes and how many of each reagent (payback ideas, 2026-11-22)", function()
             window.recipes[1].quantities = { 2 }  -- Bolt of Linen Cloth: 2 Linen Cloth
+            window.recipes[1].yield = 1
+            window.recipes[5].yield = 5 -- as if a shirt recipe made five
             window.recipes[2].quantities = { 1, 3 }
             open()
             local crafts = ns.TierCheck.MyCrafts()
@@ -178,6 +181,8 @@ describe("tier check (the profession window against the tier table)", function()
             assert.equal(TAILORING, crafts[BOOTS].skillLine)
             assert.truthy(crafts[4238], "a grey recipe can still be made")
             assert.is_nil(crafts[6238], "not learned")
+            assert.equal(1, crafts[BOOTS].yield)
+            assert.equal(5, crafts[2587].yield, "how many one craft makes (quantityMax)")
         end)
 
 

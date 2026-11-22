@@ -182,8 +182,10 @@ local function modernRecipes()
                     end
                 end
             end
+            -- How many one craft makes (CraftingRecipeSchematic quantityMin / quantityMax: 200 rounds of ammo, one bag).
+            local yield = type(schematic) == "table" and (tonumber(schematic.quantityMax) or tonumber(schematic.quantityMin)) or nil
             recipes[#recipes + 1] = { name = info.name, difficulty = tonumber(info.relativeDifficulty),
-                reagents = reagents, counts = counts,
+                reagents = reagents, counts = counts, yield = yield,
                 output = type(schematic) == "table" and tonumber(schematic.outputItemID) or nil }
         end
     end
@@ -222,7 +224,9 @@ local function classicRecipes(craft)
                     counts[id] = (counts[id] or 0) + (tonumber(need) or 1)
                 end
             end
+            local _, made = call(not craft and G.GetTradeSkillNumMade or nil, i) -- Classic: min, max made (not for crafts)
             recipes[#recipes + 1] = { name = recipeName, difficulty = difficulty, reagents = reagents, counts = counts,
+                yield = tonumber(made),
                 output = itemIDFromLink(call(craft and G.GetCraftItemLink or G.GetTradeSkillItemLink, i)) }
         end
     end
@@ -249,19 +253,25 @@ function TierCheck.Crafts(recipes)
             if next(reagents) == nil then
                 for _, rid in ipairs(r.reagents or {}) do reagents[rid] = (reagents[rid] or 0) + 1 end
             end
-            out[id] = { recipe = r.name, reagents = reagents }
+            out[id] = { recipe = r.name, reagents = reagents, yield = math.max(1, math.floor(tonumber(r.yield) or 1)) }
         end
     end
     return out
 end
 
---- Every crafting record of this character's: { [output itemID] = { recipe, reagents, skillLine } }.
+--- What this character makes: { [output itemID] = { recipe, reagents, yield, skillLine } }, from the reads of
+--- the professions it has now (Codex review, 2026-11-22: a profession dropped since kept its recipes).
 function TierCheck.MyCrafts()
-    local out = {}
+    local out, have = {}, {}
+    for _, p in ipairs(ns.Characters.Professions() or {}) do have[tonumber(p.skillLine) or -1] = true end
     local mine = TierCheck.Records()[charKey()]
     for skillLine, record in pairs(type(mine) == "table" and mine or {}) do
-        for id, c in pairs(type(record) == "table" and type(record.crafts) == "table" and record.crafts or {}) do
-            if not out[id] then out[id] = { recipe = c.recipe, reagents = c.reagents, skillLine = tonumber(skillLine) } end
+        if have[tonumber(skillLine) or -1] then
+            for id, c in pairs(type(record) == "table" and type(record.crafts) == "table" and record.crafts or {}) do
+                if not out[id] then
+                    out[id] = { recipe = c.recipe, reagents = c.reagents, yield = tonumber(c.yield) or 1, skillLine = tonumber(skillLine) }
+                end
+            end
         end
     end
     return out

@@ -45,6 +45,7 @@ describe("payback ideas", function()
         ns.Fire("PLAYER_LOGIN")
         ns.Config.SetBankAlt("Roknua Themicrulah")
         WowStub.state.level = 30
+        WowStub.state.professions = { { index = 6, name = "Tailoring", rank = 100, maxRank = 150, skillLine = 197 } }
         prices = {}
         _G.Auctionator = { API = { v1 = {
             GetAuctionPriceByItemLink = function(_, l) return prices[l] end,
@@ -266,6 +267,59 @@ describe("payback ideas", function()
             local again = 0
             for _, line in ipairs(WowStub.printed) do if line:find("Payback idea", 1, true) then again = again + 1 end end
             assert.equal(1, again, "once a session")
+        end)
+    end)
+
+    describe("Codex review (2026-11-22)", function()
+        local function payback(count)
+            return ns.Ledger.RecordSent({ to = BOB, subject = "Mailworthy: made for you (Woolen Bag)", payback = true,
+                items = { { itemID = BAG, link = link(BAG), count = count or 1 } } }, "Mailworthy")
+        end
+
+        it("once the cap is used up, the rest still goes as a craft value of 0 (never priced the receiver's way)", function()
+            owe(500)
+            local entry = ns.Ledger.RecordSent({ to = BOB, subject = "Mailworthy: made for you (Woolen Bag)", payback = true,
+                items = { { itemID = BAG, link = link(BAG), count = 1 }, { itemID = BAG, link = link(BAG), count = 1 } } },
+                "Mailworthy")
+            assert.equal(500, entry.items[1].value)
+            assert.equal(0, entry.items[2].value)
+            assert.equal("craft", entry.items[2].source)
+            local msgs = ns.Ledger.EncodeValues(ME, BOB, entry.at, entry.id, entry.items)
+            assert.truthy(msgs[1]:find(BAG .. ":1:0:c:2", 1, true), msgs[1])
+        end)
+
+        it("a craft that makes several shares its materials among them", function()
+            crafts({ [SHOT] = { recipe = "Crafted Heavy Shot", reagents = { [THREAD] = 2 }, yield = 2 } })
+            assert.equal(50, ns.Paybacks.MaterialsValue(SHOT), "2 thread (100c) for 2 rounds")
+        end)
+
+        it("a payback returned to this account undoes what it counted", function()
+            owe(500)
+            payback(1)
+            assert.equal(0, (ns.Ledger.Net(BOB)))
+            WowStub.state.inbox = { { sender = BOB, subject = "Mailworthy: made for you (Woolen Bag)", returned = true,
+                daysLeft = 29.9, items = { { itemID = BAG, name = "Woolen Bag", count = 1 } } } }
+            TakeInboxItem(1, 1)
+            ns.Fire("MAIL_SUCCESS", BAG)
+            WowStub.runTimers(2)
+            assert.equal(500, (ns.Ledger.Net(BOB)), "owed again")
+        end)
+
+        it("the receiver's lower answer for a craft value is taken, however low", function()
+            owe(500)
+            local entry = payback(1)
+            assert.equal(0, (ns.Ledger.Net(BOB)))
+            ns.Comms.Hear(BOB, ns.Ledger.EncodeAnswers(BOB, ME, entry.id, { { itemID = BAG, count = 1, value = 100, k = 1 } })[1],
+                "WHISPER")
+            assert.equal(400, (ns.Ledger.Net(BOB)), "both sides count 100c")
+        end)
+
+        it("only the professions this character has now", function()
+            WowStub.state.professions = { { index = 6, name = "Mining", rank = 12, maxRank = 75, skillLine = 186 } }
+            assert.same({}, ns.TierCheck.MyCrafts(), "Tailoring was dropped: its recipes don't count")
+            owe(17400)
+            needs()
+            assert.same({}, ns.Paybacks.Targets())
         end)
     end)
 
