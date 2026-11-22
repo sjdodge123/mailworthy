@@ -75,7 +75,15 @@ end
 
 --- Fill the binding rows; returns how many rows show (0: the block is hidden).
 function S.FillBindings()
-    local list = ns.Routes.List()
+    -- The short-lived ones first (Codex review, 2026-11-22): the friends window doesn't list them, so their
+    -- Skip once and Remove must be on a row that shows, never behind "+ N more".
+    local list = {}
+    for _, r in ipairs(ns.Routes.List()) do
+        if ns.Routes.TEMP[r.scope] then list[#list + 1] = r end
+    end
+    for _, r in ipairs(ns.Routes.List()) do
+        if not ns.Routes.TEMP[r.scope] then list[#list + 1] = r end
+    end
     local shown = 0
     for i, row in ipairs(S.routeRows) do
         local r = list[i]

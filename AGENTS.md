@@ -14,7 +14,8 @@ SavedVariables, feature switches, where each Safety rule is enforced) before rea
   own Mailworthy reported it (never their bank alt for the AH). A binding can be short-lived, from a
   suggestion (`Suggest.lua`, `Routes.AddTemp`; operator, 2026-11-22): **While grouped** (a player in this
   character's group, until either leaves it) or **This visit** (one of this account's characters, until the
-  mailbox closes), made only when the player presses it, never saved, under the same rules as any binding. A
+  mailbox closes), made only when the player presses it, never saved, under the same rules as any binding (a
+  run already sending when its player leaves the group finishes as previewed; it ends after). A
   guild template rule
   (`Guild.lua`) is a binding only once the player turned the guild rules on, only when its
   author is a guild master or officer in their own roster (any member may pass a copy on), and

@@ -701,11 +701,11 @@ function Routes.Add(name, what, opts)
         cap = opts.cap == nil and Routes.DEFAULT_CAP or (opts.cap or nil), at = Util.Now() }
     local key = Routes.KeyOf(route)
     if find(key) then return nil, "already bound" end
-    local i = tempIndex(key)
-    if i then table.remove(temp, i) end -- bound for good: the short-lived one goes
     local scope = opts.scope == "character" and "character" or "account"
     local list = listFor(scope)
     if #list >= Routes.MAX then return nil, "too many bindings" end
+    local i = tempIndex(key)
+    if i then table.remove(temp, i) end -- bound for good: the short-lived one goes (only once it is saved)
     list[#list + 1] = route
     ns.Log.Add("routes", "bound %s to %s (%s)", Routes.What(route), name, scope)
     ns.Bags.InputsChanged("routes")
@@ -787,10 +787,24 @@ function Routes.InGroup(name)
     return key ~= nil and Routes.GroupNames()[key] == true
 end
 
---- The group changed: a "while grouped" binding ends once its player isn't in it.
+--- The group changed: a "while grouped" binding ends once its player isn't in it. Not while a send
+--- runs (Codex review, 2026-11-22): nothing changes the list during a run (AGENTS.md: what was previewed is
+--- what is sent), so the run the player pressed Send on finishes as previewed and the binding ends after
+--- it (Mailer.OnChanged checks again).
+local groupPending = false
 function Routes.GroupChanged()
+    if ns.Mailer and ns.Mailer.Busy() then
+        groupPending = true
+        return 0
+    end
+    groupPending = false
     local names = Routes.GroupNames()
     return dropTemp(function(r) return r.scope == "group" and not names[tostring(r.to):lower()] end)
+end
+
+--- A run ended: a group change that came during it applies now.
+function Routes.AfterRun()
+    if groupPending and ns.Mailer and not ns.Mailer.Busy() then Routes.GroupChanged() end
 end
 
 --- The short-lived bindings in force, for specs and the report.
@@ -885,6 +899,7 @@ ns.On("MAIL_CLOSED", function()
 end)
 
 ns.On("GROUP_ROSTER_UPDATE", function() Routes.GroupChanged() end)
+ns.On("PLAYER_LOGIN", function() ns.Mailer.OnChanged(Routes.AfterRun) end)
 
 -- Candidates: who can be bound ------------------------------------------------------
 
@@ -1084,6 +1099,7 @@ function Routes.Suggestions(scan, bankAlt)
     local active = Routes.Active()
     local out = {}
     local memo = {} -- profession|skill -> the items a binding of that profession at that skill takes
+    local cache = {} -- Routes.Skill's guild roster, read once for every candidate (Codex review, 2026-11-22)
     for _, c in ipairs(Routes.Candidates()) do
         local name = c.name
         local lower = name and name:lower()
@@ -1094,7 +1110,7 @@ function Routes.Suggestions(scan, bankAlt)
                 if id and Routes.ProfessionName(id) and not taken[id] and not Routes.OfferDismissed(name, id) then
                     local route = { to = name, profession = id, cap = Routes.DEFAULT_CAP, scope = party and "group" or "visit" }
                     route.key = Routes.KeyOf(route)
-                    route.skill = Routes.Skill(route)
+                    route.skill = Routes.Skill(route, cache)
                     local to = Routes.Recipient(route)
                     if tostring(to):lower() == lower then
                         local mkey = id .. "|" .. tostring(route.skill)

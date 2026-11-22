@@ -125,6 +125,23 @@ describe("suggested bindings", function()
             assert.equal("account", ns.Routes.List()[1].scope)
         end)
 
+        it("a Bind that fails (too many bindings) leaves the short-lived one in place (Codex review)", function()
+            ns.Routes.AddTemp(GRACE, TAILORING, "group")
+            for i = 1, ns.Routes.MAX do ns.Routes.Add("Friend Number" .. i, "MAGE") end
+            local r, why = ns.Routes.Add(GRACE, TAILORING)
+            assert.is_nil(r)
+            assert.equal("too many bindings", why)
+            assert.equal(1, #ns.Routes.Temp(), "still bound while grouped")
+        end)
+
+        it("one guild roster read for every candidate (Codex review: a raid read it once per crafter)", function()
+            local info, calls = _G.C_Club.GetMemberInfo, 0
+            _G.C_Club.GetMemberInfo = function(...) calls = calls + 1; return info(...) end
+            suggestions()
+            _G.C_Club.GetMemberInfo = info
+            assert.is_true(calls <= 2 * #WowStub.state.guild.members, calls .. " member reads")
+        end)
+
         it("takes the item like any binding: under the cap, never a hard keep", function()
             ns.Routes.AddTemp(GRACE, TAILORING, "group")
             local scan = ns.Bags.Evaluate()
@@ -222,6 +239,27 @@ describe("suggested bindings", function()
             ns.MailWindow.Refresh()
             assert.is_nil(ns.MailWindow.Offer())
             assert.is_false(shown("MailworthyMailSuggestNotNow"))
+        end)
+
+        it("a short-lived binding's row shows first, so its Skip once and Remove are never behind \"+ N more\"", function()
+            for i = 1, 3 do ns.Routes.Add("Friend Number" .. i, "MAGE") end
+            WowStub.state.group = { members = { { name = GRACE, online = true } } }
+            _G.MailworthyMailButton:Click()
+            _G.MailworthyMailOfferVisit:Click()
+            assert.truthy(ns.MailWindow.RouteLine(1):find("Grace", 1, true), ns.MailWindow.RouteLine(1))
+            assert.is_true(_G.MailworthyMailUnbind1:IsShown())
+            _G.MailworthyMailSkip1:Click()
+            assert.are_not.equal(GRACE, toOf(2589), "skipped this visit")
+        end)
+
+        it("follows the group while the window is open (Codex review)", function()
+            WowStub.state.group = { members = { { name = DORN, online = true } } }
+            _G.MailworthyMailButton:Click()
+            ns.Fire("MAIL_SHOW")
+            assert.equal(DORN, ns.MailWindow.Offer().name)
+            WowStub.state.group = { members = { { name = GRACE, online = true }, { name = DORN, online = true } } }
+            ns.Fire("GROUP_ROSTER_UPDATE")
+            assert.equal(GRACE, ns.MailWindow.Offer().name, "Grace joined: suggested at once")
         end)
 
         it("More pages past three", function()

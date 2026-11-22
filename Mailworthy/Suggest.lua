@@ -143,6 +143,12 @@ function Suggest.Reset()
     announced, pending, waitCombat, notNow = {}, false, false, false
 end
 
+-- At the mailbox, the suggestions follow the group (Codex review, 2026-11-22: a new party member's
+-- profession showed only after something else redrew the window). The list on screen is read again; never mid-send.
+local function redrawMailbox()
+    if atMailbox and ns.MailWindow and not ns.Mailer.Busy() then ns.MailWindow.RefreshIfShown() end
+end
+
 local lastGroup -- the group's names, joined: GROUP_ROSTER_UPDATE fires for much more than joins
 ns.On("GROUP_ROSTER_UPDATE", function()
     local names = {}
@@ -151,11 +157,15 @@ ns.On("GROUP_ROSTER_UPDATE", function()
     local key = table.concat(names, ",")
     if key == lastGroup then return end
     lastGroup = key
+    redrawMailbox()
     if key ~= "" then schedule() end
 end)
 -- A party member's hello names their professions (Comms): check again.
 ns.Comms.OnPeersChanged(function()
-    if lastGroup and lastGroup ~= "" then schedule() end
+    if lastGroup and lastGroup ~= "" then
+        redrawMailbox()
+        schedule()
+    end
 end)
 ns.On("PLAYER_REGEN_ENABLED", function()
     if waitCombat then
