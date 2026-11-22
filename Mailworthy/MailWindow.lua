@@ -30,7 +30,8 @@
 --   MailTooltip.lua     the row tooltips (mouse and the controller's highlight), the pick's lines
 --   MailRows.lua        the Mailing / Staying rows, their pick buttons (and Square), the pagers
 --   MailRecipients.lua  "To:" and its lines, Skip once / Choose bank alt..., Return to sender
---   MailBanners.lua     the notices over the bindings: stale prices, pay back, a crafter on offer
+--   MailBanners.lua     the notices over the bindings: stale prices, pay back
+--   MailSuggestions.lua the suggested bindings: crafters in the group, your own characters
 --   MailBindings.lua    the bindings block (Skip once, Remove asks "Sure?")
 --   MailTotals.lua      the total box: gain, fees, postage, the last run's receipt
 --   MailSend.lua        Send / Stop and "what was previewed is what is sent" (UI.Changed)
@@ -134,9 +135,10 @@ function UI.Create()
 end
 
 --- Place everything top to bottom for the rows that show; returns the window height.
---- `n` = { routes = , mail = , stay = } shown row counts; `n.stale`, `n.owed`, `n.offer` = that
---- notice shows; `n.to` = recipient lines under "To:" (more than one recipient); `n.toRows` = extra
---- rows the folded last line wraps onto (UI.MoreRecipientsText).
+--- `n` = { routes = , mail = , stay = } shown row counts; `n.stale`, `n.owed` = that notice
+--- shows; `n.suggest` = the suggestions block (MailSuggestions); `n.to` = recipient lines under
+--- "To:" (more than one recipient); `n.toRows` = extra rows the folded last line wraps onto
+--- (UI.MoreRecipientsText).
 function UI.Layout(n)
     local at = S.at
     local y = -76
@@ -235,7 +237,7 @@ function UI.Refresh(keepScan)
     S.shownAlt = ctx.bankAlt
     S.marked = false
     local shown = S.FillTo(result, ctx) -- { to = , toRows = }
-    S.FillBanners(result, ctx, shown) -- stale, owed, offer
+    S.FillBanners(result, ctx, shown) -- stale, owed, suggestions
     shown.routes = S.FillBindings()
     shown.mail, shown.stay = S.FillLists(result, ctx)
     local need = S.FillTotals(result, ctx)

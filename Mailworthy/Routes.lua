@@ -47,7 +47,12 @@ Routes.CAP_STEPS = { 50, 100, 500, 1000, 2500, 5000, 10000, 20000, 50000, 100000
 Routes.DEFAULT_CAP = ns.Valuation.DEFAULT_CAP
 Routes.MAX = 12             -- bindings per scope
 Routes.SCOPES = { account = "All my characters", character = "This character" }
-Routes.SCOPE_REPORT = { account = "all my characters", character = "this character", guild = "guild template" }
+Routes.SCOPE_REPORT = { account = "all my characters", character = "this character", guild = "guild template",
+    visit = "this visit", group = "while grouped" }
+-- Short-lived bindings, from a suggestion (docs/RECOMMENDATIONS.md; operator, 2026-11-22): "visit" lasts
+-- until the mailbox closes (an alt's, like Skip once in reverse), "group" while the bound player is in the
+-- player's group (a party member's: "While grouped"). Kept in memory only, never saved.
+Routes.TEMP = { visit = "this visit", group = "while grouped" }
 Routes.ROUTE = "friend"     -- the verdict route of a diverted item
 
 -- Verdicts a binding never overrides (AGENTS safety: never a locked item, and nothing the game
@@ -308,7 +313,7 @@ function Routes.IsMe(name)
     return tostring(Routes.Clean(name) or name):lower() == tostring(Routes.Clean(me) or me):lower()
 end
 
-local GROUP = { character = 1, account = 2, guild = 3 }
+local GROUP = { character = 1, account = 2, visit = 2, group = 2, guild = 3 }
 
 --- Pure: of two bindings that both take an item, `a` goes first: this character's, then the
 --- account's, then the guild's (this character's win, personal wins), then within one of those
@@ -591,6 +596,25 @@ local function withKeys(list, scope)
     return out
 end
 
+local temp = {} -- short-lived bindings (Routes.TEMP), in the order they were made
+
+local function tempCopies()
+    local out = {}
+    for _, r in ipairs(temp) do
+        local copy = {}
+        for k, v in pairs(r) do copy[k] = v end
+        out[#out + 1] = copy
+    end
+    return out
+end
+
+local function tempIndex(key)
+    for i, r in ipairs(temp) do
+        if r.key == key then return i end
+    end
+    return nil
+end
+
 --- The player's own bindings (the friends window's): this character's, then the account's.
 function Routes.Personal()
     local list = withKeys(charList(), "character")
@@ -599,11 +623,13 @@ function Routes.Personal()
 end
 
 --- Every binding that applies to this character: this character's first, then the
---- account's for this realm + faction, then the guild template's rules while the player has
---- them on (Guild.Rules: personal bindings and this character's professions come first).
---- Each carries `scope` ("character" / "account" / "guild") and `key`.
+--- account's for this realm + faction, then the short-lived ones from a suggestion (Routes.TEMP), then
+--- the guild template's rules while the player has them on (Guild.Rules: personal bindings and this
+--- character's professions come first).
+--- Each carries `scope` ("character" / "account" / "visit" / "group" / "guild") and `key`.
 function Routes.List()
     local list = Routes.Personal()
+    for _, r in ipairs(tempCopies()) do list[#list + 1] = r end
     if ns.Guild then
         for _, r in ipairs(ns.Guild.Rules(list)) do list[#list + 1] = r end
     end
@@ -638,7 +664,13 @@ end
 
 function Routes.Get(key)
     local _, _, r, scope = find(key)
-    if not r then return nil end
+    if not r then
+        local i = tempIndex(key)
+        if not i then return nil end
+        local copy = {}
+        for k, v in pairs(temp[i]) do copy[k] = v end
+        return copy
+    end
     local copy = {}
     for k, v in pairs(r) do copy[k] = v end
     copy.scope, copy.key = scope, key
@@ -669,6 +701,8 @@ function Routes.Add(name, what, opts)
         cap = opts.cap == nil and Routes.DEFAULT_CAP or (opts.cap or nil), at = Util.Now() }
     local key = Routes.KeyOf(route)
     if find(key) then return nil, "already bound" end
+    local i = tempIndex(key)
+    if i then table.remove(temp, i) end -- bound for good: the short-lived one goes
     local scope = opts.scope == "character" and "character" or "account"
     local list = listFor(scope)
     if #list >= Routes.MAX then return nil, "too many bindings" end
@@ -680,13 +714,88 @@ end
 
 function Routes.Remove(key)
     local list, i, r = find(key)
-    if not list then return false end
+    if not list then
+        local t = tempIndex(key)
+        if not t then return false end
+        r = table.remove(temp, t)
+        skipped[key] = nil
+        ns.Log.Add("routes", "unbound %s to %s (%s)", Routes.What(r), r.to, r.scope)
+        ns.Bags.InputsChanged("routes")
+        return true
+    end
     table.remove(list, i)
     skipped[key] = nil
     ns.Log.Add("routes", "unbound %s to %s", Routes.What(r), r.to)
     ns.Bags.InputsChanged("routes")
     return true
 end
+
+--- Add a short-lived binding from a suggestion: `scope` "visit" (until the mailbox closes) or "group"
+--- (while `name` is in the player's group). A crafting profession only, never this character, never
+--- one already bound. Returns the binding, or nil and why. Same rules as any binding: Routes.Divert
+--- takes it like an account binding (hard keeps, cap, tiers, me first).
+function Routes.AddTemp(name, profession, scope)
+    name = Routes.Clean(name)
+    profession = tonumber(profession)
+    if not name then return nil, "no name" end
+    if not Routes.TEMP[scope] then return nil, "not a short-lived scope" end
+    if not (profession and Routes.ProfessionName(profession)) then return nil, "not a crafting profession" end
+    if Routes.IsMe(name) then return nil, "that's this character" end
+    if scope == "group" and not Routes.InGroup(name) then return nil, "not in your group" end
+    local route = { to = name, profession = profession, cap = Routes.DEFAULT_CAP, at = Util.Now(), scope = scope }
+    route.key = Routes.KeyOf(route)
+    if find(route.key) or tempIndex(route.key) then return nil, "already bound" end
+    temp[#temp + 1] = route
+    ns.Log.Add("routes", "bound %s to %s (%s)", Routes.What(route), name, scope)
+    ns.Bags.InputsChanged("routes")
+    return Routes.Get(route.key)
+end
+
+--- Drop the short-lived bindings of one scope, or those `keep(route)` says no to. Returns how many went.
+local function dropTemp(test)
+    local n = 0
+    for i = #temp, 1, -1 do
+        if test(temp[i]) then
+            local r = table.remove(temp, i)
+            skipped[r.key] = nil
+            ns.Log.Add("routes", "%s to %s ended (%s)", Routes.What(r), r.to, r.scope)
+            n = n + 1
+        end
+    end
+    if n > 0 then ns.Bags.InputsChanged("routes") end
+    return n
+end
+
+--- The names in the player's group right now (lower case), or an empty table when not grouped.
+function Routes.GroupNames()
+    local names = {}
+    local n = tonumber((call(GetNumGroupMembers))) or 0
+    local raid = call(IsInRaid) == true
+    for i = 1, n do
+        local unit = raid and ("raid" .. i) or ("party" .. (i - 1))
+        if unit ~= "party0" then
+            local name = Routes.Clean(call(GetUnitName, unit, true) or call(UnitName, unit))
+            if name then names[name:lower()] = true end
+        end
+    end
+    return names
+end
+
+--- Is `name` in the player's group?
+function Routes.InGroup(name)
+    local key = Util.NameKey(Routes.Clean(name))
+    return key ~= nil and Routes.GroupNames()[key] == true
+end
+
+--- The group changed: a "while grouped" binding ends once its player isn't in it.
+function Routes.GroupChanged()
+    local names = Routes.GroupNames()
+    return dropTemp(function(r) return r.scope == "group" and not names[tostring(r.to):lower()] end)
+end
+
+--- The short-lived bindings in force, for specs and the report.
+function Routes.Temp() return tempCopies() end
+function Routes.ClearTemp() temp = {} end
 
 --- Move a binding between "account" and "character".
 function Routes.SetScope(key, scope)
@@ -771,8 +880,11 @@ function Routes.ClearSkips() skipped = {} end
 ns.On("MAIL_CLOSED", function()
     Routes.ClearSkips()
     Routes.ClearPicks()
+    dropTemp(function(r) return r.scope == "visit" end)
     ns.Bags.InputsChanged("visit over", true)
 end)
+
+ns.On("GROUP_ROSTER_UPDATE", function() Routes.GroupChanged() end)
 
 -- Candidates: who can be bound ------------------------------------------------------
 
@@ -933,24 +1045,24 @@ local function offerKey(name, profession) return tostring(name):lower() .. "|" .
 function Routes.DismissOffer(name, profession) dismissals()[offerKey(name, profession)] = true end
 function Routes.OfferDismissed(name, profession) return dismissals()[offerKey(name, profession)] == true end
 
---- The binding to offer for a scan (Bags.Evaluate's result), or nil: { name, profession, skill,
---- count (list rows it would take), items, gearOnly }. One at a time: the one that takes the most.
---- Never this character, the bank alt (`bankAlt`), a profession this character has itself (it
---- keeps those materials), a profession any binding already names, or a dismissed pair.
+--- Suggested bindings for a scan (Bags.Evaluate's result; docs/RECOMMENDATIONS.md, operator 2026-11-22:
+--- "Party and alts only"): crafters in the player's group (their profession from their Mailworthy's hello
+--- or, for a guild member, the guild roster) and this account's own characters, each for a crafting
+--- profession that would take some of the list. A list, the party first (a guild member of it before
+--- the others), then the alts, then by how many rows each takes, then by name:
+--- { name, profession, skill, count (list rows it would take), items, gearOnly, party, sources, scope }
+--- (`scope`: the short-lived binding it offers, "group" for a party member, "visit" for an alt).
+--- Never this character, the bank alt (`bankAlt`), a profession this character has itself (it keeps
+--- those materials: me first), a profession any binding already names, or a dismissed pair.
 ---
---- The count is what Bind would really do (Codex review, 2026-11-09): every item of the scan is
---- run through Routes.Divert with the bindings in force plus the offered one, as the next scan
+--- The count is what the binding would really do (Codex review, 2026-11-09): every item of the scan is
+--- run through Routes.Divert with the bindings in force plus the suggested one, as the next scan
 --- will, so another binding that wins the item (lower skill, its cap), the crafter's real skill
 --- (Routes.Skill: the roster's or their Mailworthy's, not only the saved rank), the price cap and
 --- the hard keeps all count; and an item staying today that the binding would take counts too.
---- A binding whose mail would be redirected to another character (Routes.Recipient) isn't offered.
-function Routes.Offer(scan, bankAlt)
-    if type(scan) ~= "table" then return nil end
-    local account = 0
-    for _, r in ipairs(Routes.Personal()) do
-        if r.scope == "account" then account = account + 1 end
-    end
-    if account >= Routes.MAX then return nil end -- Bind adds an account binding: its own limit
+--- A binding whose mail would be redirected to another character (Routes.Recipient) isn't suggested.
+function Routes.Suggestions(scan, bankAlt)
+    if type(scan) ~= "table" then return {} end
     local settings = scan.settings or {}
     local taken = {}
     for _, p in ipairs(type(settings.professions) == "table" and settings.professions or {}) do
@@ -967,46 +1079,69 @@ function Routes.Offer(scan, bankAlt)
             if ok and type(verdict) == "table" then items[#items + 1] = { item = item, verdict = verdict } end
         end
     end
-    if #items == 0 then return nil end
-    local me = tostring(ns.PlayerName()):lower()
+    if #items == 0 then return {} end
     local alt = Util.NameKey(bankAlt) or ""
     local active = Routes.Active()
-    local best
-    for _, entry in ipairs(ns.Characters.Mailable()) do
-        local name = Routes.Clean(entry.name)
+    local out = {}
+    local memo = {} -- profession|skill -> the items a binding of that profession at that skill takes
+    for _, c in ipairs(Routes.Candidates()) do
+        local name = c.name
         local lower = name and name:lower()
-        if name and lower ~= me and lower ~= alt then
-            for _, p in ipairs(entry.professions or {}) do
-                local id = tonumber(p.skillLine)
+        local party, own = c.sources.party == true, c.sources.alt == true
+        if name and (party or own) and lower ~= alt and not Routes.IsMe(name) then
+            for _, id in ipairs(c.professions or {}) do
+                id = tonumber(id)
                 if id and Routes.ProfessionName(id) and not taken[id] and not Routes.OfferDismissed(name, id) then
-                    local route = { to = name, profession = id, cap = Routes.DEFAULT_CAP, scope = "account" }
+                    local route = { to = name, profession = id, cap = Routes.DEFAULT_CAP, scope = party and "group" or "visit" }
                     route.key = Routes.KeyOf(route)
-                    route.skill = Routes.Skill(route) or tonumber(p.rank)
-                    local routes = { route }
-                    for _, r in ipairs(active) do routes[#routes + 1] = r end
-                    local offer = { name = name, profession = id, skill = route.skill, count = 0, items = {}, gearOnly = true }
-                    local redirected = false
-                    for _, it in ipairs(items) do
-                        local ok, verdict = pcall(Routes.Divert, it.item, it.verdict, it.item.price, settings, routes)
-                        if ok and verdict and verdict.key == route.key then
-                            if tostring(verdict.to):lower() ~= lower then redirected = true end
-                            offer.count = offer.count + 1
-                            offer.items[#offer.items + 1] = it.item
-                            local class = tonumber(it.item.classID)
-                            if class ~= 2 and class ~= 4 then offer.gearOnly = false end
+                    route.skill = Routes.Skill(route)
+                    local to = Routes.Recipient(route)
+                    if tostring(to):lower() == lower then
+                        local mkey = id .. "|" .. tostring(route.skill)
+                        local took = memo[mkey]
+                        if not took then
+                            took = {}
+                            local routes = { route }
+                            for _, r in ipairs(active) do routes[#routes + 1] = r end
+                            for _, it in ipairs(items) do
+                                local ok, verdict = pcall(Routes.Divert, it.item, it.verdict, it.item.price, settings, routes)
+                                if ok and verdict and verdict.key == route.key then took[#took + 1] = it.item end
+                            end
+                            memo[mkey] = took
                         end
-                    end
-                    if offer.count > 0 and not redirected and (not best or offer.count > best.count
-                            or (offer.count == best.count
-                                and (offer.name < best.name or (offer.name == best.name and id < best.profession)))) then
-                        best = offer
+                        if #took > 0 then
+                            local s = { name = name, profession = id, skill = route.skill, count = #took, items = took,
+                                gearOnly = true, party = party, sources = c.sources, scope = route.scope, key = route.key }
+                            for _, item in ipairs(took) do
+                                local class = tonumber(item.classID)
+                                if class ~= 2 and class ~= 4 then s.gearOnly = false end
+                            end
+                            out[#out + 1] = s
+                        end
                     end
                 end
             end
         end
     end
-    return best
+    local function rank(s)
+        if s.party then return s.sources.guild and 1 or 2 end
+        return 3
+    end
+    table.sort(out, function(a, b)
+        local ra, rb = rank(a), rank(b)
+        if ra ~= rb then return ra < rb end
+        if a.count ~= b.count then return a.count > b.count end
+        if a.name ~= b.name then return a.name < b.name end
+        return a.profession < b.profession
+    end)
+    return out
 end
+
+--- The first suggestion (Routes.Suggestions), or nil.
+function Routes.Offer(scan, bankAlt)
+    return Routes.Suggestions(scan, bankAlt)[1]
+end
+
 
 --- This character as a candidate: for a guild template rule naming its author (2026-11-07: "I
 --- should be able to set routing to me in the guild template as well"), and for a binding of the

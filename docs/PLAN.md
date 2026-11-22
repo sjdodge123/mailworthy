@@ -332,6 +332,16 @@ explicit choice over the default keep. The bank alt's tags ignore bindings.
 - Two presses with the controller: the friends window is all buttons (Nav / PadKey
   "settings" set).
 
+### Suggested bindings (operator, 2026-11-22)
+
+At the mailbox, Mailworthy suggests a binding for the crafters around the player: party members (their
+profession from the guild roster or their Mailworthy's hello) and the account's own characters, never a
+guild member outside the group. **While grouped** (a party member) or **This visit** (an alt) binds for
+that long only, **Bind** for good, **Not for <name>** never again. Fold (remembered), Not now (this visit),
+a "new" one first, the rows it takes lit, no price shown; a chat line away from the mailbox when a crafter
+in the group could use something. Design, answers and what's next (payback ideas):
+[RECOMMENDATIONS.md](RECOMMENDATIONS.md).
+
 ## Guild template (operator, 2026-11-07)
 
 "The guild master (if using Mailworthy) can set up a template for the rest of the guild members

@@ -170,6 +170,47 @@ describe("D-pad reach in every view", function()
         assertNavigable("mailbox window with an offer and a binding", 8)
     end)
 
+    -- Suggested bindings (operator, 2026-11-22): one line for one suggestion, a heading (Fold, More,
+    -- Not now) over up to three rows for several, the heading alone when folded.
+    it("the mailbox window with suggestions: one line, several with More, folded", function()
+        local function alt(name, skillLine, profession)
+            MailworthyDB.characters[ns.Characters.Key(name, "Classic Beta PvP", "Alliance")] = {
+                name = name, realm = "Classic Beta PvP", faction = "Alliance", class = "MAGE", level = 30,
+                professions = { { name = profession, skillLine = skillLine, rank = 30 } },
+            }
+        end
+        WowStub.state.group = { members = { { name = "Ann Other", online = true } } }
+        WowStub.setBag(0, 3, WowStub.item(2592, "Wool Cloth", { count = 10, sell = 5, class = 7, subclass = 5 }))
+        MailFrame:Show()
+        SendMailFrame:Show()
+        WowStub.state.activeFrame = MailFrame
+        ns.MailWindow.Show("send")
+        tick()
+        assert.equal(1, #ns.MailWindow.Suggestions(), "Ann, the tailor in the group")
+        assert.is_true(_G.MailworthyMailOfferVisit:IsVisible())
+        assert.is_true(_G.MailworthyMailSuggestNotNow:IsVisible())
+        assertNavigable("mailbox window, one suggestion", 7)
+        WowStub.setBag(0, 1, WowStub.item(2770, "Copper Ore", { count = 10, sell = 5, class = 7, subclass = 7 }))
+        WowStub.setBag(0, 6, WowStub.item(2318, "Light Leather", { count = 10, sell = 5, class = 7, subclass = 6 }))
+        alt("Sadie Ember", 164, "Blacksmithing")
+        alt("Anna Bolt", 165, "Leatherworking")
+        alt("Cora Fenn", 202, "Engineering")
+        alt("Dina Vale", 129, "First Aid")
+        ns.MailWindow.Refresh()
+        tick()
+        assert.is_true(#ns.MailWindow.Suggestions() > 3, "more than a page")
+        assert.is_true(_G.MailworthyMailSuggestMore:IsVisible())
+        assert.is_true(_G.MailworthyMailOfferNot3:IsVisible())
+        assertNavigable("mailbox window, several suggestions", 14)
+        _G.MailworthyMailSuggestMore:Click()
+        tick()
+        assertNavigable("mailbox window, suggestions page 2", 7)
+        _G.MailworthyMailSuggestFold:Click()
+        tick()
+        assert.is_false(_G.MailworthyMailOfferVisit:IsVisible())
+        assertNavigable("mailbox window, suggestions folded", 5)
+    end)
+
     it("the Send shortcut: Up from the top row lands on Send, Down from the bottom row leads back, the middle stays put", function()
         MailFrame:Show()
         SendMailFrame:Show()

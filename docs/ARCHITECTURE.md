@@ -55,8 +55,8 @@ the order, but anything run at file load (constants built from other modules,
 | 1 | Foundation | `Core`, `Log`, `Util`, `Blocked`, `Characters`, `Gamepad`, `Locks`, `Palette`, `Pins`, `Border` |
 | 2 | Pricing and rules | `Prices`, `Disenchant`, `Tiers`, `TierData` (fills `ns.Tiers`), `TierCheck`, `Quests`, `Conjured`, `Recipes`, `Ammo`, `Valuation`, `Config`, `Classes`, `ClassSkills` |
 | 3 | Bindings and peers | `Routes`, `Comms`, `Guild`, `Stale`, `Version` |
-| 4 | Scan, send, records | `Bags`, `Mailer`, `Ledger`, `LedgerWire`, `LedgerHooks`, `LedgerExport`, `Contributions`, `Returns`, `Trip` |
-| 5 | Windows and input | `Widgets`, `MailButton`, `Nav`, `PadKey`, `SettingsUI`, `RoutesUI`, `LedgerUI`, `LocksUI`, `PinsUI`, `PinWarning`, `MinimapButton`, `MailWindow` (+ `MailTooltip`, `MailRows`, `MailRecipients`, `MailBanners`, `MailBindings`, `MailTotals`, `MailSend`, `MailTabs`), `BankAlt`, `Vendor` |
+| 4 | Scan, send, records | `Bags`, `Mailer`, `Ledger`, `LedgerWire`, `LedgerHooks`, `LedgerExport`, `Contributions`, `Returns`, `Trip`, `Suggest` |
+| 5 | Windows and input | `Widgets`, `MailButton`, `Nav`, `PadKey`, `SettingsUI`, `RoutesUI`, `LedgerUI`, `LocksUI`, `PinsUI`, `PinWarning`, `MinimapButton`, `MailWindow` (+ `MailTooltip`, `MailRows`, `MailRecipients`, `MailBanners`, `MailSuggestions`, `MailBindings`, `MailTotals`, `MailSend`, `MailTabs`), `BankAlt`, `Vendor` |
 | 6 | Integrations, report | `BagAddons`, `AuctionatorTags`, `Report` |
 
 ## 3. Module map
@@ -89,7 +89,7 @@ function. Specs: the module's own spec first; `critical_path` = `spec/critical_p
 | `Config.lua` | Saved settings over `Valuation.DEFAULTS`; bank alt per realm/faction; flags | `Config.Values/Get/Set/Step/Flag`, `Tooltips` / `CycleTooltips` (item tooltips: full / short / off), `BankAlt`, `SetBankAlt`, `SetBankAltHere`, `IsBankAltHere`, `BanksHere` (pins bank here), `Choices`; `Set` and the bank alt setters fire `Bags.InputsChanged` | config |
 | `Classes.lua` | Class-only items from the tooltip "Classes:" line | `Classes.Of`, `Mine`, `ForOther` (pure), `Token`, `Name` | classes |
 | `ClassSkills.lua` | A class's own skill items: a rogue's locked lockboxes (Classic's item IDs, else the tooltip's "Locked" / "Requires Lockpicking" line; unlocked ones by the bag slot's tooltip), a mage's Comprehension scrolls ("Requires Comprehension") | `ClassSkills.Of`, `Opened` (a bag slot: unlocked / locked / unknown), `Count` (a kind of lockbox's lock states over all bag groups), `Known` (pure), `Read` / `SkillPattern` / `IsLockedLine` (pure), `OfClass`, `ItemsText`, `How`, `Forget`, `ReportLines`; `SKILLS`, `LOCKBOXES` | class_skills |
-| `Routes.lua` | **Bindings**: a profession's materials (or a class's items, its skill's items like materials: `SkillItem`) to a player; skip once; row picks | `Routes.Divert`, `Divertible`, `Matches`, `SkillItem`, `Before`, `Force`, `Choices`, `Pick/Picked/ClearPicks`, `MINE` / `ALT`, `PickStates` / `NextPick` / `PickLabel` (the row button's cycle: Me or Here, Alt, then the bindings), `BankHere` / `AltOffered` / `ToBankAlt` (a bank-here row's Alt: to the bank alt this visit), `Active`, `List`, `Add/Remove`, `Crafter`, `Recipient`, `ClassPriced`, `PriceKeep`, `GearBeaten`, `Takers` (the binding filter Divert and Choices share), `Skill(route, cache)` (one roster read per scan); every change of a binding, skip or pick fires `Bags.InputsChanged` | routes |
+| `Routes.lua` | **Bindings**: a profession's materials (or a class's items, its skill's items like materials: `SkillItem`) to a player; skip once; row picks | `Routes.Divert`, `Divertible`, `Matches`, `SkillItem`, `Before`, `Force`, `Choices`, `Pick/Picked/ClearPicks`, `MINE` / `ALT`, `PickStates` / `NextPick` / `PickLabel` (the row button's cycle: Me or Here, Alt, then the bindings), `BankHere` / `AltOffered` / `ToBankAlt` (a bank-here row's Alt: to the bank alt this visit), `Active`, `List` (saved, then short-lived, then guild), `Add/Remove`, `AddTemp` / `Temp` / `ClearTemp` (short-lived bindings from a suggestion: scope `visit`, dropped at `MAIL_CLOSED`, or `group`, dropped by `GroupChanged` on `GROUP_ROSTER_UPDATE`; `TEMP`), `GroupNames` / `InGroup`, `Suggestions(scan, bankAlt)` (party members and alts whose crafting profession would take some of the list; `Offer` = the first), `DismissOffer` / `OfferDismissed`, `Crafter`, `Recipient`, `ClassPriced`, `PriceKeep`, `GearBeaten`, `Takers` (the binding filter Divert and Choices share), `Skill(route, cache)` (one roster read per scan); every change of a binding, skip or pick fires `Bags.InputsChanged` | routes |
 | `Comms.lua` | Addon messages between Mailworthys (prefix `Mailworthy`); peers; the name mark | `Comms.Register(letter, def)` (each module registers and owns its message kinds: decode, hear, channels, afterHello), `Kinds`, `RegisterPrefix`, `Announce` (the hello, then each kind's `afterHello` in registration order), `Ask`, `Hear` (dispatches through the registry; a skills or hello message marks the bag tags stale: `BankAlt.Invalidate`), `UpdatePeer(name, fields, create)`, `OnPeersChanged` (synchronous), `OnHeard`, `Assembler()` (multipart messages, per guild key + sender), `SendGuild`, `Whisper`, `Peers/Peer`, `Skill`, `Mark`, `OnMarksChanged` | peer_mark, routes, comms_wire |
 | `Guild.lua` | **Guild template**: GM/officer rules, shared on GUILD, opted into per player | `Guild.Rules`, `Offer`, `Hear`, `Broadcast`, `Ask`, `CanPublish`, `InUse/SetUse/ToggleUse`, `Draft*`, `Publish` | guild |
 | `Stale.lua` | Stale-price nudge (Auctionator's age, or TSM's data age when younger); peers' scan days (display only) | `Stale.OwnAge`, `EffectiveAge` (pure), `Nudge` (pure), `Hear`, `Message`, `Current` | stale |
@@ -103,11 +103,12 @@ function. Specs: the module's own spec first; `critical_path` = `spec/critical_p
 | `Contributions.lua` | What this account mailed because of guild rules; `MailworthyAPI.v1.GetGuildExport` | `Contributions.Tag`, `Count`, `Hear`, `Share`, `Export`, `Build` | contributions |
 | `Returns.lua` | Return to sender: per-visit toggle (its button shows only while on or when `Due`); what each sender is owed from the ledger | `Returns.On/Toggle/Available`, `Owed` (pure), `Split` (pure), `Due` (pure), `Result`, `Current` | returns |
 | `Trip.lua` | "Worth a mailbox trip" nudge away from a mailbox | `Trip.Check`, `Summary`, `TooltipText` | trip |
+| `Suggest.lua` | Suggested bindings' state: fold (account), seen (per realm), Not now (one visit), on / off (switch `crafterOffer`, setting `hideSuggestions`); the chat line away from the mailbox when a crafter in the group could use something (once per player and profession a session, never in combat) | `Suggest.On`, `Folded` / `SetFolded`, `Seen` / `MarkSeen`, `NotNow` / `Hidden`, `Order` / `ItemsText` / `JoinText` / `Key` (pure), `JoinCheck`, `Reset`, `DELAY` | suggest |
 | `Widgets.lua` | Shared window/button/label/footer builders; the window skeleton (`Shell`: title, sub line, legend, Done, Show beside the opener, the end of a Refresh), `ListWindow` (paged rows, empty line, bottom row), `Pager`, `Views` (one window, several views), button explanations (`Tip`: tooltip and the controller highlight), two-press buttons (`ConfirmButton`: Remove, Forget, Publish) | `Widgets.Window`, `Button`, `SetToggled`, `Label`, `Footer`, `PagerBack`, `PlaceBeside`, `Shell`, `ListWindow`, `Pager`, `Views`, `Tip` / `ShowTip` / `TipText`, `ConfirmButton(parent, text, confirmText, width, onConfirm, name, onArm)`, `Disarm` / `DisarmAll` / `Armed` / `SetConfirmText`, `CONFIRM_SECONDS` | widgets |
 | `MailButton.lua` | "Mailworthy" button under the mail window (both tabs); `Activate` entry point | `MailButton.Activate`, `GamepadUI`, `Refresh` | mailbutton |
 | `Nav.lua` | Mailworthy's own D-pad navigation and highlight over its windows (a window's own X is never a candidate: Circle closes it) | `Nav.Attach`, `Move`, `Press`, `CloseTop`, `Follow`, `Root`, `Pick` (pure), `AnyShown(except)`, `Skip(button)` (not a D-pad stop: the mail rows' pick buttons), `DefaultWrap` (Down from the bottom row: the top-left, in every window unless `SetWrap` overrides) | nav, dpad_reach |
 | `PadKey.lua` | Mailworthy's own override bindings (sets: mail, window, bags, merchant, settings: every `Nav.Attach` window but the mailbox one, `Nav.AnyShown`) | `PadKey.Wanted`, `Check`, `SETS`, `KEY_FEATURE` | padkey |
-| `SettingsUI.lua` | Settings window, laid out by rows, in views (`Widgets.Views`): tabs **Mailing** (bank alt, gain, listing length, disenchant, profession materials, Sell what I gather, Send by tag) and **Bags and more** (tags, glow, pins, tooltips, pin warning, minimap, locked items, pinned items, friends / guild / ledger, summary, Report...), and pick (the bank alt picker); short labels with the explanation in a tooltip (`Widgets.Tip`); **solo mode** (`Solo`: no binding, no guild template in use or new, nothing in the ledger) folds Friends / Guild / Mail ledger into "Friends and guild..." | `SettingsUI.Show(opener, "mailing"\|"more"\|"pick")`, `Toggle`, `Refresh`, `RefreshIfShown`, `Tab` / `SetTab`, `Views`, `Solo`, `Choose`, `UseTyped`, `ToggleHere`, `OpenReport`, `TooltipsText`, `MatsText` | settings_ui, ux_views, dpad_reach |
+| `SettingsUI.lua` | Settings window, laid out by rows, in views (`Widgets.Views`): tabs **Mailing** (bank alt, gain, listing length, disenchant, profession materials, Sell what I gather, Send by tag) and **Bags and more** (tags, glow, pins, tooltips, pin warning, minimap, suggestions, locked items, pinned items, friends / guild / ledger, summary, Report...), and pick (the bank alt picker); short labels with the explanation in a tooltip (`Widgets.Tip`); **solo mode** (`Solo`: no binding, no guild template in use or new, nothing in the ledger) folds Friends / Guild / Mail ledger into "Friends and guild..." | `SettingsUI.Show(opener, "mailing"\|"more"\|"pick")`, `Toggle`, `Refresh`, `RefreshIfShown`, `Tab` / `SetTab`, `Views`, `Solo`, `Choose`, `UseTyped`, `ToggleHere`, `OpenReport`, `TooltipsText`, `MatsText` | settings_ui, ux_views, dpad_reach |
 | `RoutesUI.lua` | Friends window on `Widgets.Shell` / `Views` / `Pager`: bindings list (with "Guild..."), add (two steps), guild template view (Back to the list); Remove and Publish take two presses | `RoutesUI.Show(opener, "list")`, `OpenGuild(fromList)`, `Views`, `ShowGuild`, `Pick`, `Bind`, `Reload` | routes, guild, ux_views |
 | `LedgerUI.lua` | Ledger window on `Widgets.ListWindow`: debts, Mark paid (two presses), Export log; pager on the bottom row | `LedgerUI.Show`, `Export` | ledger |
 | `LocksUI.lua` | Locked items window on `Widgets.ListWindow`, with Unlock / Lock | `LocksUI.Show`, `Refresh` | locks_ui |
@@ -116,9 +117,10 @@ function. Specs: the module's own spec first; `critical_path` = `spec/critical_p
 | `MinimapButton.lua` | Minimap button (Settings; Trip line in the tooltip) | `MinimapButton.Create`, `Refresh` | trip |
 | `MailWindow.lua` | **The Mailworthy window** at the mailbox: frame, Create, Layout, Refresh (one fill per block), Show, events; the other `Mail*.lua` files add to the same `ns.MailWindow` table and share state on `MailWindow.shared` (internal) | `MailWindow.Show/Toggle/Refresh/RefreshIfShown`, `Result`, `Frame` | mail_window, ux_views |
 | `MailTooltip.lua` | Row tooltips and the pick lines (mouse and the controller's highlight) | `MailWindow.TooltipLines` (third value: the Square line), `PickLines`, `InstallTooltip` | mail_window |
-| `MailRows.lua` | Mailing and Staying rows, their pick buttons (not D-pad stops: `Nav.Skip`), pagers, Square on a row | `MailWindow.PadPick`, `RowFor`, `PickFor`, `HasPick` (choices or a bank-here row's Alt), `StayReason`, `WhyKept` | mail_window, dpad_reach |
+| `MailRows.lua` | Mailing and Staying rows, their pick buttons (not D-pad stops: `Nav.Skip`), pagers, Square on a row; a suggestion's rows lit | `MailWindow.PadPick`, `RowFor`, `PickFor`, `HasPick` (choices or a bank-here row's Alt), `StayReason`, `WhyKept`, `RowLit`; `S.LightRows` (internal) | mail_window, dpad_reach, suggest |
 | `MailRecipients.lua` | The "To:" lines and their buttons, Return to sender | `MailWindow.Recipients`, `ToggleReturns` | mail_window, returns |
-| `MailBanners.lua` | One helper for the stale, owed and offer notices (a label and 0-2 buttons) | (internal) | mail_window |
+| `MailBanners.lua` | One helper for the stale and owed notices (a label and 0-2 buttons); hands over to the suggestions | (internal) | mail_window |
+| `MailSuggestions.lua` | The suggested bindings block: one line for one suggestion, else a heading (Fold `MailworthyMailSuggestFold`, More `...SuggestMore`, Not now `...SuggestNotNow`) over up to three rows, each While grouped / This visit (`MailworthyMailOfferVisit[n]`), Bind (`...OfferBind[n]`), Not for (`...OfferNot[n]`); a row's buttons light its list rows (mouse, `Nav.OnSelect`); never a price | `MailWindow.Offer`, `Suggestions`, `OfferText` / `SuggestHeadText` / `ShortText` (pure), `AcceptOffer`, `DeclineOffer` | suggest, mail_window, critical_path, dpad_reach |
 | `MailBindings.lua` | The bindings block (Skip once; Remove asks "Sure?": `Widgets.ConfirmButton`) | (internal) | mail_window, routes |
 | `MailTotals.lua` | Total box, receipt, postage text | `MailWindow.TotalText`, `NoAltText`, `EmptyText`, `PostageText` | mail_window |
 | `MailSend.lua` | **Previewed = sent**: the Send button's state and text, the re-scan compare, Send, Stop | `MailWindow.SendState`, `SendText`, `Changed`, `Send`, `Stop` | mail_window, critical_path |
@@ -175,7 +177,8 @@ function. Specs: the module's own spec first; `critical_path` = `spec/critical_p
    - Stops on `MAIL_FAILED`, `MAIL_CLOSED`, `PLAYER_REGEN_DISABLED`, tab hidden, timeout,
      count mismatch, postage short, the player's Stop (`Mailer.RequestStop`). The receipt
      goes to `Mailer.OnSent` listeners (BankAlt redraw, chat line).
-5. **Close.** `MAIL_CLOSED` clears the per-visit state: `Routes` (skip once, row picks),
+5. **Close.** `MAIL_CLOSED` clears the per-visit state: `Routes` (skip once, row picks, "This visit" bindings),
+   `Suggest` (Not now),
    `Returns` (toggle off), `Bags` (bank alt skip), `Mailer.Stop`, `Ledger` (commit pending
    takes), `Contributions.Share`, `Border.RefreshAll`, `Trip`.
 
@@ -217,12 +220,12 @@ The verdict (`item.result`) carries `action`, `route`, `reason`, `gain`, `postag
    `item.ownSkill`) wins: me first.
 3. `Routes.Units` (unit price; the cap price takes the higher of auction and vendor for
    gear).
-4. Each binding from `Routes.Active()` (personal, account, then `Guild.Rules`) that
+4. Each binding from `Routes.Active()` (personal, account, short-lived, then `Guild.Rules`) that
    `Routes.Matches` (profession materials by tier, recipes via
    `Valuation.RecipeProfession`, class items with `Routes.ClassPriced`, a class skill's items
    (`Routes.SkillItem`: lockboxes, Comprehension scrolls) without it; a recipe this character
    already knows, `item.known`, never matches a binding whose recipient `Routes.IsMe`); the winner by
-   `Routes.Before`: character, then account, then guild; lower known skill first.
+   `Routes.Before`: character, then account (and a short-lived one), then guild; lower known skill first.
 5. At or above the cap → the normal rule. `Routes.GearBeaten` (Enchanting Gear switch) → the
    normal rule.
 6. `Routes.Force` builds the mail verdict (`route = "friend"`, `to` from
@@ -310,8 +313,8 @@ Every `ns.On` handler, by event. `Blocked.lua` registers `ADDON_ACTION_FORBIDDEN
 |---|---|
 | `ADDON_LOADED` | Core (`ns.Init`), BagAddons, MailButton (`Blizzard_MailFrame`) |
 | `PLAYER_LOGIN` | Core (first), Characters, Locks, Pins, Border, Config, Quests, Comms, Guild, Stale, Mailer, Ledger (owner index), LedgerHooks (prune, install), Contributions, PadKey, MailButton, SettingsUI, RoutesUI, LedgerUI, LocksUI, PinsUI, PinWarning, Widgets (tooltips and disarming on `Nav.OnSelect`), Bags (Locks / Pins changes into `Bags.InputsChanged`), MinimapButton, MailWindow, BankAlt, Vendor, BagAddons, AuctionatorTags, Prices (`WatchWrites`), Report |
-| `MAIL_SHOW` | Characters (holds the realm for the visit), Conjured, ClassSkills, Recipes, Comms, Stale, Mailer, Trip, MailButton, Report |
-| `MAIL_CLOSED` | Characters (releases the realm once every handler has run: `ns.AfterEvent`), Border, Routes, Bags, Mailer, LedgerHooks, Contributions, Returns, Trip, MailWindow |
+| `MAIL_SHOW` | Characters (holds the realm for the visit), Conjured, ClassSkills, Recipes, Comms, Stale, Mailer, Trip, Suggest, MailButton, Report |
+| `MAIL_CLOSED` | Characters (releases the realm once every handler has run: `ns.AfterEvent`), Border, Routes, Bags, Mailer, LedgerHooks, Contributions, Returns, Trip, Suggest, MailWindow |
 | `MAIL_SEND_SUCCESS` | Characters (first: holds the realm through the handlers), Mailer, LedgerHooks |
 | `MAIL_FAILED` | Mailer, LedgerHooks |
 | `MAIL_SUCCESS` | LedgerHooks |
@@ -321,9 +324,9 @@ Every `ns.On` handler, by event. `Blocked.lua` registers `ADDON_ACTION_FORBIDDEN
 | `BAG_UPDATE_DELAYED` | Recipes (before BankAlt: forgets "not known"), BankAlt, MailWindow, LocksUI, PinsUI, Trip, Vendor |
 | `PLAYER_MONEY` | MailWindow |
 | `PLAYER_REGEN_DISABLED` | PadKey (clear bindings), Mailer (stop) |
-| `PLAYER_REGEN_ENABLED` | Trip |
+| `PLAYER_REGEN_ENABLED` | Trip, Suggest |
 | `CHAT_MSG_ADDON` | Comms (the ledger hears through `Comms.OnHeard` / `OnPeersChanged`), RoutesUI |
-| `GROUP_ROSTER_UPDATE` | Comms, RoutesUI |
+| `GROUP_ROSTER_UPDATE` | Comms, RoutesUI, Routes ("While grouped" bindings end), Suggest (the chat line's check) |
 | `GUILD_ROSTER_UPDATE` | Guild, Contributions, RoutesUI |
 | `QUEST_LOG_UPDATE` | Quests |
 | `TRADE_SKILL_SHOW`, `TRADE_SKILL_LIST_UPDATE`, `TRADE_SKILL_DATA_SOURCE_CHANGED`, `TRADE_SKILL_UPDATE`, `CRAFT_SHOW`, `CRAFT_UPDATE` | TierCheck |
@@ -378,14 +381,16 @@ server side.
 | `routes` *init* | `[realm|faction] = { binding }` (account scope) | Routes |
 | `peers` *init* | `[realm|faction][lowername] = {name, professions, characters, version, at, skills, release}` | Comms (`release`: Version) |
 | `pins` *init* | `[itemID] = {kind = "bank"|"vendor", link, at}` | Pins |
-| `settings` | `[key] = value` (only what the player touched; defaults in `Valuation.DEFAULTS`, flags in `Config.FLAGS`, `tooltips` = "full" / "short" / "off") | Config |
+| `settings` | `[key] = value` (only what the player touched; defaults in `Valuation.DEFAULTS`, flags in `Config.FLAGS` (`hideSuggestions`: Settings > Suggestions off), `tooltips` = "full" / "short" / "off") | Config |
 | `bankAlts` | `[realm|faction] = name` | Config |
 | `names` | `{ {name, realm, faction} }`, 40 | Config |
 | `realms` | `[realm] = {firstSeen}` | Config |
 | `realmIDs` *init* | `[GUID server ID] = realm name` as the game named it, or `false` once it named two for the ID | Characters |
 | `realmGuesses` *init* | `[GUID server ID] = realm name` the account's recorded characters vouch for (a guess: used for a character with no record of its own, and only while the account has no characters recorded on another realm the game hasn't put on another server ID), or `false` once they vouched for two, or once the game named that realm for another server ID | Characters |
 | `realmServers` *init* | `[realm name] = GUID server ID` the game first named it for (kept when `realmIDs[id]` turns `false`) | Characters |
-| `crafterOffers` | `[realm|faction]["name|prof"] = true` | Routes |
+| `crafterOffers` | `[realm|faction]["name|prof"] = true` ("Not for <name>" on a suggestion) | Routes |
+| `suggestSeen` | `[realm|faction]["name|prof"] = true` (a suggestion the player has looked at) | Suggest |
+| `suggestFolded` | `true` or nil (the suggestions block folded to one line) | Suggest |
 | `fresh` | `[realm|faction][lowername] = {name, day, at}` | Stale |
 | `tierCheck` | `[charKey][skillLine] = {rank, at, recipes, reagents, findings, ...}` | TierCheck |
 | `mailed` | `[itemID] = {route, listRoute, reason, gain, at, from, to}`, 30 days | Mailer (BankAlt reads) |
@@ -435,7 +440,7 @@ All default on (`ns.Features.DEFAULTS` in `Core.lua`; the help line there lists 
 | `comms`, `peerMark` | Comms |
 | `staleNudge` | Stale |
 | `versionNotice` | Version |
-| `crafterOffer` | MailWindow |
+| `crafterOffer` | MailSuggestions, Suggest (all suggestions and the chat line) |
 | `tiers` | Tiers |
 | `tierCheck` | TierCheck |
 | `guildTemplate` | Guild |
@@ -462,7 +467,8 @@ against them.
 | Rule | Enforced in |
 |---|---|
 | Mail only to recipients shown in the preview, only after Send | `MailRecipients`: `UI.Recipients` ("To:" lines), row chips, `UI.SendText`; `MailSend`: `UI.Send` → `UI.Changed` (previewed = sent); `Mailer.Plan` takes only the previewed slots and `result.to` / the bank alt; `Mailer.Blocker` |
-| A binding goes to the bound player, or their character with the profession (never their bank alt) | `Routes.Recipient` → `Routes.Crafter` (peer data from `Comms`); `Routes.Offer` |
+| A binding goes to the bound player, or their character with the profession (never their bank alt) | `Routes.Recipient` → `Routes.Crafter` (peer data from `Comms`); `Routes.Suggestions` (never one that would be redirected) |
+| A short-lived binding: only once pressed, never saved; While grouped only to a group member and gone when they leave; This visit gone at `MAIL_CLOSED` | `Routes.AddTemp` (`InGroup`, not this character, not bound already), `Routes.GroupChanged`, `MAIL_CLOSED` in `Routes`; `MailSuggestions` (accept only on a press, never mid-send); the Send-time compare (`UI.Changed`) catches one that ended after the preview |
 | A guild rule is a binding only when on, authored by a GM/officer in the player's roster, to a roster member | `Guild.Rules` (`InUse`), `Guild.Offer` (`RankOf(author) <= PUBLISHER_RANK`, recipients in roster), `Guild.Hear` (GUILD only); editing: `Guild.CanPublish`, `DraftAdd`, `Publish` |
 | Return to sender: only what the ledger shows was mailed and not mailed back; whole stacks; no system/COD/returned mail; shown like any recipient | `Returns.Owed`, `Returns.Split`, `Returns.Available` (needs `ledger`); `Bags.Evaluate` (no split for a hard keep; returns win over pins and picks); "back to" chip in `MailWindow` |
 | Never attach money | `Mailer` local `sendMail` (`SetSendMailCOD(0)`, `SetSendMailMoney(0)`) |
@@ -495,7 +501,8 @@ against them.
 - **Controller gate** (CI job `controller`): `dpad_reach_spec` (D-pad walk of every view;
   a new window or view adds its walk), `padkey_spec`, `nav_spec`, `ux_views_spec`,
   `no_gamepad_taint_spec`.
-- **Everything else**: one `<module>_spec.lua` per module (section 3; `util_spec` for `Util`), plus
+- **Everything else**: one `<module>_spec.lua` per module (section 3; `util_spec` for `Util`; `suggest_spec` for
+  `Suggest`, `MailSuggestions` and the short-lived bindings), plus
   `send_switches_spec` (Bags.ApplySendSwitches), `pin_mode_spec` (BA/BH, PinWarning),
   `peer_mark_spec` (Comms.Mark).
 - Run: `eval "$(luarocks --lua-version=5.1 path)"`, `busted --lua=luajit`, `luacheck .`
