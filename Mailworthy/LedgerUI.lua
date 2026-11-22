@@ -17,6 +17,7 @@ local W = ns.Widgets
 local win, exportButton, hint
 local armed = nil     -- the player whose Mark paid was pressed once
 local armedPart = nil -- the player whose Part paid was pressed once
+local armedAmount = nil -- the amount that first press showed
 local amounts = {}    -- player -> the part-paid amount on their row
 local marked = false
 
@@ -61,8 +62,10 @@ local function partPaid(row)
     local d = row.entry
     if not d then return end
     local amount = ns.Ledger.StepPart(amounts[d.name], nil, d.net)
-    if armedPart ~= d.name then
-        armedPart, armed = d.name, nil
+    -- The second press pays only what the first one showed (Codex review, 2026-11-22: a mail taken in
+    -- between moved the amount, and "Sure?" paid another one): a changed amount asks again.
+    if armedPart ~= d.name or armedAmount ~= amount then
+        armedPart, armedAmount, armed = d.name, amount, nil
         setHint(string.format("Press Part paid again if you paid %s %s back another way.", d.name, ns.Valuation.Money(amount)))
         UI.Refresh()
         return

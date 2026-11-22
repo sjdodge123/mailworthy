@@ -134,8 +134,9 @@ function UI.MarkPartPaid()
     UI.Refresh(true)
 end
 
---- The notice's player and part-paid amount, for specs.
+--- The notice's player and part-paid amount, and the meter's line, for specs.
 function UI.OwedState() return owedName, partAmount end
+function UI.MeterLine() return meter.sub and meter.sub:GetText() or "" end
 
 --- The pay-back line for the ledger's debts (Ledger.Debts: most first), or nil; the name carries
 --- the Mailworthy mark (Comms.Mark).
@@ -160,9 +161,16 @@ function S.FillBanners(result, ctx, shown)
             owedName, partAmount = d.name, nil
             W.Disarm(meter.part)
         end
+        local before = partAmount
         partAmount = ns.Ledger.StepPart(partAmount, nil, d.net)
+        -- A changed amount (what's owed moved) cancels a first press: the second pays only what was shown
+        -- (Codex review, 2026-11-22).
+        if before and before ~= partAmount then W.Disarm(meter.part) end
         local paid, total = ns.Ledger.PaidBack(d.name)
-        local share = UI.SendShare(result and result.mail, d.name, ns.Ledger.Owner, ns.Ledger.UnitValue)
+        -- While a send runs the list on screen stays as it was but the ledger counts each mail as it
+        -- goes: no "this Send pays" then, or it would count what was already sent again (Codex review).
+        local share = ctx.busy and 0
+            or UI.SendShare(result and result.mail, d.name, ns.Ledger.Owner, ns.Ledger.UnitValue)
         S.owedMeter = { paid = paid, total = total, share = math.min(share, d.net), net = d.net }
         meter.sub:SetText(UI.MeterText(paid, total, share, d.net))
         W.SetConfirmText(meter.part, "Part paid: " .. ns.Valuation.Money(partAmount))
