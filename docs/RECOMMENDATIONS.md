@@ -191,11 +191,12 @@ Decided:
 - **The profession window reminder**: when the crafter opens their own profession window (`TierCheck`'s
   events), one chat line with the payback ideas they can make right now. Chat only, nothing written into
   Blizzard's window.
+- **One suggestion** uses today's one-line offer layout, no header ("Grace Thorn is a tailor in your party.
+  Send Wool Cloth x40, Linen Cloth x18?", the buttons on the right, "Not now" a link under it):
+  [media/recommendations-one-vs-list.png](../media/recommendations-one-vs-list.png) (left; the full block right).
 
 Not decided yet:
 
-- **One suggestion** in today's one-line offer layout, no header: [media/recommendations-one-vs-list.png](../media/recommendations-one-vs-list.png)
-  (left: one suggestion; right: the full block).
 - **A crafter joins your group**: one chat line away from the mailbox, per player per session, like the Trip line.
 
 ## 6. Decisions (operator, 2026-11-22)
