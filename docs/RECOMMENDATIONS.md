@@ -1,6 +1,6 @@
 # Suggested bindings and paybacks (proposal, 2026-11-22)
 
-Not built. A design for the operator to pick from; the interactive sheet is
+Not built. The operator answered its questions on 2026-11-22 (section 6); the interactive sheet is
 [media/recommendations-prototype.html](../media/recommendations-prototype.html) ->
 [.png](../media/recommendations-prototype.png).
 
@@ -22,21 +22,20 @@ It's one loop with two halves, each on its own player's mailbox:
 Today's own-crafter offer (`Routes.Offer`, QoL pass F, `MailBanners.lua`) already does this for the
 account's own characters, one at a time. The proposal widens who it looks at and shows up to three.
 
-**Who.** Anyone `Routes.Candidates` already lists, when Mailworthy knows a crafting profession of
-theirs:
+**Who.** Your party and your alts only (operator, 2026-11-22: "Party and alts only"): a guild member
+is suggested only while in your party. Each needs a crafting profession Mailworthy knows:
 
-| Source | What says their profession | Needs their Mailworthy? |
+| Who | What says their profession | Needs their Mailworthy? |
 |---|---|---|
 | Your alts | `Characters.Mailable` (saved professions and ranks), as today | no |
-| Party / raid | their hello (`H2`) and skills (`S2`), already sent on PARTY / RAID at group changes | yes |
-| Guild | the roster's `profession1ID` / `profession2ID` (+ ranks), already read by `Routes.Skill` | no |
+| Party / raid member | their hello (`H2`) and skills (`S2`), already sent on PARTY / RAID at group changes | yes |
+| Party / raid member in your guild | the above, else the roster's `profession1ID` / `profession2ID` (+ ranks), already read by `Routes.Skill` | no |
 
-The sources combine into tags on the suggestion (Party, Guild, Your alt, MW, offline). A party member
-who is neither in the guild nor running Mailworthy shows as "professions unknown": the game doesn't
-show another player's professions.
+The sources combine into tags on the suggestion (Party, Guild, Your alt, MW). A party member who is
+neither in the guild nor running Mailworthy shows as "professions unknown": the game doesn't show
+another player's professions.
 
-**Order.** Party first (they're here now; party and guild above party alone), then alts, then guild
-members online, then offline. Three at a time with **More**. Open question: offline guild members at all?
+**Order.** Party first (party and guild above party alone), then alts. Three at a time with **More**.
 
 **What it takes.** Counted exactly as `Routes.Offer` counts now: every scanned item through
 `Routes.Divert` with the bindings in force plus the suggested one, so hard keeps, the cap, the tier
@@ -44,7 +43,7 @@ tables, the crafter's real skill and "me first" (this character's own profession
 materials) all apply. Never this character, the bank alt, a profession this character has, or one a
 binding already names. Items that were Staying can be taken too (Rough Stone in the sheet).
 
-**Answers.** Three buttons per suggestion:
+**Answers.** Three buttons per suggestion (operator, 2026-11-22: both This visit and Bind):
 
 - **This visit**: a binding that lasts until `MAIL_CLOSED` (new scope `"visit"` beside `"account"`
   and `"character"`, cleared like Skip once). For the stranger in tonight's dungeon group.
@@ -71,7 +70,7 @@ A new message kind, **`N2`**, WHISPER only, sent by the sender's Mailworthy with
 `N2|<sender>|<level>|<class token>|<bag slots: 6,6,6,6>|<ranged: gun|bow|crossbow|thrown|wand|->|<ammo it fires: bullet|arrow|->|<main hand: blade|blunt|->|<empty slots: 4,15>`
 
 - Only to a player this character just mailed counted materials to: the crafter who'd make something.
-- A setting, "Tell crafters what I could use" (on by default? open question), and switch `paybacks`.
+- A setting, "Tell crafters what I could use", **on by default** (operator, 2026-11-22), and switch `paybacks`.
 - The receiver keeps the latest per sender for 30 days (`ledger[realm|faction].needs`), shows its age.
 - Facts only: no stats, no item links, nothing about money. `Ammo.Fires` and `Ammo.RangedItem` already
   give the ranged facts; bag sizes come from `C_Container.GetContainerNumSlots(1..4)`.
@@ -107,7 +106,8 @@ Item facts the checks need: item class / subclass / equip slot / required level 
   holds 8"), each one's materials with what she has, how many he'd still use, **Not for <sender>**.
 - Mailworthy never crafts. Once the item is in the bags, its row gets the row pick button with
   **Me -> <sender>** (`Routes.PickStates`, as the Here / Alt pick): one click is a payback for this
-  visit, with a To: line and a **PB** "back to <sender>" chip. Open question: start on or off.
+  visit, with a To: line and a **PB** "back to <sender>" chip. It starts **off**, one click away
+  (operator, 2026-11-22): nothing new goes out unless picked.
 
 ### The ledger
 
@@ -118,12 +118,16 @@ Item facts the checks need: item class / subclass / equip slot / required level 
   a value is accepted only up to what the sender had sent the crafter on balance: a payback can clear
   a debt, never make one (the 3x cap needs a price of the receiver's own, which a fresh craft may lack).
   The `M2` value list carries no source today, so this needs a field (an `M3` kind, or a suffix older
-  Mailworthys ignore; `comms_wire_spec` pins the choice). Open question: count it, or leave unpriced
-  paybacks uncounted.
+  Mailworthys ignore; `comms_wire_spec` pins the choice). Decided (operator, 2026-11-22): count the
+  materials, capped.
 - The sender's chat line: "Grace Thorn made you a Woolen Bag (35s)". The sender never sees what the
   crafter owed.
-- The ledger window lists paybacks under each balance; **Mark paid** stays for paying in person
-  (enchants, trades).
+- The ledger window lists paybacks under each balance.
+- **Mark part paid** (operator, 2026-11-22), for paying in person (an enchant cast on them, a trade,
+  gold in hand): an amount stepper (5s steps, up to what's owed) and a two-press button ("Sure? 20s",
+  `Widgets.ConfirmButton`), in the ledger window and on the owed notice. `Ledger.MarkPaid(name, amount)`
+  adds the amount to the records' `settled` instead of settling all of it, and logs `dir = "paid"`
+  with that money, as Mark paid does now. **Mark paid** (no amount) still clears the rest.
 
 ## 3. Rules this would change (AGENTS.md "Safety")
 
@@ -152,7 +156,8 @@ a payback idea for an item that's locked or soulbound (no pick).
 | `LedgerWire.lua` | `N2` with `M2`; the craft value's source |
 | `MailBanners.lua` | the suggestions block, the meter, the ideas block |
 | `MailRows.lua` | Me -> <sender> on a crafted row |
-| `LedgerUI.lua` | paybacks under each balance |
+| `Ledger.lua` | `Ledger.MarkPaid(name, amount)`: a part payment (`settled` grows by the amount) |
+| `LedgerUI.lua` | paybacks under each balance; the Part paid stepper and its two-press button |
 | `spec/dpad_reach_spec.lua` | the new buttons in the mailbox window's walk |
 
 Controller: every new button is a mailbox-window button on the D-pad (`Nav`); no Blizzard UI is
@@ -161,15 +166,16 @@ touched (no hook into the profession window: ideas show at the mailbox and in th
 ## 5. Suggested order
 
 1. Suggested bindings for party and guild (no new wire format; `Routes.Offer` grown, "This visit").
-2. The meter on the owed notice and the "made for you" subject (ledger only).
+2. The meter on the owed notice, Mark part paid and the "made for you" subject (ledger only).
 3. `TierCheck` crafts, the needs note, payback ideas for Tailoring bags and Engineering ammo (the two
    clearest checks), then the rest of the table.
 
-## 6. Open questions
+## 6. Decisions (operator, 2026-11-22)
 
-1. Both **This visit** and **Bind** on a suggestion, or only one?
-2. Suggest offline guild members, or only people online / in the party?
-3. The needs note: on by default, or opt-in?
-4. The payback pick: start on (lined up for the sender) or off, one click away?
-5. A crafted payback without an auction price: count its materials (capped at what's owed), or leave it uncounted?
-6. Enchants done in person: a "Mark part paid" with an amount, or keep Mark paid all-or-nothing?
+1. A suggestion offers both **This visit** and **Bind** (and Not for <name>).
+2. Party and alts only: a guild member is suggested only while in the party (the roster can still
+   name their profession).
+3. The needs note is on by default, with a setting to turn it off.
+4. The payback pick starts off, one click away.
+5. A crafted payback without an auction price counts its materials, capped at what's owed.
+6. Paid in person: add **Mark part paid** with an amount.

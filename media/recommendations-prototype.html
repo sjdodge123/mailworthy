@@ -180,7 +180,7 @@
 <div class="page">
   <div class="banner"><h1>Suggested bindings and paybacks</h1>
     <p>Two halves of one loop. <b>At your mailbox</b>, Mailworthy suggests sending materials to the crafters around you: who's in
-      your party, your guild, your own alts, or any mix of those. <b>At the crafter's mailbox</b>, once your materials arrive, their
+      your party (guild members included, their profession from the roster) and your own alts. <b>At the crafter's mailbox</b>, once your materials arrive, their
       Mailworthy suggests what they could make that you'd use (an 8-slot bag when your bags hold 6), and sending it back counts in
       the mail ledger, so what they owe you goes down a little with each payback. Nothing is ever mailed until a player picks it,
       sees it in the preview and presses Send.</p></div>
@@ -219,13 +219,13 @@
       <div class="notes">
         <h2>Who gets suggested</h2>
         <ul>
-          <li>Anyone you could bind today (<code>Routes.Candidates</code>), when Mailworthy knows a crafting profession of theirs that
-            takes something on <b>this</b> list that no binding takes yet: your <b>alts</b> (their saved professions, as the own-crafter
-            offer does now), <b>party / raid</b> members whose Mailworthy said hello (<code>H2</code> / <code>S2</code> on PARTY), and
-            <b>guild</b> members from the roster's <code>profession1ID</code> / <code>profession2ID</code> (no Mailworthy needed).</li>
+          <li><b>Your party and your alts only</b> (operator, 2026-11-22): your <b>alts</b> (their saved professions, as the own-crafter
+            offer does now) and <b>party / raid</b> members, when Mailworthy knows a crafting profession of theirs that takes something on
+            <b>this</b> list that no binding takes yet. A party member's profession comes from their Mailworthy's hello (<code>H2</code> /
+            <code>S2</code> on PARTY) or, for a guild member, from the roster's <code>profession1ID</code> / <code>profession2ID</code>
+            (Brann: no Mailworthy needed). Guild members who aren't in your party aren't suggested.</li>
           <li>Tags say why you know them, and they combine: Grace is <span class="tag party">Party</span><span class="tag guild">Guild</span><span class="tag mw">MW</span>.
-            Order: in your party first (they're here now; party and guild above party alone), then your alts, then guild members online,
-            then offline ones. Three at a time, <b>More</b> pages.</li>
+            Order: in your party first (party and guild above party alone), then your alts. Three at a time, <b>More</b> pages.</li>
           <li>A party member with neither (Tobb) is listed as "professions unknown": the game doesn't show another player's professions.</li>
           <li>Never you, your bank alt, a profession you have yourself (me first: your Mining keeps its ore), or one a binding already names.
             "Not for Grace" is remembered, as today's "Not for Sadie" is.</li>
@@ -241,9 +241,9 @@
             Send button update before anything goes. Unbind or Undo puts them back.</li>
           <li>Only your side's balance changes: Grace now owes you, and Mailworthy never shows you that.</li>
         </ul>
-        <h2>Open questions</h2>
-        <div class="q">Offer both <b>This visit</b> and <b>Bind</b>, or only one?</div>
-        <div class="q">Suggest offline guild members (Brann), or only people online / in your party?</div>
+        <h2>Decided (operator, 2026-11-22)</h2>
+        <div class="q">Both <b>This visit</b> and <b>Bind</b>, beside <b>Not for &lt;name&gt;</b>.</div>
+        <div class="q">Party and alts only: a guild member is suggested only while in your party.</div>
       </div>
     </div>
   </div>
@@ -295,14 +295,23 @@
         <h2>The ledger clears slowly</h2>
         <ul>
           <li>A payback is an ordinary counted mail: the ledger already lowers what Grace owes by what she sends Aldric. Each bag takes
-            a bite out of the meter; the debt never has to be paid in one go, and <b>Mark paid</b> still settles the rest in person.</li>
+            a bite out of the meter; the debt never has to be paid in one go. <b>Part paid</b> logs something done in person, and
+            <b>Mark paid</b> still settles the rest.</li>
           <li>A payback is valued like any mail, at its auction price. A crafted item with no price (the shirt) is valued at its
             materials, and Aldric's side counts that value only up to what he'd sent Grace: a payback can clear a debt, never make one.</li>
           <li>Only Grace's own side shows. Aldric gets "Grace Thorn made you a Woolen Bag" in chat; he never sees what she owed.</li>
         </ul>
-        <h2>Open questions</h2>
-        <div class="q">Should the payback pick start on (the bag already lined up for Aldric) or off, one click away, as shown?</div>
-        <div class="q">A crafted item with no auction price: value it at its materials (as shown), or leave it uncounted?</div>
+        <h2>Paid in person: Mark part paid</h2>
+        <ul>
+          <li>An enchant cast on Aldric, a trade or gold in hand doesn't go through the mailbox. <b>Part paid</b> logs an amount
+            (<b>−</b> / <b>+</b> step it, 5s each), and the balance drops by that much. It takes two presses ("Sure? 20s"), like Mark paid,
+            and is logged in the export. <b>Mark paid</b> still clears the rest.</li>
+        </ul>
+        <h2>Decided (operator, 2026-11-22)</h2>
+        <div class="q">The needs note is on by default, with a setting to turn it off.</div>
+        <div class="q">The payback pick starts off, one click away (as shown).</div>
+        <div class="q">A crafted item with no auction price counts its materials, capped at what's owed.</div>
+        <div class="q">Paid in person: add <b>Mark part paid</b> with an amount.</div>
       </div>
     </div>
   </div>
@@ -329,7 +338,7 @@
         <td>Healing potions for their level. Mana potions for a mana user.</td>
         <td class="sig">level, class</td></tr>
       <tr><td>Enchanting</td><td>Dust, essences, shards, gear to disenchant</td>
-        <td>A wand for a wand user with an empty ranged slot. Enchants can't be mailed: the idea says "enchant something for them in person", and Mark paid covers it.</td>
+        <td>A wand for a wand user with an empty ranged slot. Enchants can't be mailed: the idea says "enchant something for them in person", and Mark part paid logs what it was worth.</td>
         <td class="sig">class, ranged slot</td></tr>
       <tr><td>Cooking</td><td>Meat, fish, spices</td>
         <td>Food for their level.</td>
@@ -415,16 +424,17 @@
     { id: "paw", name: "Gnoll Paw", q: 1, count: 6, stacks: 1, stay: "The Hunt Begins needs it", hard: true },
     { id: "shot", name: "Heavy Shot", q: 1, count: 200, stacks: 1, stay: "your gun fires it (ammo)", hard: true }
   ];
-  // Suggestions, in the order Mailworthy would show them: party (with guild first), your alts, guild online, guild offline.
+  // Suggestions, in the order Mailworthy would show them: party (with guild first), then your alts. Guild members
+  // only while they're in your party (operator, 2026-11-22: "Party and alts only").
   var SUGG = [
     { key: "grace", name: "Grace Thorn", tags: ["party", "guild", "mw"], prof: "Tailoring", craft: "tailor", skill: 125,
       takes: ["wool", "linen"], how: "in your party now; her Mailworthy said Tailoring 125" },
+    { key: "brann", name: "Brann Oakes", tags: ["party", "guild"], prof: "Leatherworking", craft: "leatherworker", skill: 95,
+      takes: ["leather"], how: "in your party now; Leatherworking 95 from the guild roster (no Mailworthy)" },
     { key: "dorn", name: "Dorn Ashby", tags: ["party", "mw"], prof: "Engineering", craft: "engineer", skill: 110,
       takes: ["cbar", "stone"], how: "in your party now (not in your guild); his Mailworthy said Engineering 110" },
     { key: "sadie", name: "Sadie Ember", tags: ["alt"], prof: "Enchanting", craft: "enchanter", skill: 140,
-      takes: ["ess"], how: "your own character; saved at her last login" },
-    { key: "brann", name: "Brann Oakes", tags: ["guild", "off"], prof: "Leatherworking", craft: "leatherworker", skill: 95,
-      takes: ["leather"], how: "guild roster (no Mailworthy); offline: the mail waits for him" }
+      takes: ["ess"], how: "your own character; saved at her last login" }
   ];
   var TAGTEXT = { party: "Party", guild: "Guild", alt: "Your alt", mw: "MW", off: "offline" };
   var items1, sugg, page = 0, flash1 = {};
@@ -551,11 +561,12 @@
       mats: [["bolt", 2], ["thread", 1]] }
   ];
   var NOT = "Not suggested: Brown Linen Robe (Aldric wears mail), Linen Bag (6 slots: no bigger than his).";
-  var items2, owedNow, ideaState, made, sent2, flash2 = {};
+  var items2, owedNow, ideaState, made, sent2, flash2 = {}, partAmt = 2000, partArmed = false, inPerson = 0;
 
   function reset2() {
     items2 = START2.map(function (it) { return Object.assign({}, it); });
     owedNow = DEBT0; ideaState = {}; made = { bag: 0, shirt: 0 }; sent2 = { bag: 0, shirt: 0 }; flash2 = {};
+    partAmt = 2000; partArmed = false; inPerson = 0;
     document.getElementById("v2chat").innerHTML = '<div><span class="mwp">Mailworthy:</span> You took 40 Wool Cloth and 18 Linen Cloth from Aldric Vane (1g 74s).</div>';
   }
   function item2(id) { return items2.filter(function (it) { return it.id === id; })[0]; }
@@ -577,8 +588,13 @@
       return;
     }
     var paid = DEBT0 - owedNow, next = Math.min(pending(), owedNow);
+    var amt = Math.min(partAmt, owedNow);
     box.innerHTML = '<div class="line"><span class="txt">You\'ve received <b>' + money(owedNow) + '</b> more from <b>Aldric Vane</b> than you\'ve sent back.</span>'
       + '<span class="btn grey small" data-act="markpaid">Mark paid</span></div>'
+      + '<div class="line" style="margin-top:4px"><span class="txt" style="color:var(--dim)">Paid in person (an enchant, a trade)?</span>'
+      + '<span class="btn grey small" data-act="partless">−</span>'
+      + '<span class="btn small' + (partArmed ? " on" : "") + '" data-act="partpaid">' + (partArmed ? "Sure? " : "Part paid: ") + plain(amt) + '</span>'
+      + '<span class="btn grey small" data-act="partmore">+</span></div>'
       + '<div class="meter"><div class="paid" style="width:' + (paid / DEBT0 * 100) + '%"></div>'
       + '<div class="next" style="left:' + (paid / DEBT0 * 100) + '%;width:' + (next / DEBT0 * 100) + '%"></div></div>'
       + '<div class="sub">Paid back ' + money(paid) + ' of ' + money(DEBT0)
@@ -741,9 +757,19 @@
     } else if (a === "send2") { send2(); return; }
     else if (a === "markpaid") {
       owedNow = 0; chat("v2chat", "Marked paid: Aldric Vane (logged).");
+    } else if (a === "partless" || a === "partmore") {
+      partAmt = Math.max(500, Math.min(owedNow, partAmt + (a === "partmore" ? 500 : -500)));
+      partArmed = false;
+    } else if (a === "partpaid") {
+      if (!partArmed) { partArmed = true; render(); return; } // two presses, like Mark paid
+      var amt = Math.min(partAmt, owedNow);
+      owedNow -= amt; inPerson += amt; partArmed = false;
+      chat("v2chat", "Marked part paid: " + plain(amt) + " to Aldric Vane in person (logged). Owed: " + (owedNow ? plain(owedNow) : "nothing") + ".");
     } else if (a === "ledger") {
-      chat("v2chat", "Mail ledger: Aldric Vane " + (owedNow ? plain(owedNow) + " to go, " : "") + "paid back " + plain(DEBT0 - owedNow) + " (Woolen Bag x" + sent2.bag + ", shirt x" + sent2.shirt + ").");
+      chat("v2chat", "Mail ledger: Aldric Vane " + (owedNow ? plain(owedNow) + " to go, " : "") + "paid back " + plain(DEBT0 - owedNow) + " (Woolen Bag x" + sent2.bag + ", shirt x" + sent2.shirt
+        + (inPerson ? ", " + plain(inPerson) + " in person" : "") + ").");
     }
+    if (a !== "partpaid") partArmed = false;
     render();
   }
 
