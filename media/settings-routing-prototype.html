@@ -10,7 +10,8 @@
      button on the settings."
      Shows today's path (SettingsUI.lua: tabs Mailing / Bags and more, the solo fold into
      "Friends and guild...", RoutesUI.lua's list), the proposal (B: a Mail routing... button on the
-     top row, recommended; A: a third tab), and where Friends / Guild / Mail ledger go.
+     top row; A: a third tab), and where Friends / Guild / Mail ledger go.
+     Decided by the operator (2026-11-22): "go with B, move them, call it Mail routing".
      Interactive: click the buttons, or use the arrow keys (D-pad), Enter (Cross) and Esc (Circle).
      Names are made up (same cast as bindings-prototype.html). Not built: no Lua changes. -->
 <style>
@@ -164,8 +165,8 @@
 
   <div class="scen"><span class="l">Design:</span>
     <span class="btn grey" data-mode="today">Today</span>
-    <span class="btn grey" data-mode="button">B: Mail routing button (recommended)</span>
-    <span class="btn grey" data-mode="tab">A: Mail routing tab</span></div>
+    <span class="btn grey" data-mode="button">B: Mail routing button (chosen)</span>
+    <span class="btn grey" data-mode="tab">A: Mail routing tab (not chosen)</span></div>
   <div class="scen"><span class="l">Player:</span>
     <span class="btn grey" data-who="solo">Solo: no bindings yet</span>
     <span class="btn grey" data-who="busy">Two bindings, guild rules on</span>
@@ -202,7 +203,7 @@
 
       <h2>The proposal</h2>
       <ul>
-        <li><span class="rec">B, recommended:</span> a third button, <b>Mail routing...</b>, on the top row. The tabs narrow from 182 to
+        <li><span class="rec">B, chosen:</span> a third button, <b>Mail routing...</b>, on the top row. The tabs narrow from 182 to
           120 px to make room. It isn't a tab: it opens the routing window next to Settings, like <b>Locked items...</b>. It's
           on both tabs, so it's always one press away.</li>
         <li>The Friends window becomes <b>Mail routing</b> and always opens on its list, which reads in the order Mailworthy routes items
@@ -210,7 +211,7 @@
           <b>Add a binding...</b> right under them; <b>2</b> the guild's rules: whose template, how many rules, <b>Guild rules: on / off</b>
           on the line, and <b>Guild...</b> for the rules themselves; <b>3</b> the bank alt, who gets the rest, with
           <b>Change...</b> (opens Settings' picker).</li>
-        <li>A: a third tab, <b>Mail routing</b>, inside Settings. At 420 px the binding rows' steppers don't fit, so the tab shows a short
+        <li><span class="dim">A, not chosen:</span> a third tab, <b>Mail routing</b>, inside Settings. At 420 px the binding rows' steppers don't fit, so the tab shows a short
           read-only list plus Add a binding..., Edit bindings..., the guild line and Mail ledger.... Editing still happens in the
           routing window, so your bindings would show in two places, and the tab would be a new view to test.</li>
         <li>Why B: one list of bindings, Settings keeps its size, and the window is the Friends window you already use.
@@ -225,7 +226,7 @@
         <li>Guild: <b>Mail routing › Guild rules: on / off</b> (1 press) or <b>Guild...</b> (its rules; the guild master's and officers' editor). <code>/mw guild</code> stays.</li>
         <li>Mail ledger: <b>Mail routing › Mail ledger...</b>. <code>/mw ledger</code> stays.</li>
         <li>A solo player gets the same button. Its list says "None yet", with Add a binding... under it and the guild and bank alt lines below.</li>
-        <li>The mailbox window's <b>Friends...</b> opens the same window, renamed <b>Routing...</b>. <code>/mw friends</code> and
+        <li>The mailbox window's <b>Friends...</b> opens the same window, renamed <b>Mail routing...</b> (90 px is too narrow for it: about 110). <code>/mw friends</code> and
           <code>/mw bindings</code> stay, and <code>/mw routing</code> is new. The "Ways in" table under the windows lists every way in, so nothing becomes unreachable.</li>
       </ul>
 
@@ -242,11 +243,15 @@
         <li>When it's built: <code>docs/ARCHITECTURE.md</code> rows for SettingsUI, RoutesUI and the new <code>/mw routing</code>. The critical path doesn't change (no new way to mail).</li>
       </ul>
 
-      <h2>Open questions</h2>
-      <div class="q">1. A button on the top row (B, recommended) or a third tab (A)?</div>
-      <div class="q">2. Take Friends, Guild and Mail ledger off Bags and more so there's one way in (recommended), or keep them there as well? You asked
-        for Guild in Settings on 2026-11-07. After the change it's Mail routing, then <b>Guild rules: on / off</b> or <b>Guild...</b>.</div>
-      <div class="q">3. Name: "Mail routing" for the window, and "Routing..." for the mailbox window's button too? Or keep "Friends" there?</div>
+      <h2>Decided (operator, 2026-11-22)</h2>
+      <div class="q">"go with B, move them, call it Mail routing"</div>
+      <ul>
+        <li><b>B:</b> a <b>Mail routing...</b> button on Settings' top row, on both tabs. No third tab.</li>
+        <li><b>Move them:</b> Friends, Guild and Mail ledger leave Bags and more (and the solo fold with them). They're reached through Mail routing,
+          and <code>/mw friends</code>, <code>bindings</code>, <code>guild</code> and <code>ledger</code> stay.</li>
+        <li><b>Mail routing:</b> the window's title (was "Send materials to friends"), the Settings button, and the mailbox window's button
+          (was Friends...). <code>/mw routing</code> is added.</li>
+      </ul>
     </div>
   </div>
 </div>
@@ -455,7 +460,7 @@
         p ? (A ? "the <b>Mail routing</b> tab (Edit bindings... opens the window)" : "<b>Mail routing...</b> on the top row, on both tabs") : null],
       ["Guild", "Bags and more › Guild... (or Friends and guild... › Guild...)", p ? "Mail routing › Guild rules: on / off, or Guild..." : null],
       ["Mail ledger", "Bags and more › Mail ledger... (or Friends and guild... › Mail ledger...)", p ? "Mail routing › Mail ledger..." : null],
-      ["Mailbox window", "Friends... by the Bindings heading (while this visit has binding rows)", p ? "the same button, renamed Routing..., opens Mail routing" : null],
+      ["Mailbox window", "Friends... by the Bindings heading (while this visit has binding rows)", p ? "the same button, renamed Mail routing..., opens Mail routing" : null],
       ["Slash commands", "/mw friends, /mw bindings, /mw guild, /mw ledger", p ? "all stay; /mw routing is added" : null]
     ];
     return '<tr><th>Ways in</th><th>Today</th><th>' + (p ? MODE_LABEL[S.mode] : "After the change") + '</th></tr>'
