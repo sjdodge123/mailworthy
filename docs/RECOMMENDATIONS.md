@@ -45,8 +45,10 @@ binding already names. Items that were Staying can be taken too (Rough Stone in 
 
 **Answers.** Three buttons per suggestion (operator, 2026-11-22: both This visit and Bind):
 
-- **This visit**: a binding that lasts until `MAIL_CLOSED` (new scope `"visit"` beside `"account"`
-  and `"character"`, cleared like Skip once). For the stranger in tonight's dungeon group.
+- **While grouped** (a party member): a binding that lasts until either player leaves the group (new scope
+  `"group"`, cleared on `GROUP_ROSTER_UPDATE`). For the stranger in tonight's dungeon group.
+- **This visit** (an alt): a binding that lasts until `MAIL_CLOSED` (new scope `"visit"` beside
+  `"account"` and `"character"`, cleared like Skip once).
 - **Bind**: `Routes.Add`, an ordinary binding, as today's offer.
 - **Not for <name>**: `Routes.DismissOffer`, as today (keyed by name and profession).
 
@@ -133,7 +135,7 @@ Item facts the checks need: item class / subclass / equip slot / required level 
 
 Each needs the operator's word before it's built, and its critical path case:
 
-1. **A binding for one visit** is a binding: same recipients (the bound player, or the character of
+1. **A binding for one visit, or while grouped**, is a binding: same recipients (the bound player, or the character of
    theirs with the profession), same keeps, cap and me first. Added to the binding sentence.
 2. **A payback** is a new recipient kind: "the player whose counted mail this character took, for an
    item this character crafted that the payback idea named, only when the player picks it for the
@@ -170,29 +172,36 @@ touched (no hook into the profession window: ideas show at the mailbox and in th
 3. `TierCheck` crafts, the needs note, payback ideas for Tailoring bags and Engineering ammo (the two
    clearest checks), then the rest of the table.
 
-## 5b. Upgrades to try (proposal, 2026-11-22; in the sheet's "Try:" buttons)
+## 5b. Upgrades (operator, 2026-11-22; the sheet's "Try:" buttons)
 
-Not decided. Each is small and reuses what's there; none changes a Safety rule except **While grouped**.
+Decided:
 
 - **Fold** the suggestions block to one line ("Suggested (3) · Grace, Brann, Sadie"), remembered for the
   account. It **opens again for something new**: a suggestion not seen before is unfolded, tagged "new" and
-  put on the first page; folding or answering one counts as seen. The ideas block folds the same way. (WoW's
-  fonts may lack ▾ / ▸: the built button would say "+" / "−".)
-- **Not now**: hidden for this visit (cleared at `MAIL_CLOSED`, like Skip once). Off for good: a Settings
-  checkbox, "Suggest crafters around me", over the existing `crafterOffer` switch.
-- **What it costs** on each suggestion: "≈ 1g 74s, 70s less AH gain" (the rows' values and the gain the
-  scan gave up), or "all of it was staying".
+  put on the first page; folding or answering one counts as seen. The payback ideas block folds the same way.
+  (WoW's fonts may lack ▾ / ▸: the built button would say "+" / "−".)
+- **Not now**: hidden for this visit (cleared at `MAIL_CLOSED`, like Skip once).
+- **Off for good**: a Settings checkbox, "Suggest crafters around me", over the existing `crafterOffer` switch.
 - **Its rows light up** while the mouse or the D-pad highlight is on a suggestion.
-- **One suggestion**: today's one-line offer layout, no header.
-- **While grouped** (optional): replaces This visit; lasts until either player leaves the group
-  (`GROUP_ROSTER_UPDATE`). A new binding lifetime, so the operator's call.
-- **Chat lines away from the mailbox**: when a crafter joins the group (one per player per session, like the
-  Trip line); on the crafter's side, when they open the profession window (`TierCheck`'s events), the payback
-  ideas they can make right now. Chat only, nothing written into Blizzard's windows.
+- **While grouped**: a party member's suggestion offers While grouped (until either player leaves the group,
+  `GROUP_ROSTER_UPDATE`) and Bind; an alt's, who is never in the group, This visit and Bind. A new binding
+  lifetime: the one-visit binding rule in section 3 becomes "for one visit, or while grouped".
+- **No price on a suggestion** (operator: "I want to encourage paying back. if we have the value listed people
+  might think twice"): it lists what it takes, never what that's worth or the AH gain given up.
+- **The profession window reminder**: when the crafter opens their own profession window (`TierCheck`'s
+  events), one chat line with the payback ideas they can make right now. Chat only, nothing written into
+  Blizzard's window.
+
+Not decided yet:
+
+- **One suggestion** in today's one-line offer layout, no header: [media/recommendations-one-vs-list.png](../media/recommendations-one-vs-list.png)
+  (left: one suggestion; right: the full block).
+- **A crafter joins your group**: one chat line away from the mailbox, per player per session, like the Trip line.
 
 ## 6. Decisions (operator, 2026-11-22)
 
-1. A suggestion offers both **This visit** and **Bind** (and Not for <name>).
+1. A suggestion offers **Bind** and a short-lived choice: **While grouped** for a party member, **This visit** for
+   an alt (5b), and Not for <name>.
 2. Party and alts only: a guild member is suggested only while in the party (the roster can still
    name their profession).
 3. The needs note is on by default, with a setting to turn it off.

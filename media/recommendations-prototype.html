@@ -206,7 +206,7 @@
       <span class="btn grey small" data-scen="dorn">Dorn joins your group</span>
       <span class="btn grey small" data-scen="nextvisit">Next mailbox visit</span>
       <span class="btn grey small" data-scen="one">Only one suggestion</span>
-      <span class="btn grey small" data-scen="grouped">Offer "While grouped"</span></div>
+</div>
     <div class="layout">
       <div style="position:relative">
         <div class="frame" data-frame="v1">
@@ -247,33 +247,34 @@
             the player's real skill all count), as <code>Routes.Offer</code> counts it today. Rough Stone shows the point: it was
             Staying (not worth vendoring), and Dorn takes it.</li>
         </ul>
-        <h2>Accept for this visit, or bind</h2>
+        <h2>While grouped, This visit, or Bind</h2>
         <ul>
-          <li><b>This visit</b>: a binding that lasts until the mailbox closes (like Skip once, in reverse). For the stranger in your
-            dungeon group. <b>Bind</b>: an ordinary binding (<code>Routes.Add</code>), as today's offer.</li>
+          <li><b>While grouped</b> (a party member): a binding that lasts until one of you leaves the group, so two mailboxes in one
+            dungeon run take one press. For the stranger in your group.</li>
+          <li><b>This visit</b> (your alt, who's never in your group): until the mailbox closes, like Skip once in reverse.</li>
+          <li><b>Bind</b>: an ordinary binding (<code>Routes.Add</code>), as today's offer.</li>
           <li>Either way the rows move to Mailing under that player with their "to Grace" chip, and the To: lines, postage and
-            Send button update before anything goes. Unbind or Undo puts them back.</li>
+            Send button update before anything goes. Undo or Unbind puts them back.</li>
           <li>Only your side's balance changes: Grace now owes you, and Mailworthy never shows you that.</li>
         </ul>
-        <h2>Upgrades to try (proposal, 2026-11-22)</h2>
+        <h2>Upgrades (operator, 2026-11-22)</h2>
         <ul>
           <li><b>Fold</b> (▾ / ▸ on the header): the block shrinks to one line, "Suggested (3) · Grace, Brann, Sadie". Remembered for
-            the account, so it stays folded at the next mailbox.</li>
+            the account, so it stays folded at the next mailbox. <span class="dim">Yes.</span></li>
           <li><b>Opens again for something new</b>: a suggestion you haven't seen (Dorn, after <i>Dorn joins your group</i>) unfolds
-            it, tagged <span class="tag fresh">new</span>. Folding it, or answering one, counts as seen.</li>
-          <li><b>Not now</b>: hidden for this visit only, like Skip once (<i>Next mailbox visit</i> brings it back). Turning it off for
-            good would be a Settings checkbox, "Suggest crafters around me" (today's <code>crafterOffer</code> switch).</li>
-          <li><b>What it costs</b>: each suggestion says what it's worth, "≈ 1g 74s, 70s less AH gain", from the values the scan
-            already has. Rough Stone: "all of it was staying".</li>
-          <li><b>Its rows light up</b> while the mouse or the D-pad highlight is on a suggestion, so you see what it takes before pressing.</li>
-          <li><b>One suggestion</b> uses today's one-line offer layout, no header (<i>Only one suggestion</i>).</li>
-          <li><b>While grouped</b> (optional, <i>Offer "While grouped"</i>): replaces This visit; lasts until one of you leaves the
-            group, so two mailboxes in one dungeon run need one press. It changes how long a choice lasts: the operator's call.</li>
-          <li><b>When a crafter joins</b> (away from the mailbox): one chat line per player per session (see the chat box after
-            <i>Dorn joins your group</i>).</li>
+            it, first on the page, tagged <span class="tag fresh">new</span>. Folding it, or answering one, counts as seen. <span class="dim">Yes.</span></li>
+          <li><b>Not now</b>: hidden for this visit only, like Skip once (<i>Next mailbox visit</i> brings it back). <span class="dim">Yes.</span></li>
+          <li><b>Off for good</b>: a Settings checkbox, "Suggest crafters around me" (today's <code>crafterOffer</code> switch). <span class="dim">Yes.</span></li>
+          <li><b>Its rows light up</b> while the mouse or the D-pad highlight is on a suggestion, so you see what it takes before pressing. <span class="dim">Yes.</span></li>
+          <li><b>While grouped</b> for party members (above). <span class="dim">Yes.</span></li>
+          <li><b>No price on a suggestion</b>: it lists what it takes, never what that's worth. <span class="dim">Operator: "I want to
+            encourage paying back. if we have the value listed people might think twice."</span></li>
+          <li><b>One suggestion</b> uses today's one-line offer layout, no header (<i>Only one suggestion</i>). <span class="dim">Shown for a look; not decided.</span></li>
+          <li><b>When a crafter joins</b> (away from the mailbox): one chat line per player per session (the chat box after
+            <i>Dorn joins your group</i>). <span class="dim">Not decided.</span></li>
         </ul>
         <h2>Decided (operator, 2026-11-22)</h2>
-        <div class="q">Both <b>This visit</b> and <b>Bind</b>, beside <b>Not for &lt;name&gt;</b>.</div>
+        <div class="q">This visit / While grouped and <b>Bind</b>, beside <b>Not for &lt;name&gt;</b>.</div>
         <div class="q">Party and alts only: a guild member is suggested only while in your party.</div>
       </div>
     </div>
@@ -334,12 +335,12 @@
             materials, and Aldric's side counts that value only up to what he'd sent Grace: a payback can clear a debt, never make one.</li>
           <li>Only Grace's own side shows. Aldric gets "Grace Thorn made you a Woolen Bag" in chat; he never sees what she owed.</li>
         </ul>
-        <h2>Upgrades to try (proposal)</h2>
+        <h2>Upgrades (operator, 2026-11-22)</h2>
         <ul>
           <li><b>At the profession window</b>: opening Tailoring prints one chat line with the ideas she can make right now
             (<i>Open your Tailoring window</i>). <code>TierCheck</code> already listens to that window's events; nothing is written
-            into Blizzard's window.</li>
-          <li><b>Fold</b> the ideas block to one line (▾ / ▸), as the suggestions block does.</li>
+            into Blizzard's window. <span class="dim">Yes: "I like that".</span></li>
+          <li><b>Fold</b> the ideas block to one line (▾ / ▸), as the suggestions block does. <span class="dim">Yes (with the fold above).</span></li>
         </ul>
         <h2>Paid in person: Mark part paid</h2>
         <ul>
@@ -480,14 +481,14 @@
   var items1, sugg, page = 0, flash1 = {};
   // Upgrades (proposal): folded (remembered per account), seen (suggestions the player has already looked at:
   // a new one opens the block again), notNow (hidden this visit), and the sheet's demo switches.
-  var folded, seen, notNow, dornJoined, grouped, oneOnly;
+  var folded, seen, notNow, dornJoined, oneOnly;
 
   function reset1() {
     items1 = START1.map(function (it) { return Object.assign({}, it, { locked: false }); });
     sugg = SUGG.map(function (s) { return Object.assign({}, s, { state: null }); });
     page = 0; flash1 = {}; document.getElementById("v1chat").innerHTML = "";
     folded = false; seen = { grace: true, brann: true, sadie: true }; notNow = false;
-    dornJoined = false; grouped = false; oneOnly = false;
+    dornJoined = false; oneOnly = false;
     document.querySelectorAll("[data-scen]").forEach(function (b) { b.classList.remove("on"); });
   }
   function byKey(key) { return sugg.filter(function (s) { return s.key === key; })[0]; }
@@ -514,15 +515,6 @@
     return s.tags.map(function (t) { return '<span class="tag ' + t + '">' + TAGTEXT[t] + '</span>'; }).join("")
       + (!seen[s.key] && !s.state ? '<span class="tag fresh">new</span>' : "");
   }
-  // What a suggestion would cost: its rows' value, and the AH gain given up for those that were going to the bank alt.
-  function costText(s) {
-    var value = 0, gain = 0, stayed = 0;
-    takesNow(s).forEach(function (it) {
-      value += it.value || 0;
-      if (it.to === "alt" && it.gain) gain += it.gain; else if (!it.to) stayed++;
-    });
-    return '<span class="cost">≈ ' + plain(value) + (gain ? ', ' + plain(gain) + ' less AH gain' : stayed ? ', all of it was staying' : '') + '</span>';
-  }
   function whatText(s) {
     return takesNow(s).map(function (it) { return '<span class="q' + it.q + '">' + it.name + '</span> x' + it.count; }).join(", ");
   }
@@ -530,7 +522,7 @@
     if (s.state === "visit") return '<span class="state">this visit</span><span class="btn grey small" data-act="undo" data-k="' + s.key + '">Undo</span>';
     if (s.state === "group") return '<span class="state">while grouped</span><span class="btn grey small" data-act="undo" data-k="' + s.key + '">Undo</span>';
     if (s.state === "bound") return '<span class="state">bound</span><span class="btn grey small" data-act="undo" data-k="' + s.key + '">Unbind</span>';
-    return (grouped ? '<span class="btn small" data-act="group" data-k="' + s.key + '">While grouped</span>'
+    return (s.tags.indexOf("party") >= 0 ? '<span class="btn small" data-act="group" data-k="' + s.key + '">While grouped</span>'
         : '<span class="btn small" data-act="visit" data-k="' + s.key + '">This visit</span>')
       + '<span class="btn grey small" data-act="bind" data-k="' + s.key + '">Bind</span>'
       + '<span class="btn grey small" data-act="decline" data-k="' + s.key + '">Not for ' + first(s.name) + '</span>';
@@ -550,7 +542,7 @@
     if (open.length === 1 && !folded) {
       var o = open[0];
       box.innerHTML = '<div class="s one' + (o.state ? " done" : "") + '" data-tipk="' + o.key + '"><div><span class="nm">' + o.name + '</span>' + tagHtml(o)
-        + ' <span class="what">is a ' + o.craft + ' in your party. ' + (o.state ? "Sending" : "Send") + ' ' + whatText(o) + (o.state ? "" : "?") + ' ' + costText(o) + '</span></div>'
+        + ' <span class="what">is ' + (o.tags.indexOf("party") >= 0 ? "a " + o.craft + " in your party" : "your " + o.craft) + '. ' + (o.state ? "Sending" : "Send") + ' ' + whatText(o) + (o.state ? "" : "?") + '</span></div>'
         + '<div class="bt">' + acceptButtons(o) + '</div>'
         + '<div class="meta">' + o.prof + ' ' + o.skill + ' · ' + o.how + ' · <span class="link" data-act="notnow">Not now</span></div></div>';
       return;
@@ -568,7 +560,7 @@
       var what = whatText(s);
       html += '<div class="s' + (s.state ? " done" : "") + '" data-tipk="' + s.key + '"><div><span class="nm">' + s.name + '</span>' + tagHtml(s)
         + '<div class="what">' + (s.state ? "Sending" : "Your " + s.craft + " for") + ': ' + (what || '<span class="why">nothing on the list now</span>')
-        + (what ? ' ' + costText(s) : "") + '</div></div>'
+        + '</div></div>'
         + '<div class="bt">' + acceptButtons(s) + '</div>'
         + '<div class="meta">' + s.prof + ' ' + s.skill + ' · ' + s.how + '</div></div>';
     });
@@ -831,8 +823,7 @@
       if (dornJoined) return;
       dornJoined = true; b.classList.add("on");
       chat("v1chat", '<span style="color:#aaa">[earlier, out in the world]</span> Dorn Ashby (Engineering) joined your group: he could use 30 of your bars and stone at your next mailbox.');
-    } else if (w === "grouped") { grouped = !grouped; b.classList.toggle("on", grouped); }
-    else if (w === "one") { oneOnly = !oneOnly; b.classList.toggle("on", oneOnly); }
+    } else if (w === "one") { oneOnly = !oneOnly; b.classList.toggle("on", oneOnly); }
     else if (w === "tailoring") {
       var lines = IDEAS.filter(function (i) { return ideaState[i.key] !== "declined" && stillWanted(i) > 0 && canMake(i) > 0; })
         .map(function (i) { return i.name + " (you have materials for " + Math.min(canMake(i), stillWanted(i)) + ")"; });
@@ -931,7 +922,8 @@
       var x = byKey(s.dataset.tipk);
       return { box: "tip1", html: '<div class="n">' + x.name + '</div><div class="m">' + x.how + '.</div>'
         + '<div>Takes what their ' + x.prof + ' ' + x.skill + ' uses, under its 10s cap; what your own professions use stays.</div>'
-        + '<div class="y">This visit: until the mailbox closes. Bind: until you remove it.</div>' };
+        + '<div class="y">' + (x.tags.indexOf("party") >= 0 ? "While grouped: until one of you leaves the group." : "This visit: until the mailbox closes.")
+        + ' Bind: until you remove it.</div>' };
     }
     if (i) {
       var idea = IDEAS.filter(function (q) { return q.key === i.dataset.tipi; })[0];
@@ -964,6 +956,7 @@
   // #v2 / #v3 open that view (for links and screenshots).
   var start = document.querySelector('[data-view="' + location.hash.slice(1) + '"]');
   if (start) start.click();
+  if (location.hash === "#one") document.querySelector('[data-scen="one"]').click();
 })();
 </script>
 </body>
