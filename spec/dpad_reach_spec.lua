@@ -355,13 +355,28 @@ describe("D-pad reach in every view", function()
         assert.equal("list", ns.RoutesUI.View())
     end)
 
+    -- The owed notice's meter and Mark part paid (2026-11-22): -, Part paid, + under Mail ledger...
+    it("the mailbox window with something to pay back", function()
+        ns.Ledger.Store().players["bob surname"] = { name = BOB, received = 10000, sent = 2500, inItems = {}, outItems = {}, at = 1 }
+        MailFrame:Show()
+        SendMailFrame:Show()
+        WowStub.state.activeFrame = MailFrame
+        ns.MailWindow.Show("send")
+        tick()
+        assert.is_true(_G.MailworthyMailLedger:IsVisible())
+        assert.is_true(_G.MailworthyMailPartPaid:IsVisible())
+        assertNavigable("mailbox window, something to pay back", 7)
+    end)
+
     it("the ledger and the bank alt summary", function()
         local store = ns.Ledger.Store()
         store.players["bob surname"] = { name = BOB, received = 1000, sent = 0, inItems = {}, outItems = {}, at = 1 }
         store.players["ann other"] = { name = "Ann Other", received = 500, sent = 0, inItems = {}, outItems = {}, at = 1 }
         ns.LedgerUI.Show()
         tick()
-        assertNavigable("ledger", 2)
+        assert.is_true(_G.MailworthyLedgerPart1:IsVisible(), "Part paid on each row (2026-11-22)")
+        assert.is_true(_G.MailworthyLedgerPartLess2:IsVisible())
+        assertNavigable("ledger", 10)
         for i = 1, 8 do
             store.players["friend " .. i] = { name = "Friend " .. i, received = 100 * i, sent = 0, inItems = {}, outItems = {}, at = 1 }
         end

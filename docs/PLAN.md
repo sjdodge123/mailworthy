@@ -637,9 +637,11 @@ encourage players to pay back who sent them materials." And: "I dont ever want t
   after its alphabetically first name (`Ledger.Groups`, built once from the peers and again
   after the next Mailworthy message).
 - **Only your own side shows** (operator): the ledger window lists players you received more
-  from than you sent back, with what they sent, and **Mark paid** (two presses: a trade or gold
+  from than you sent back, with what they sent, **Part paid** (2026-11-22: an amount, 5s steps, two presses: an
+  enchant in person, part of the gold) and **Mark paid** (two presses: a trade or gold
   in person; logged); a chat line when you take a counted mail; the Mailworthy window's line at
-  the mailbox (where you can pay back) with Ledger...; a grey suffix on that player's binding in
+  the mailbox (where you can pay back) with Ledger..., and under it (2026-11-22) a meter of what's been paid
+  back so far, a lighter part for what this Send would pay them, and the same Part paid; a grey suffix on that player's binding in
   Friends. Nothing ever lists who owes you, and `/mw report` has counts only.
 - **Values, captured at the time of send** (operator, asked "if both players have mailworthy
   can the apps communicate?"): what you send is valued with your own prices when it goes

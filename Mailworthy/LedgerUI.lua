@@ -1,6 +1,7 @@
 -- The ledger window (/mw ledger; Settings > Bags and more; the Mailworthy window's "pay back" line;
 -- the friends window): the players this account received more from than it mailed back, one
--- row each with what they sent and "Mark paid" (two presses), then "Export log..." (the whole
+-- row each with what they sent, "Mark paid" (two presses) and "Part paid" (2026-11-22: an amount, - / +, two
+-- presses: an enchant in person, a trade, part of the gold), then "Export log..." (the whole
 -- mail log in the copy box). Only the player's own side: nobody is ever shown as owing them
 -- (operator, 2026-11-07). Every control is a button (Nav + PadKey "settings" set); nothing to type.
 -- Built on Widgets.ListWindow (rows, pager on the bottom row, empty line, Done).
@@ -10,11 +11,13 @@ local UI = {}
 ns.LedgerUI = UI
 
 UI.ROWS = 5
-local WIDTH, ROW, TOP = 520, 44, -78
+local WIDTH, ROW, TOP = 520, 52, -78
 
 local W = ns.Widgets
 local win, exportButton, hint
-local armed = nil
+local armed = nil     -- the player whose Mark paid was pressed once
+local armedPart = nil -- the player whose Part paid was pressed once
+local amounts = {}    -- player -> the part-paid amount on their row
 local marked = false
 
 function UI.Frame() return win and win.frame end
@@ -43,13 +46,41 @@ local function markPaid(row)
     local d = row.entry
     if not d then return end
     if armed ~= d.name then
-        armed = d.name
+        armed, armedPart = d.name, nil
         setHint("Press Mark paid again if you paid " .. d.name .. " back another way (a trade, gold in person).")
         UI.Refresh()
         return
     end
     armed = nil
     if ns.Ledger.MarkPaid(d.name) then setHint(d.name .. ": marked paid. The log keeps the record.") end
+    UI.Refresh()
+end
+
+-- Part paid: its own two presses, like Mark paid; - / + change the amount and cancel a first press.
+local function partPaid(row)
+    local d = row.entry
+    if not d then return end
+    local amount = ns.Ledger.StepPart(amounts[d.name], nil, d.net)
+    if armedPart ~= d.name then
+        armedPart, armed = d.name, nil
+        setHint(string.format("Press Part paid again if you paid %s %s back another way.", d.name, ns.Valuation.Money(amount)))
+        UI.Refresh()
+        return
+    end
+    armedPart = nil
+    if ns.Ledger.MarkPaid(d.name, amount) then
+        setHint(string.format("%s: %s marked paid. The log keeps the record.", d.name, ns.Valuation.Money(amount)))
+    end
+    amounts[d.name] = nil
+    UI.Refresh()
+end
+
+local function stepPart(row, dir)
+    local d = row.entry
+    if not d then return end
+    amounts[d.name] = ns.Ledger.StepPart(amounts[d.name], dir, d.net)
+    armedPart = nil
+    setHint("")
     UI.Refresh()
 end
 
@@ -68,17 +99,20 @@ function UI.Create()
             row.text:SetWidth(WIDTH - 56 - 120)
             row.text:SetJustifyH("LEFT")
             row.detail = W.Label(w.frame, "GameFontHighlightSmall")
-            row.detail:SetWidth(WIDTH - 56 - 120)
+            row.detail:SetWidth(WIDTH - 56 - 196)
             row.detail:SetJustifyH("LEFT")
             row.paid = W.Button(w.frame, "Mark paid", 100, function() markPaid(row) end, "MailworthyLedgerPaid" .. i)
-            row.widgets = { row.text, row.detail, row.paid }
+            row.less = W.Button(w.frame, "-", 24, function() stepPart(row, -1) end, "MailworthyLedgerPartLess" .. i)
+            row.part = W.Button(w.frame, "Part paid", 120, function() partPaid(row) end, "MailworthyLedgerPart" .. i)
+            row.more = W.Button(w.frame, "+", 24, function() stepPart(row, 1) end, "MailworthyLedgerPartMore" .. i)
+            row.widgets = { row.text, row.detail, row.paid, row.less, row.part, row.more }
             return row
         end,
         before = function() marked = false end,
         -- A page turn cancels an armed Mark paid, as before the shared pager (Codex review, 2026-11-15:
         -- it stayed armed, and one press an hour later cleared the balance).
         onPage = function()
-            armed = nil
+            armed, armedPart = nil, nil
             setHint("")
         end,
         list = function() return ns.Ledger.Debts() end,
@@ -89,9 +123,14 @@ function UI.Create()
             row.text:SetText(text)
             row.detail:SetText(detail)
             row.paid:SetText(armed == d.name and "Sure?" or "Mark paid")
+            local amount = ns.Ledger.StepPart(amounts[d.name], nil, d.net)
+            row.part:SetText(armedPart == d.name and "Sure?" or ("Part paid: " .. ns.Valuation.Money(amount)))
             win.at(row.text, 28, y - 4)
             win.at(row.detail, 28, y - 22)
             win.at(row.paid, -24, y, "TOPRIGHT")
+            win.at(row.more, -24, y - 24, "TOPRIGHT")
+            win.at(row.part, -24 - 24 - 4, y - 24, "TOPRIGHT")
+            win.at(row.less, -24 - 24 - 4 - 120 - 4, y - 24, "TOPRIGHT")
         end,
         -- The hint on its own line under the list (the bottom row holds Export, the pager and Done).
         below = function(w, y)
@@ -131,7 +170,7 @@ end
 function UI.Show(opener)
     if not win then UI.Create() end
     win.Show(opener, function()
-        win.pager.page, armed = 1, nil
+        win.pager.page, armed, armedPart = 1, nil, nil
         setHint("")
     end)
 end
