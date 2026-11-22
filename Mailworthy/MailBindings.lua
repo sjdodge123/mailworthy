@@ -26,6 +26,7 @@ function S.CreateBindingsHead()
                 .. "Turn them back on in Settings... > Mail routing...")
         end
         UI.Refresh()
+        ns.RoutesUI.RefreshIfShown() -- its guild line says on / off (Codex review, 2026-11-22)
     end, "MailworthyMailGuildRules")
     S.guildButton:Hide()
 end

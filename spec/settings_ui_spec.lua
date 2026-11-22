@@ -245,6 +245,41 @@ describe("settings window", function()
                 assert.is_true(_G.MailworthySettingsRouting:IsShown(), "on the Mailing tab too")
             end)
 
+        it("Change... in Mail routing opened from Settings: no circular anchors (Codex review)", function()
+            ns.SettingsUI.Show()
+            local settings, routing = ns.SettingsUI.Frame(), ns.RoutesUI.Frame()
+            settings.GetLeft = function() return 100 end
+            settings.GetRight = function() return 520 end
+            settings.GetEffectiveScale = function() return 1 end
+            routing.GetWidth = function() return 560 end
+            routing.GetEffectiveScale = function() return 1 end
+            local screen = _G.UIParent
+            screen.GetRight = function() return 1365 end
+            screen.GetEffectiveScale = function() return 1 end
+            _G.MailworthySettingsRouting:Click()
+            local _, rel = routing:GetPoint(1)
+            assert.equal(settings, rel, "the routing window beside the settings")
+            _G.MailworthyFriendsChangeAlt:Click()
+            assert.equal("pick", ns.SettingsUI.View())
+            local _, srel = settings:GetPoint(1)
+            assert.equal(routing, srel, "the settings placed by the routing window")
+            assert.is_true(routing:GetNumPoints() > 0)
+            for i = 1, routing:GetNumPoints() do
+                local _, r = routing:GetPoint(i)
+                assert.are_not.equal(settings, r, "the routing window no longer hangs on the settings")
+            end
+        end)
+
+        it("Change... with Settings already open behind: the controller moves to the picker (Codex review)", function()
+            WowStub.state.showOnce = true -- Show on a shown frame fires no OnShow, as in game
+            ns.SettingsUI.Show()
+            ns.HandleSlash("routing")
+            assert.equal(ns.RoutesUI.Frame(), ns.Nav.Root())
+            _G.MailworthyFriendsChangeAlt:Click()
+            assert.equal("pick", ns.SettingsUI.View())
+            assert.equal(ns.SettingsUI.Frame(), ns.Nav.Root(), "the D-pad drives the picker, not the window behind it")
+        end)
+
         it("the routing list's bank alt line follows the settings' picker", function()
             ns.Config.ClearBankAlt()
             ns.SettingsUI.Refresh()

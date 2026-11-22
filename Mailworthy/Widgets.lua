@@ -44,12 +44,38 @@ function Widgets.Side(openerLeft, openerRight, width, screenWidth, gap)
     return nil
 end
 
+--- Whether `region` hangs, anchor by anchor, on `f` (a few steps deep at most).
+local function dependsOn(region, f, depth)
+    if not region or depth > 8 or type(region.GetNumPoints) ~= "function" then return false end
+    for i = 1, region:GetNumPoints() or 0 do
+        local _, rel = region:GetPoint(i)
+        if rel == f or (rel and rel ~= region and dependsOn(rel, f, depth + 1)) then return true end
+    end
+    return false
+end
+
+--- `opener` was placed beside `f` before (Settings > Mail routing..., then the routing window's
+--- Change... back to Settings; Codex review, 2026-11-22): pin `opener` where it is on screen first,
+--- or anchoring `f` to it would be circular, which the game refuses.
+function Widgets.Unanchor(opener, f)
+    if not dependsOn(opener, f, 0) then return false end
+    local left, top = opener:GetLeft(), opener:GetTop()
+    opener:ClearAllPoints()
+    if left and top then
+        opener:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
+    else
+        opener:SetPoint("CENTER")
+    end
+    return true
+end
+
 --- Place a window that another Mailworthy window opened (operator, 2026-11-06: popups
 --- "overlap the existing menus and you cant read the new popup easily"): beside the opener
 --- when it fits on screen, else squarely over it (opaque, so the opener's text never shows
 --- through); centred without an opener (/mw, the minimap button). Clamped to the screen.
 function Widgets.PlaceBeside(f, opener)
     f:ClearAllPoints()
+    if opener and opener ~= f then Widgets.Unanchor(opener, f) end
     local side
     if opener and opener ~= f and opener:IsVisible() then
         local left, right = opener:GetLeft(), opener:GetRight()
@@ -247,11 +273,14 @@ function Widgets.Shell(o)
     --- `opener`: the Mailworthy window whose button opened it (placed beside that), or nil (centred).
     --- `prepare(wasShown)` resets what a fresh open resets (page 1, ...) before the refresh.
     function win.Show(opener, prepare)
+        local wasShown = frame:IsShown()
         Widgets.PlaceBeside(frame, opener)
-        if prepare then prepare(frame:IsShown()) end
+        if prepare then prepare(wasShown) end
         win.Refresh()
         frame:Show()
         frame:Raise()
+        -- Already open (no OnShow): the controller still moves to it, over the window that opened it.
+        if wasShown then ns.Nav.Raise(frame) end
         if o.log then ns.Log.Add("ui", "%s shown", o.log) end
     end
     ns.Nav.Attach(frame)

@@ -405,8 +405,12 @@ describe("guild template", function()
             ns.MailWindow.Show("send")
             assert.is_true(_G.MailworthyMailGuildRules:IsShown())
             assert.equal("Guild rules: on", _G.MailworthyMailGuildRules:GetText())
+            ns.RoutesUI.Show()
+            assert.equal("Guild rules: on", _G.MailworthyFriendsListGuildRules:GetText())
             _G.MailworthyMailGuildRules:Click()
             assert.is_false(ns.Guild.InUse())
+            assert.equal("Guild rules: off", _G.MailworthyFriendsListGuildRules:GetText(),
+                "the open Mail routing window follows (Codex review)")
             assert.equal(0, ns.Routes.Count())
             for _, it in ipairs(ns.MailWindow.Result().mail) do assert.is_nil(it.result.to, "nothing to a guild member") end
             assert.is_false(_G.MailworthyMailGuildRules:IsShown())
