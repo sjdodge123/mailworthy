@@ -83,6 +83,7 @@ describe("Mailworthy mark", function()
     describe("friends and guild window", function()
         it("the add list marks Mailworthy users only, and the footer explains the mark", function()
             ns.RoutesUI.Show()
+            _G.MailworthyFriendsAdd:Click()
             assert.equal("add", ns.RoutesUI.View())
             local bob, stranger
             for i = 1, ns.RoutesUI.CANDIDATE_ROWS do
@@ -98,6 +99,7 @@ describe("Mailworthy mark", function()
 
         it("step 2 names the picked player with the mark", function()
             ns.RoutesUI.Show()
+            _G.MailworthyFriendsAdd:Click()
             for i = 1, ns.RoutesUI.CANDIDATE_ROWS do
                 local b = _G["MailworthyFriendsPick" .. i]
                 if b:IsShown() and b:GetText():find(BOB, 1, true) then b:Click() break end

@@ -406,8 +406,8 @@ function Guild.Offer(sender, author, rev, rules)
         ns.Print(string.format("Guild rules updated by %s%s: %s. Turn them off any time with /mw guild.", author, copy,
             Guild.RulesText(kept)))
     elseif use == nil then
-        ns.Print(string.format("%s shared a guild template%s (%s). Open Guild in Mailworthy settings (/mw guild) to use it.", author, copy,
-            Guild.RulesText(kept)))
+        ns.Print(string.format("%s shared a guild template%s (%s). Open Mail routing in Mailworthy settings (/mw guild)"
+            .. " to use it.", author, copy, Guild.RulesText(kept)))
     end
     refreshWindows()
     return "taken"

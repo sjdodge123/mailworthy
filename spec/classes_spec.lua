@@ -122,6 +122,7 @@ describe("class-only items", function()
         WowStub.state.guild = { clubId = 3, members = {
             { name = BOB, level = 30, online = true, classID = 8, professions = { 333 } } } }
         ns.RoutesUI.Show()
+        _G.MailworthyFriendsAdd:Click()
         _G.MailworthyFriendsPick2:Click() -- 1 is you
         -- suggested: the green fill, no "> <" arrows (UX review U6)
         assert.equal("Mage items (Comprehension scrolls, and what only a mage can use)", _G.MailworthyFriendsProfession1:GetText())

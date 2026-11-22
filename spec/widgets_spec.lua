@@ -150,12 +150,16 @@ describe("widgets and labels", function()
         end)
     end)
 
-    it("the settings' Guild button says where the guild rules stand", function()
-        local text = ns.SettingsUI.GuildButtonText
-        assert.equal("Guild...", text(false, nil))
-        assert.equal("Guild...", text(true, nil))
-        assert.equal("Guild (new template)...", text(true, { rules = {} }))
-        assert.equal("Guild (rules on)...", text(true, { use = true }))
-        assert.equal("Guild (rules off)...", text(true, { use = false }))
+    it("the Mail routing list's guild line says where the guild rules stand", function()
+        local text = ns.RoutesUI.GuildLineText
+        assert.same({ "Switched off (/mw feature guildTemplate on).", nil }, { text(false, "Guildies", nil) })
+        assert.same({ "Not in a guild.", nil }, { text(true, nil, nil) })
+        assert.same({ "No guild template yet.", nil }, { text(true, "Guildies", nil) })
+        assert.same({ "From Gm Name: 0 rules |cff33ff99(new)|r", "Use guild rules" },
+            { text(true, "Guildies", { from = "Gm Name", rules = {} }) })
+        assert.same({ "From Gm Name: 1 rule", "Guild rules: on" },
+            { text(true, "Guildies", { from = "Gm Name", use = true, rules = { {} } }) })
+        assert.same({ "From the mark: 2 rules", "Guild rules: off" },
+            { text(true, "Guildies", { from = "Gm Name", use = false, rules = { {}, {} } }, "the mark") })
     end)
 end)

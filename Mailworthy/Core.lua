@@ -137,8 +137,9 @@ local HELP = {
         .. " In the Mailworthy window, pressing an item locks or unlocks it.",
     "/mw or /mw settings - bank alt, minimum gain, disenchant, listing length, keep your professions' materials"
         .. " (also: tags, lock glow, minimap button)",
-    "/mw friends - send a profession's materials to a guild member, party member or one of your characters"
-        .. " (bindings; the Mailworthy window shows them with Skip once)",
+    "/mw routing (or /mw friends) - where your mail goes: send a profession's materials to a guild member, party"
+        .. " member or one of your characters (bindings; the Mailworthy window shows them with Skip once), the guild's"
+        .. " rules and the bank alt; Settings > Mail routing... opens it too",
     "/mw guild - your guild's template: turn the guild rules on or off; the guild master and officers edit it",
     "/mw locks - this character's locked items, each with Unlock (also for an item no longer in your bags)",
     "/mw pins - the pinned items, each with Unpin (also for an item no longer in your bags)",
@@ -180,7 +181,7 @@ function ns.HandleSlash(msg)
         ns.Config.Set("hidePinWarning", rest == "off")
         ns.Print("Pin warning " .. (rest == "off" and "off." or "on: pinning an item your profession uses warns once."))
         if ns.SettingsUI then ns.SettingsUI.RefreshIfShown() end
-    elseif cmd == "friends" or cmd == "bindings" then
+    elseif cmd == "routing" or cmd == "friends" or cmd == "bindings" then
         ns.RoutesUI.Show()
     elseif cmd == "guild" then
         ns.RoutesUI.ShowGuild()
