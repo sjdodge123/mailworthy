@@ -174,7 +174,7 @@ touched (no hook into the profession window: ideas show at the mailbox and in th
 
 ## 5b. Upgrades (operator, 2026-11-22; the sheet's "Try:" buttons)
 
-Decided:
+All decided:
 
 - **Fold** the suggestions block to one line ("Suggested (3) · Grace, Brann, Sadie"), remembered for the
   account. It **opens again for something new**: a suggestion not seen before is unfolded, tagged "new" and
@@ -194,10 +194,11 @@ Decided:
 - **One suggestion** uses today's one-line offer layout, no header ("Grace Thorn is a tailor in your party.
   Send Wool Cloth x40, Linen Cloth x18?", the buttons on the right, "Not now" a link under it):
   [media/recommendations-one-vs-list.png](../media/recommendations-one-vs-list.png) (left; the full block right).
-
-Not decided yet:
-
-- **A crafter joins your group**: one chat line away from the mailbox, per player per session, like the Trip line.
+- **A crafter joins your group**: one chat line away from the mailbox, per player per session, like the Trip
+  line ("Dorn Ashby (Engineering) joined your group: he could use 30 of your bars and stone at your next
+  mailbox."). On the group's hello (`H2` / `S2` on PARTY) or the roster when a guild member joins; counted
+  with the same `Routes.Divert` run against the bags (`Bags.Evaluate`), never printed in combat; switch
+  `crafterOffer` and the Settings checkbox cover it too.
 
 ## 6. Decisions (operator, 2026-11-22)
 
