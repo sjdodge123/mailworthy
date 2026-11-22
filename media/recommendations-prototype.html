@@ -77,7 +77,16 @@
   .sugg .head { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-bottom: 1px solid #3a2e1c; }
   .sugg .head b { color: var(--gold); font: bold 12px Georgia, serif; }
   .sugg .head .dim { color: var(--dim); font-size: 11px; }
-  .sugg .head .btn { margin-left: auto; }
+  .sugg .head .right, .ideas .head .right { margin-left: auto; display: flex; gap: 4px; }
+  .btn.fold { min-width: 0; width: 22px; padding: 0; }
+  .tag.fresh { color: var(--mint); }
+  .cost { color: var(--dim); font-size: 11px; white-space: nowrap; }
+  .s.one .what { font-size: 12px; }
+  .link { color: var(--note); cursor: pointer; text-decoration: underline; }
+  tr.hlrow td { background: #3a3014 !important; }
+  tr.hlrow td:first-child { box-shadow: inset 3px 0 0 var(--gold); }
+  .scen { display: flex; gap: 6px; flex-wrap: wrap; margin: -4px 0 12px; align-items: center; }
+  .scen span.l { color: var(--dim); font-size: 12px; margin-right: 4px; }
   .s { padding: 6px 8px; border-top: 1px solid #2a2216; display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; }
   .s:first-of-type { border-top: 0; }
   .s .nm { color: var(--white); font-weight: bold; }
@@ -193,6 +202,11 @@
 
   <!-- View 1 ============================================================================================== -->
   <div class="view on" id="v1">
+    <div class="scen"><span class="l">Try:</span>
+      <span class="btn grey small" data-scen="dorn">Dorn joins your group</span>
+      <span class="btn grey small" data-scen="nextvisit">Next mailbox visit</span>
+      <span class="btn grey small" data-scen="one">Only one suggestion</span>
+      <span class="btn grey small" data-scen="grouped">Offer "While grouped"</span></div>
     <div class="layout">
       <div style="position:relative">
         <div class="frame" data-frame="v1">
@@ -241,6 +255,23 @@
             Send button update before anything goes. Unbind or Undo puts them back.</li>
           <li>Only your side's balance changes: Grace now owes you, and Mailworthy never shows you that.</li>
         </ul>
+        <h2>Upgrades to try (proposal, 2026-11-22)</h2>
+        <ul>
+          <li><b>Fold</b> (▾ / ▸ on the header): the block shrinks to one line, "Suggested (3) · Grace, Brann, Sadie". Remembered for
+            the account, so it stays folded at the next mailbox.</li>
+          <li><b>Opens again for something new</b>: a suggestion you haven't seen (Dorn, after <i>Dorn joins your group</i>) unfolds
+            it, tagged <span class="tag fresh">new</span>. Folding it, or answering one, counts as seen.</li>
+          <li><b>Not now</b>: hidden for this visit only, like Skip once (<i>Next mailbox visit</i> brings it back). Turning it off for
+            good would be a Settings checkbox, "Suggest crafters around me" (today's <code>crafterOffer</code> switch).</li>
+          <li><b>What it costs</b>: each suggestion says what it's worth, "≈ 1g 74s, 70s less AH gain", from the values the scan
+            already has. Rough Stone: "all of it was staying".</li>
+          <li><b>Its rows light up</b> while the mouse or the D-pad highlight is on a suggestion, so you see what it takes before pressing.</li>
+          <li><b>One suggestion</b> uses today's one-line offer layout, no header (<i>Only one suggestion</i>).</li>
+          <li><b>While grouped</b> (optional, <i>Offer "While grouped"</i>): replaces This visit; lasts until one of you leaves the
+            group, so two mailboxes in one dungeon run need one press. It changes how long a choice lasts: the operator's call.</li>
+          <li><b>When a crafter joins</b> (away from the mailbox): one chat line per player per session (see the chat box after
+            <i>Dorn joins your group</i>).</li>
+        </ul>
         <h2>Decided (operator, 2026-11-22)</h2>
         <div class="q">Both <b>This visit</b> and <b>Bind</b>, beside <b>Not for &lt;name&gt;</b>.</div>
         <div class="q">Party and alts only: a guild member is suggested only while in your party.</div>
@@ -250,6 +281,8 @@
 
   <!-- View 2 ============================================================================================== -->
   <div class="view" id="v2">
+    <div class="scen"><span class="l">Try:</span>
+      <span class="btn grey small" data-scen="tailoring">Open your Tailoring window</span></div>
     <div class="layout">
       <div style="position:relative">
         <div class="frame" data-frame="v2">
@@ -300,6 +333,13 @@
           <li>A payback is valued like any mail, at its auction price. A crafted item with no price (the shirt) is valued at its
             materials, and Aldric's side counts that value only up to what he'd sent Grace: a payback can clear a debt, never make one.</li>
           <li>Only Grace's own side shows. Aldric gets "Grace Thorn made you a Woolen Bag" in chat; he never sees what she owed.</li>
+        </ul>
+        <h2>Upgrades to try (proposal)</h2>
+        <ul>
+          <li><b>At the profession window</b>: opening Tailoring prints one chat line with the ideas she can make right now
+            (<i>Open your Tailoring window</i>). <code>TierCheck</code> already listens to that window's events; nothing is written
+            into Blizzard's window.</li>
+          <li><b>Fold</b> the ideas block to one line (▾ / ▸), as the suggestions block does.</li>
         </ul>
         <h2>Paid in person: Mark part paid</h2>
         <ul>
@@ -436,21 +476,29 @@
     { key: "sadie", name: "Sadie Ember", tags: ["alt"], prof: "Enchanting", craft: "enchanter", skill: 140,
       takes: ["ess"], how: "your own character; saved at her last login" }
   ];
-  var TAGTEXT = { party: "Party", guild: "Guild", alt: "Your alt", mw: "MW", off: "offline" };
+  var TAGTEXT = { party: "Party", guild: "Guild", alt: "Your alt", mw: "MW", fresh: "new" };
   var items1, sugg, page = 0, flash1 = {};
+  // Upgrades (proposal): folded (remembered per account), seen (suggestions the player has already looked at:
+  // a new one opens the block again), notNow (hidden this visit), and the sheet's demo switches.
+  var folded, seen, notNow, dornJoined, grouped, oneOnly;
 
   function reset1() {
     items1 = START1.map(function (it) { return Object.assign({}, it, { locked: false }); });
     sugg = SUGG.map(function (s) { return Object.assign({}, s, { state: null }); });
     page = 0; flash1 = {}; document.getElementById("v1chat").innerHTML = "";
+    folded = false; seen = { grace: true, brann: true, sadie: true }; notNow = false;
+    dornJoined = false; grouped = false; oneOnly = false;
+    document.querySelectorAll("[data-scen]").forEach(function (b) { b.classList.remove("on"); });
   }
   function byKey(key) { return sugg.filter(function (s) { return s.key === key; })[0]; }
   function item1(id) { return items1.filter(function (it) { return it.id === id; })[0]; }
+  function visible(s) { return !(s.key === "dorn" && !dornJoined) && !(oneOnly && s.key !== "grace"); }
+  function accepted(s) { return visible(s) && (s.state === "visit" || s.state === "bound" || s.state === "group"); }
   function takerOf(it) {
     if (it.hard || it.locked) return null;
     for (var i = 0; i < sugg.length; i++) {
       var s = sugg[i];
-      if ((s.state === "visit" || s.state === "bound") && s.takes.indexOf(it.id) >= 0) return s;
+      if (accepted(s) && s.takes.indexOf(it.id) >= 0) return s;
     }
     return null;
   }
@@ -462,41 +510,87 @@
   function takesNow(s) { // rows this suggestion would take (not locked)
     return s.takes.map(item1).filter(function (it) { return !it.locked; });
   }
-  function tagHtml(s) { return s.tags.map(function (t) { return '<span class="tag ' + t + '">' + TAGTEXT[t] + '</span>'; }).join(""); }
+  function tagHtml(s) {
+    return s.tags.map(function (t) { return '<span class="tag ' + t + '">' + TAGTEXT[t] + '</span>'; }).join("")
+      + (!seen[s.key] && !s.state ? '<span class="tag fresh">new</span>' : "");
+  }
+  // What a suggestion would cost: its rows' value, and the AH gain given up for those that were going to the bank alt.
+  function costText(s) {
+    var value = 0, gain = 0, stayed = 0;
+    takesNow(s).forEach(function (it) {
+      value += it.value || 0;
+      if (it.to === "alt" && it.gain) gain += it.gain; else if (!it.to) stayed++;
+    });
+    return '<span class="cost">≈ ' + plain(value) + (gain ? ', ' + plain(gain) + ' less AH gain' : stayed ? ', all of it was staying' : '') + '</span>';
+  }
+  function whatText(s) {
+    return takesNow(s).map(function (it) { return '<span class="q' + it.q + '">' + it.name + '</span> x' + it.count; }).join(", ");
+  }
+  function acceptButtons(s) {
+    if (s.state === "visit") return '<span class="state">this visit</span><span class="btn grey small" data-act="undo" data-k="' + s.key + '">Undo</span>';
+    if (s.state === "group") return '<span class="state">while grouped</span><span class="btn grey small" data-act="undo" data-k="' + s.key + '">Undo</span>';
+    if (s.state === "bound") return '<span class="state">bound</span><span class="btn grey small" data-act="undo" data-k="' + s.key + '">Unbind</span>';
+    return (grouped ? '<span class="btn small" data-act="group" data-k="' + s.key + '">While grouped</span>'
+        : '<span class="btn small" data-act="visit" data-k="' + s.key + '">This visit</span>')
+      + '<span class="btn grey small" data-act="bind" data-k="' + s.key + '">Bind</span>'
+      + '<span class="btn grey small" data-act="decline" data-k="' + s.key + '">Not for ' + first(s.name) + '</span>';
+  }
 
   function renderSugg() {
-    var open = sugg.filter(function (s) { return s.state !== "declined"; });
+    var open = sugg.filter(function (s) { return visible(s) && s.state !== "declined"; });
     var pending = open.filter(function (s) { return !s.state; });
     var box = document.getElementById("sugg");
-    if (!open.length) { box.style.display = "none"; return; }
+    if (!open.length || notNow) { box.style.display = "none"; return; }
     box.style.display = "";
+    var isNew = function (s) { return !s.state && !seen[s.key]; };
+    if (folded && open.some(isNew)) { folded = false; page = 0; } // something new opens it
+    open = open.filter(isNew).concat(open.filter(function (s) { return !isNew(s); })); // new ones on the first page
+
+    // One suggestion: today's one-line offer layout, no header.
+    if (open.length === 1 && !folded) {
+      var o = open[0];
+      box.innerHTML = '<div class="s one' + (o.state ? " done" : "") + '" data-tipk="' + o.key + '"><div><span class="nm">' + o.name + '</span>' + tagHtml(o)
+        + ' <span class="what">is a ' + o.craft + ' in your party. ' + (o.state ? "Sending" : "Send") + ' ' + whatText(o) + (o.state ? "" : "?") + ' ' + costText(o) + '</span></div>'
+        + '<div class="bt">' + acceptButtons(o) + '</div>'
+        + '<div class="meta">' + o.prof + ' ' + o.skill + ' · ' + o.how + ' · <span class="link" data-act="notnow">Not now</span></div></div>';
+      return;
+    }
+
     var pages = Math.ceil(open.length / 3); if (page >= pages) page = 0;
-    var html = '<div class="head"><b>Suggested</b><span class="dim">' + (pending.length ? pending.length + " crafter" + (pending.length === 1 ? "" : "s")
-      + " around you could use some of this" : "all answered") + '</span>'
-      + (pages > 1 ? '<span class="btn grey small" data-act="more">More (' + (page + 1) + '/' + pages + ')</span>' : "") + '</div>';
+    var head = '<div class="head"><span class="btn grey small fold" data-act="fold">' + (folded ? "▸" : "▾") + '</span><b>Suggested</b><span class="dim">';
+    if (folded) head += '(' + open.length + ') · ' + open.map(function (s) { return first(s.name); }).join(", ");
+    else head += pending.length ? pending.length + " crafter" + (pending.length === 1 ? "" : "s") + " around you could use some of this" : "all answered";
+    head += '</span><span class="right">' + (!folded && pages > 1 ? '<span class="btn grey small" data-act="more">More (' + (page + 1) + '/' + pages + ')</span>' : "")
+      + '<span class="btn grey small" data-act="notnow">Not now</span></span></div>';
+    if (folded) { box.innerHTML = head; return; }
+    var html = head;
     open.slice(page * 3, page * 3 + 3).forEach(function (s) {
-      var rows = takesNow(s);
-      var what = rows.map(function (it) { return '<span class="q' + it.q + '">' + it.name + '</span> x' + it.count; }).join(", ");
-      var bt;
-      if (s.state === "visit") bt = '<span class="state">this visit</span><span class="btn grey small" data-act="undo" data-k="' + s.key + '">Undo</span>';
-      else if (s.state === "bound") bt = '<span class="state">bound</span><span class="btn grey small" data-act="undo" data-k="' + s.key + '">Unbind</span>';
-      else bt = '<span class="btn small" data-act="visit" data-k="' + s.key + '">This visit</span>'
-        + '<span class="btn grey small" data-act="bind" data-k="' + s.key + '">Bind</span>'
-        + '<span class="btn grey small" data-act="decline" data-k="' + s.key + '">Not for ' + first(s.name) + '</span>';
+      var what = whatText(s);
       html += '<div class="s' + (s.state ? " done" : "") + '" data-tipk="' + s.key + '"><div><span class="nm">' + s.name + '</span>' + tagHtml(s)
-        + '<div class="what">' + (s.state ? "Sending" : "Your " + s.craft + " for") + ': ' + (what || '<span class="why">nothing on the list now</span>') + '</div></div>'
-        + '<div class="bt">' + bt + '</div>'
+        + '<div class="what">' + (s.state ? "Sending" : "Your " + s.craft + " for") + ': ' + (what || '<span class="why">nothing on the list now</span>')
+        + (what ? ' ' + costText(s) : "") + '</div></div>'
+        + '<div class="bt">' + acceptButtons(s) + '</div>'
         + '<div class="meta">' + s.prof + ' ' + s.skill + ' · ' + s.how + '</div></div>';
     });
-    html += '<div class="unknown">Tobb Ruddle (party): professions unknown. No Mailworthy, not in your guild.</div>';
+    if (!oneOnly) html += '<div class="unknown">Tobb Ruddle (party): professions unknown. No Mailworthy, not in your guild.</div>';
     box.innerHTML = html;
+  }
+  // The rows a suggestion would take, lit while the mouse or the D-pad highlight is on it.
+  function lightRows(key) {
+    var s = key && byKey(key);
+    document.querySelectorAll("tr[data-row]").forEach(function (tr) {
+      tr.classList.toggle("hlrow", !!(s && s.takes.indexOf(tr.dataset.row) >= 0));
+    });
   }
 
   function render1() {
     renderSugg();
-    var RECIP = ["alt"].concat(sugg.filter(function (s) { return s.state === "visit" || s.state === "bound"; }).map(function (s) { return s.key; }));
+    var RECIP = ["alt"].concat(sugg.filter(accepted).map(function (s) { return s.key; }));
     var WHO = { alt: BANK }, NOTE = { alt: "your bank alt" };
-    sugg.forEach(function (s) { WHO[s.key] = s.name; NOTE[s.key] = s.prof + (s.state === "visit" ? ", this visit" : ", binding"); });
+    sugg.forEach(function (s) {
+      WHO[s.key] = s.name;
+      NOTE[s.key] = s.prof + (s.state === "visit" ? ", this visit" : s.state === "group" ? ", while grouped" : ", binding");
+    });
     var html = "", stacks = {}, mails = {}, gain = 0;
     RECIP.forEach(function (k) {
       var g = items1.filter(function (it) { return dest1(it) === k; });
@@ -561,12 +655,12 @@
       mats: [["bolt", 2], ["thread", 1]] }
   ];
   var NOT = "Not suggested: Brown Linen Robe (Aldric wears mail), Linen Bag (6 slots: no bigger than his).";
-  var items2, owedNow, ideaState, made, sent2, flash2 = {}, partAmt = 2000, partArmed = false, inPerson = 0;
+  var items2, owedNow, ideaState, made, sent2, flash2 = {}, partAmt = 2000, partArmed = false, inPerson = 0, ideasFolded = false;
 
   function reset2() {
     items2 = START2.map(function (it) { return Object.assign({}, it); });
     owedNow = DEBT0; ideaState = {}; made = { bag: 0, shirt: 0 }; sent2 = { bag: 0, shirt: 0 }; flash2 = {};
-    partAmt = 2000; partArmed = false; inPerson = 0;
+    partAmt = 2000; partArmed = false; inPerson = 0; ideasFolded = false;
     document.getElementById("v2chat").innerHTML = '<div><span class="mwp">Mailworthy:</span> You took 40 Wool Cloth and 18 Linen Cloth from Aldric Vane (1g 74s).</div>';
   }
   function item2(id) { return items2.filter(function (it) { return it.id === id; })[0]; }
@@ -606,7 +700,9 @@
     var shown = IDEAS.filter(function (i) { return ideaState[i.key] !== "declined" && stillWanted(i) + made[i.key] > 0; });
     if (owedNow <= 0 || !shown.length) { box.style.display = "none"; return; }
     box.style.display = "";
-    var html = '<div class="head"><b>Payback ideas for Aldric</b><span class="dim">from his needs note, 3 min ago · your Tailoring recipes</span></div>';
+    var html = '<div class="head"><span class="btn grey small fold" data-act="ideasfold">' + (ideasFolded ? "▸" : "▾") + '</span><b>Payback ideas for Aldric</b><span class="dim">'
+      + (ideasFolded ? "(" + shown.length + ") · " + shown.map(function (i) { return i.name; }).join(", ") : "from his needs note, 3 min ago · your Tailoring recipes") + '</span></div>';
+    if (ideasFolded) { box.innerHTML = html; return; }
     shown.forEach(function (idea) {
       var n = canMake(idea), left = stillWanted(idea);
       var mats = idea.mats.map(function (m) {
@@ -717,6 +813,8 @@
       focusIdx = 0; refocus(); return;
     }
     if (e.target.id === "reset") { resetAll(); return; }
+    var sc = e.target.closest("[data-scen]");
+    if (sc) { scenario(sc); return; }
     var b = e.target.closest("[data-act]");
     if (b) { act(b); return; }
     var tr = e.target.closest("tr[data-row]");
@@ -726,25 +824,57 @@
     }
   });
 
+  // The sheet's demo buttons (outside the window): things that happen in the world.
+  function scenario(b) {
+    var w = b.dataset.scen;
+    if (w === "dorn") {
+      if (dornJoined) return;
+      dornJoined = true; b.classList.add("on");
+      chat("v1chat", '<span style="color:#aaa">[earlier, out in the world]</span> Dorn Ashby (Engineering) joined your group: he could use 30 of your bars and stone at your next mailbox.');
+    } else if (w === "grouped") { grouped = !grouped; b.classList.toggle("on", grouped); }
+    else if (w === "one") { oneOnly = !oneOnly; b.classList.toggle("on", oneOnly); }
+    else if (w === "tailoring") {
+      var lines = IDEAS.filter(function (i) { return ideaState[i.key] !== "declined" && stillWanted(i) > 0 && canMake(i) > 0; })
+        .map(function (i) { return i.name + " (you have materials for " + Math.min(canMake(i), stillWanted(i)) + ")"; });
+      chat("v2chat", '<span style="color:#aaa">[you open your Tailoring window]</span> ' + (owedNow > 0 && lines.length
+        ? "Payback idea for Aldric Vane: " + lines.join(", ") + ". Make it here, then pick Aldric on its row at the mailbox."
+        : "(no payback ideas right now: nothing is printed)"));
+    } else if (w === "nextvisit") {
+      notNow = false; sugg.forEach(function (x) { if (x.state === "visit") x.state = null; });
+      chat("v1chat", "<span style=\"color:#aaa\">[you close the mailbox and open it again]</span> This-visit choices are cleared; Bind and While grouped stay.");
+    }
+    render();
+  }
+
   function act(b) {
     var a = b.dataset.act, s = b.dataset.k && byKey(b.dataset.k);
     if (b.classList.contains("off")) return;
-    if (a === "visit" || a === "bind") {
-      s.state = a === "visit" ? "visit" : "bound";
+    if (s) seen[s.key] = true; // answering a suggestion counts as having seen it
+    if (a === "visit" || a === "bind" || a === "group") {
+      s.state = a === "bind" ? "bound" : a;
       takesNow(s).forEach(function (it) { flash1[it.id] = "moved"; });
       flash1.to = s.key;
       chat("v1chat", a === "bind"
         ? "Bound: " + s.prof + " materials to " + s.name + ". Check the list, then press Send."
+        : a === "group" ? s.prof + " materials go to " + s.name + " until one of you leaves the group. Check the list, then press Send."
         : s.prof + " materials go to " + s.name + " this visit. Check the list, then press Send.");
     } else if (a === "undo") {
-      chat("v1chat", s.state === "bound" ? "Removed: " + s.prof + " materials to " + s.name + "." : "Not sending to " + s.name + " this visit.");
+      chat("v1chat", s.state === "bound" ? "Removed: " + s.prof + " materials to " + s.name + "." : "Not sending to " + s.name + (s.state === "group" ? " while grouped." : " this visit."));
       s.state = null;
+    } else if (a === "fold") {
+      folded = !folded;
+      if (folded) sugg.forEach(function (x) { if (visible(x)) seen[x.key] = true; }); // folding = "I've seen these"
+    } else if (a === "notnow") {
+      notNow = true;
+      chat("v1chat", "Suggestions hidden for this visit. They're back at your next mailbox.");
+    } else if (a === "ideasfold") {
+      ideasFolded = !ideasFolded;
     } else if (a === "decline") {
       s.state = "declined";
       chat("v1chat", "Won't suggest " + s.name + " for " + s.prof + " again (Settings > Friends brings it back).");
     } else if (a === "more") { page++; }
     else if (a === "send1") {
-      var to = sugg.filter(function (x) { return x.state === "visit" || x.state === "bound"; });
+      var to = sugg.filter(accepted);
       chat("v1chat", "Sent " + (to.length ? "to " + BANK.split(" ")[0] + ", " + to.map(function (x) { return first(x.name); }).join(", ") : "to " + first(BANK)) + ". "
         + (to.some(function (x) { return x.key === "grace"; }) ? "Grace's Mailworthy gets your needs note with the values." : ""));
     } else if (a === "craft") { craft(b.dataset.i); return; }
@@ -784,6 +914,8 @@
     var list = buttons(); if (!list.length) return;
     if (focusIdx >= list.length) focusIdx = list.length - 1;
     list[focusIdx].classList.add("focus");
+    var sk = list[focusIdx].closest("[data-tipk]");
+    lightRows(sk ? sk.dataset.tipk : null);
   }
   document.addEventListener("keydown", function (e) {
     var list = buttons(); if (!list.length) return;
@@ -818,6 +950,8 @@
   }
   document.addEventListener("mousemove", function (e) {
     ["tip1", "tip2"].forEach(function (id) { document.getElementById(id).style.display = "none"; });
+    var sk = e.target.closest && e.target.closest("[data-tipk]");
+    if (sk || e.target.closest(".frame")) lightRows(sk ? sk.dataset.tipk : null);
     var t = tipFor(e); if (!t) return;
     var tip = document.getElementById(t.box), box = tip.parentNode.getBoundingClientRect();
     tip.innerHTML = t.html;

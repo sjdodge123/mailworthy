@@ -170,6 +170,26 @@ touched (no hook into the profession window: ideas show at the mailbox and in th
 3. `TierCheck` crafts, the needs note, payback ideas for Tailoring bags and Engineering ammo (the two
    clearest checks), then the rest of the table.
 
+## 5b. Upgrades to try (proposal, 2026-11-22; in the sheet's "Try:" buttons)
+
+Not decided. Each is small and reuses what's there; none changes a Safety rule except **While grouped**.
+
+- **Fold** the suggestions block to one line ("Suggested (3) · Grace, Brann, Sadie"), remembered for the
+  account. It **opens again for something new**: a suggestion not seen before is unfolded, tagged "new" and
+  put on the first page; folding or answering one counts as seen. The ideas block folds the same way. (WoW's
+  fonts may lack ▾ / ▸: the built button would say "+" / "−".)
+- **Not now**: hidden for this visit (cleared at `MAIL_CLOSED`, like Skip once). Off for good: a Settings
+  checkbox, "Suggest crafters around me", over the existing `crafterOffer` switch.
+- **What it costs** on each suggestion: "≈ 1g 74s, 70s less AH gain" (the rows' values and the gain the
+  scan gave up), or "all of it was staying".
+- **Its rows light up** while the mouse or the D-pad highlight is on a suggestion.
+- **One suggestion**: today's one-line offer layout, no header.
+- **While grouped** (optional): replaces This visit; lasts until either player leaves the group
+  (`GROUP_ROSTER_UPDATE`). A new binding lifetime, so the operator's call.
+- **Chat lines away from the mailbox**: when a crafter joins the group (one per player per session, like the
+  Trip line); on the crafter's side, when they open the profession window (`TierCheck`'s events), the payback
+  ideas they can make right now. Chat only, nothing written into Blizzard's windows.
+
 ## 6. Decisions (operator, 2026-11-22)
 
 1. A suggestion offers both **This visit** and **Bind** (and Not for <name>).
