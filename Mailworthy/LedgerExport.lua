@@ -26,6 +26,10 @@ end
 --- Pure: one log line.
 function Ledger.LineText(e)
     local stamp = date("%Y-%m-%d %H:%M", tonumber(e.at) or 0)
+    if e.dir == "paid" and e.part then
+        return string.format("%s  MARKED PART PAID  %s: %s paid another way by %s, %s left", stamp, tostring(e.other),
+            money(e.money), tostring(e.char), money(tonumber(e.left) or 0))
+    end
     if e.dir == "paid" then
         return string.format("%s  MARKED PAID  %s: %s set back to zero by %s", stamp, tostring(e.other),
             money(e.money), tostring(e.char))

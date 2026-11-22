@@ -1,6 +1,7 @@
 # Suggested bindings and paybacks (proposal, 2026-11-22)
 
-Phase 1 (section 1, with the upgrades in 5b) is built; payback ideas (section 2) are not. The operator answered
+Phases 1 (section 1, with the upgrades in 5b) and 2 (the meter and Mark part paid) are built; payback ideas
+(section 2) are not. The operator answered
 every question on 2026-11-22 (sections 5b and 6); the interactive sheet is
 [media/recommendations-prototype.html](../media/recommendations-prototype.html) ->
 [.png](../media/recommendations-prototype.png).
@@ -171,7 +172,8 @@ touched (no hook into the profession window: ideas show at the mailbox and in th
 1. **Built (2026-11-22):** suggested bindings for the party and your alts (no new wire format; `Routes.Offer`
    grown into `Routes.Suggestions`, While grouped / This visit / Bind, the 5b upgrades except the profession
    window reminder, which belongs to the paybacks). Short-lived bindings live in memory: a `/reload` ends them.
-2. The meter on the owed notice, Mark part paid and the "made for you" subject (ledger only).
+2. **Built (2026-11-22):** the meter on the owed notice (paid back so far, what this Send would pay) and Mark
+   part paid (notice and ledger window). The "made for you" subject moves to step 3: only a payback pick is one.
 3. `TierCheck` crafts, the needs note, payback ideas for Tailoring bags and Engineering ammo (the two
    clearest checks), then the rest of the table.
 

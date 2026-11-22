@@ -341,18 +341,60 @@ function Ledger.DebtText(name, net)
     return string.format("You've received %s more from %s than you've sent back.", money(net), tostring(name))
 end
 
---- The player marks what they owe `name` as paid another way (a trade, a favour): the balance
---- starts again from zero. Logged.
-function Ledger.MarkPaid(name)
+--- How much of what `name`'s player mailed this account has been paid back (mail sent to them and
+--- what was marked paid), and the total they mailed: `paid`, `total` in copper, paid <= total (the pay-back
+--- meter, docs/RECOMMENDATIONS.md; operator, 2026-11-22: "so that the debt is slowly cleared").
+function Ledger.PaidBack(name)
+    local net, records = Ledger.Net(name)
+    local total = 0
+    for _, p in ipairs(records) do total = total + (tonumber(p.received) or 0) end
+    return math.max(0, total - math.max(0, net)), total
+end
+
+-- Mark part paid (operator, 2026-11-22: "Add 'Mark part paid'"): an amount paid another way (an enchant
+-- cast in person, a trade), stepped 5s at a time, never more than what's owed.
+Ledger.PART_STEP = 500
+Ledger.PART_DEFAULT = 2000
+
+--- Pure: the part-paid amount one step `dir` (+1 / -1) from `amount`, between one step and `net` (when
+--- `net` is under a step, `net`); `amount` nil: from the default (20s).
+function Ledger.StepPart(amount, dir, net)
+    net = math.max(0, math.floor(tonumber(net) or 0))
+    local step = Ledger.PART_STEP
+    local low = math.min(step, net)
+    local a = (tonumber(amount) or Ledger.PART_DEFAULT) + (dir or 0) * step
+    if dir and dir > 0 and a > net then a = net end
+    return math.max(low, math.min(net, a))
+end
+
+--- The player marks what they owe `name` as paid another way (a trade, a favour). Without `amount`,
+--- or with one at or over what's owed, the balance starts again from zero; with a smaller amount
+--- (Mark part paid) it goes down by that much. Logged ("paid", with `part` for a part).
+function Ledger.MarkPaid(name, amount)
     local net, records = Ledger.Net(name)
     if net <= 0 then return false end
-    for _, p in ipairs(records) do
-        p.settled = (tonumber(p.received) or 0) - (tonumber(p.sent) or 0)
+    amount = tonumber(amount)
+    if amount and amount <= 0 then return false end
+    local part = amount ~= nil and math.floor(amount) < net
+    if part then
+        amount = math.floor(amount)
+        -- On the record that owes the most (a player's characters can be several records).
+        local best, bestNet
+        for _, p in ipairs(records) do
+            local n = (tonumber(p.received) or 0) - (tonumber(p.sent) or 0) - (tonumber(p.settled) or 0)
+            if not bestNet or n > bestNet then best, bestNet = p, n end
+        end
+        best.settled = (tonumber(best.settled) or 0) + amount
+    else
+        amount = net
+        for _, p in ipairs(records) do
+            p.settled = (tonumber(p.received) or 0) - (tonumber(p.sent) or 0)
+        end
     end
     local s = store()
-    s.log[#s.log + 1] = { at = now(), dir = "paid", char = ns.PlayerName(), other = Ledger.Owner(name), money = net, items = {},
-        counted = false }
-    ns.Log.Add("ledger", "marked paid: %s %s", tostring(Ledger.Owner(name)), money(net))
+    s.log[#s.log + 1] = { at = now(), dir = "paid", char = ns.PlayerName(), other = Ledger.Owner(name), money = amount, items = {},
+        counted = false, part = part or nil, left = part and (net - amount) or nil }
+    ns.Log.Add("ledger", "marked %spaid: %s %s", part and "part " or "", tostring(Ledger.Owner(name)), money(amount))
     changed_()
     return true
 end
