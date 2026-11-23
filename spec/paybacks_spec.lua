@@ -284,6 +284,48 @@ describe("payback ideas", function()
             assert.same({ 15 }, kept.empty)
         end)
 
+        describe("Codex review (2026-11-22)", function()
+            local NOW = function() return WowStub.state.serverTime end
+            local function gear(at, g)
+                return ns.Comms.Hear(BOB, ns.Paybacks.EncodeGear(BOB, ME, at, g or { main = "blade", empty = { 15 } }), "WHISPER")
+            end
+
+            it("a quiver for their level: never one they can't wear yet", function()
+                F[7280] = { name = "Quickdraw Quiver", classID = 11, subclassID = 2, minLevel = 40, itemLevel = 45, slots = 18 }
+                local list = kinds(hunter())
+                F[7280] = nil
+                assert.equal("quiver:Light Leather Quiver", list[1], "the level-40 one is left out, the small one stays")
+            end)
+
+            it("a gear note redraws the open mailbox, as the needs note does", function()
+                local refresh, calls = ns.MailWindow.RefreshIfShown, 0
+                ns.MailWindow.RefreshIfShown = function() calls = calls + 1 end
+                needs()
+                gear(NOW())
+                ns.MailWindow.RefreshIfShown = refresh
+                assert.equal(2, calls)
+            end)
+
+            it("a gear note heard first never blocks an earlier needs note", function()
+                gear(NOW())
+                assert.truthy(needs({ at = NOW() - 1 }))
+                local kept = ns.Paybacks.Needs()["bob surname"]
+                assert.equal(24, kept.level)
+                assert.equal("blade", kept.main)
+            end)
+
+            it("each note expires on its own: a fresh needs note doesn't keep an old gear note's facts", function()
+                gear(NOW() - 20 * 86400)
+                needs()
+                local store = ns.Ledger.Store().needs["bob surname"]
+                store.gearAt = NOW() - 31 * 86400 -- the gear note is past 30 days now
+                local kept = ns.Paybacks.Needs()["bob surname"]
+                assert.equal(24, kept.level)
+                assert.is_nil(kept.main)
+                assert.is_nil(kept.empty)
+            end)
+        end)
+
         it("pay back in kind: a player you owe whose profession uses something here, for this visit", function()
             owe(5000)
             ns.Comms.UpdatePeer(BOB, { name = BOB, professions = { 164 } }, true)

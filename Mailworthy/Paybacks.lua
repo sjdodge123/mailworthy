@@ -205,12 +205,13 @@ function Paybacks.HearGear(whisperer, msg)
     local key = msg.from:lower()
     local n = store()[key]
     if type(n) ~= "table" then
-        n = { name = msg.from, to = msg.to, at = msg.at }
+        n = { name = msg.from, to = msg.to } -- a gear note first: no needs time yet (Codex review, 2026-11-22)
         store()[key] = n
     end
     if (tonumber(n.gearAt) or 0) > msg.at then return nil end
     n.gearAt, n.main, n.ranged, n.quiver, n.empty = msg.at, msg.main, msg.ranged, msg.quiver, msg.empty
     ns.Log.Add("paybacks", "gear note from %s", msg.from)
+    if ns.MailWindow and ns.MailWindow.RefreshIfShown then ns.MailWindow.RefreshIfShown() end
     return msg
 end
 
@@ -242,21 +243,39 @@ function Paybacks.HearNeeds(whisperer, msg)
     if not msg.at or msg.at > now + 600 or msg.at < now - Paybacks.NEEDS_DAYS * 86400 then return nil end
     local key = msg.from:lower()
     local old = store()[key]
-    if type(old) == "table" and (tonumber(old.at) or 0) > msg.at then return nil end
+    -- Each note keeps its own time (Codex review, 2026-11-22): a gear note heard first never blocks this one.
+    if type(old) == "table" and (tonumber(Paybacks.NeedsAt(old)) or 0) > msg.at then return nil end
     local n = type(old) == "table" and old or {}
-    n.name, n.to, n.at, n.level, n.class, n.bags, n.fires = msg.from, msg.to, msg.at, msg.level, msg.class, msg.bags, msg.fires
+    n.name, n.to, n.at, n.needsAt = msg.from, msg.to, msg.at, msg.at
+    n.level, n.class, n.bags, n.fires = msg.level, msg.class, msg.bags, msg.fires
     store()[key] = n -- a gear note (HearGear) kept with it stays
     ns.Log.Add("paybacks", "needs note from %s (level %d)", msg.from, msg.level)
     if ns.MailWindow and ns.MailWindow.RefreshIfShown then ns.MailWindow.RefreshIfShown() end
     return msg
 end
 
---- The notes kept, by lower-case sender: { name, to, at, level, class, bags, fires }. Old ones are dropped.
+--- Pure: when a record's needs note came (a record from before 2026-11-22 kept it in `at`), or nil.
+function Paybacks.NeedsAt(n)
+    return tonumber(n.needsAt) or (n.level and tonumber(n.at)) or nil
+end
+
+--- The notes kept, by lower-case sender: { name, to, level, class, bags, fires, main, ranged, quiver, empty }.
+--- The needs note and the gear note each count for NEEDS_DAYS from their own time (Codex review, 2026-11-22: a
+--- fresh needs note kept an old gear note's slots); a record with neither left is dropped.
 function Paybacks.Needs()
     local now, out = Util.Now(), {}
+    local since = now - Paybacks.NEEDS_DAYS * 86400
     for key, n in pairs(store()) do
-        if type(n) == "table" and (tonumber(n.at) or 0) >= now - Paybacks.NEEDS_DAYS * 86400 then out[key] = n
-        else store()[key] = nil end
+        local needsOK = type(n) == "table" and (Paybacks.NeedsAt(n) or 0) >= since
+        local gearOK = type(n) == "table" and (tonumber(n.gearAt) or 0) >= since
+        if not needsOK and not gearOK then
+            store()[key] = nil
+        else
+            local copy = { name = n.name, to = n.to }
+            if needsOK then copy.level, copy.class, copy.bags, copy.fires = n.level, n.class, n.bags, n.fires end
+            if gearOK then copy.main, copy.ranged, copy.quiver, copy.empty = n.main, n.ranged, n.quiver, n.empty end
+            out[key] = copy
+        end
     end
     return out
 end
@@ -361,7 +380,7 @@ local function check(itemID, f, needs, first)
     if f.classID == Paybacks.QUIVER and f.slots then
         if needs.class ~= "HUNTER" or not needs.ranged then return nil end
         local wantKind = needs.ranged == "gun" and 3 or (needs.ranged == "bow" or needs.ranged == "crossbow") and 2 or nil
-        if f.subclassID ~= wantKind then return nil end
+        if f.subclassID ~= wantKind or not forLevel() then return nil end -- by level too (Codex review, 2026-11-22)
         if (tonumber(needs.quiver) or 0) >= f.slots then
             return nil, string.format("%d slots: no bigger than %s's", f.slots, first)
         end
