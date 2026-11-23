@@ -61,7 +61,8 @@ SavedVariables, feature switches, where each Safety rule is enforced) before rea
   `TierData.lua`; operator, 2026-11-06 and 2026-11-23: "confirm this type of check for all professions"):
   a profession that uses the material keeps it until its own skill reaches the skill at which it is done
   with it (First Aid cloth: where the next bandage is learnable; the rest: where its last recipe using it
-  turns grey), or while its profession window still shows a non-grey recipe using it (`TierCheck.lua`),
+  turns grey), or while its profession window still shows a non-grey recipe using it (`TierCheck.lua`;
+  not First Aid cloth, `TierCheck.EXEMPT`: the next bandage's learn skill alone decides),
   or while converting it up pays (leathers); a profession that doesn't use it never keeps it, and with
   two that do, it stays until both are done with it. The keep names that profession, the skill it is
   done at and this character's skill now ("your Blacksmithing needs it (until skill 210, you're at
