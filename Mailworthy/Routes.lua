@@ -1067,7 +1067,8 @@ function Routes.OfferDismissed(name, profession) return dismissals()[offerKey(na
 
 --- Suggested bindings for a scan (Bags.Evaluate's result; docs/RECOMMENDATIONS.md, operator 2026-11-22:
 --- "Party and alts only"): crafters in the player's group (their profession from their Mailworthy's hello
---- or, for a guild member, the guild roster) and this account's own characters, each for a crafting
+--- or, for a guild member, the guild roster), players this account owes (paying back in kind: `owed`, This
+--- visit) and this account's own characters, each for a crafting
 --- profession that would take some of the list. A list, the party first (a guild member of it before
 --- the others), then the alts, then by how many rows each takes, then by name:
 --- { name, profession, skill, count (list rows it would take), items, gearOnly, party, sources, scope }
@@ -1103,13 +1104,20 @@ function Routes.Suggestions(scan, bankAlt)
     local alt = Util.NameKey(bankAlt) or ""
     local active = Routes.Active()
     local out = {}
+    -- Pay back in kind (docs/RECOMMENDATIONS.md section 2, gatherers; 2026-11-22): a player this account owes
+    -- (Ledger.Debts, any of their characters) whose profession uses something here, for this visit.
+    local owedBy = {}
+    if ns.Ledger and ns.Ledger.On() then
+        for _, d in ipairs(ns.Ledger.Debts()) do owedBy[tostring(d.name):lower()] = true end
+    end
     local memo = {} -- profession|skill -> the items a binding of that profession at that skill takes
     local cache = {} -- Routes.Skill's guild roster, read once for every candidate (Codex review, 2026-11-22)
     for _, c in ipairs(Routes.Candidates()) do
         local name = c.name
         local lower = name and name:lower()
         local party, own = c.sources.party == true, c.sources.alt == true
-        if name and (party or own) and lower ~= alt and not Routes.IsMe(name) then
+        local owed = not own and next(owedBy) ~= nil and owedBy[tostring(ns.Ledger.Owner(name)):lower()] == true
+        if name and (party or own or owed) and lower ~= alt and not Routes.IsMe(name) then
             for _, id in ipairs(c.professions or {}) do
                 id = tonumber(id)
                 if id and Routes.ProfessionName(id) and not taken[id] and not Routes.OfferDismissed(name, id) then
@@ -1132,7 +1140,8 @@ function Routes.Suggestions(scan, bankAlt)
                         end
                         if #took > 0 then
                             local s = { name = name, profession = id, skill = route.skill, count = #took, items = took,
-                                gearOnly = true, party = party, sources = c.sources, scope = route.scope, key = route.key }
+                                gearOnly = true, party = party, owed = owed or nil, sources = c.sources, scope = route.scope,
+                                key = route.key }
                             for _, item in ipairs(took) do
                                 local class = tonumber(item.classID)
                                 if class ~= 2 and class ~= 4 then s.gearOnly = false end
@@ -1146,7 +1155,8 @@ function Routes.Suggestions(scan, bankAlt)
     end
     local function rank(s)
         if s.party then return s.sources.guild and 1 or 2 end
-        return 3
+        if s.owed then return 3 end -- paying back in kind, before your own characters
+        return 4
     end
     table.sort(out, function(a, b)
         local ra, rb = rank(a), rank(b)

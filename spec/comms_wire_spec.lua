@@ -31,6 +31,8 @@ describe("addon message wire", function()
         -- in a message of its own so an older Mailworthy drops only that one.
         N = "N2|Bob Surname|Rettana Quilwrit|1791900000|24|HUNTER|6,6,6,0|3",
         MC = "M2|Bob Surname|Rettana Quilwrit|1791900000|43|5763:1:3500:c:1",
+        -- The gear note (2026-11-22, the rest of the payback table): a kind of its own beside N2.
+        E = "E2|Bob Surname|Rettana Quilwrit|1791900000|blade|gun|0|4,15",
     }
 
     before_each(function()
@@ -51,13 +53,14 @@ describe("addon message wire", function()
     it("every kind is registered by the module that owns it", function()
         local kinds, order = ns.Comms.Kinds()
         local owners = { H = false, A = false, S = false, T = "Guild", Q = "Guild", F = "Stale", U = "Version",
-            M = "Ledger", V = "Ledger", R = "Ledger", G = "Contributions", N = "Paybacks" }
+            M = "Ledger", V = "Ledger", R = "Ledger", G = "Contributions", N = "Paybacks", E = "Paybacks" }
         for letter, module in pairs(owners) do
             assert.is_table(kinds[letter], letter)
             assert.equal(module or nil, kinds[letter].module, letter)
         end
-        assert.same({ "H", "A", "S", "T", "Q", "F", "U", "M", "V", "R", "G", "N" }, order, "the .toc order")
+        assert.same({ "H", "A", "S", "T", "Q", "F", "U", "M", "V", "R", "G", "N", "E" }, order, "the .toc order")
         assert.same({ WHISPER = true }, kinds.N.channels)
+        assert.same({ WHISPER = true }, kinds.E.channels)
         assert.same({ GUILD = true }, kinds.G.channels)
         for _, letter in ipairs({ "M", "V", "R" }) do assert.same({ WHISPER = true }, kinds[letter].channels, letter) end
     end)
@@ -133,6 +136,12 @@ describe("addon message wire", function()
         assert.same({ kind = "values", version = 2, values = { from = BOB, to = ME, at = NOW, id = 43, items = {
             { itemID = 5763, count = 1, value = 3500, k = 1, craft = true } } } }, ns.Comms.Decode(WIRE.MC))
         assert.is_nil(ns.Comms.Decode("M2|Bob Surname|Rettana Quilwrit|1791900000|43|5763:1:3500:c3:1"), "c alone")
+        assert.equal(WIRE.E, ns.Paybacks.EncodeGear(BOB, ME, NOW, { main = "blade", ranged = "gun", quiver = 0, empty = { 4, 15 } }))
+        assert.same({ kind = "gear", version = 2, gear = { from = BOB, to = ME, at = NOW, main = "blade", ranged = "gun",
+            quiver = 0, empty = { 4, 15 } } }, ns.Comms.Decode(WIRE.E))
+        assert.equal("E2|Bob Surname|Rettana Quilwrit|1791900000|-|-|0|-", ns.Paybacks.EncodeGear(BOB, ME, NOW, {}))
+        assert.is_nil(ns.Comms.Decode("E2|Bob Surname|Rettana Quilwrit|1791900000|sword|gun|0|-"), "blade or blunt")
+        assert.is_nil(ns.Comms.Decode("E2|Bob Surname|Rettana Quilwrit|1791900000|-|-|0|2"), "not a gear slot")
     end)
 
     it("each kind reaches the module that owns it", function()
