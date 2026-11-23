@@ -174,7 +174,9 @@ describe("material tiers", function()
             local r = V.Evaluate(item, nil, s)
             assert.equal("your First Aid needs it", r.reason)
             assert.equal(80, r.untilSkill)
-            assert.equal("bank it: your First Aid needs it (until skill 80)", ns.MailWindow.StayReason(r))
+            assert.equal("bank it: your First Aid needs it (until skill 80, you're at 79)", ns.MailWindow.StayReason(r))
+            r.skillNow = nil
+            assert.equal("bank it: your First Aid needs it (until skill 80)", ns.MailWindow.StayReason(r), "skill unknown")
             s.professions[1].rank = 80
             r = V.Evaluate(item, nil, s)
             assert.equal("mail", r.action, "no Auctionator: a white item is mailed")
@@ -182,6 +184,30 @@ describe("material tiers", function()
             assert.equal("your First Aid needs it", V.Evaluate(woolItem, nil, s).reason)
             s.tiers = false
             assert.equal("your First Aid needs it", V.Evaluate(item, nil, s).reason, "/mw feature tiers off: kept as before")
+        end)
+
+        it("every crafting profession has its own table, checked against its own skill", function()
+            for id, p in pairs(ns.Valuation.PROFESSION_MATS) do
+                assert.truthy(#(ns.Tiers.DONE[id] or {}) > 0, p.name .. " has no tier rows")
+            end
+        end)
+
+        -- Operator, 2026-11-23 ("my first aid is past the point of needing this material"): First Aid 210
+        -- never uses Large Fang; Blacksmithing does until 210, and the reason says whose skill counts.
+        it("Large Fang: First Aid never keeps it, Blacksmithing until 210, with its skill now", function()
+            local V, BS, FANG = ns.Valuation, 164, 5637
+            local fang = { itemID = FANG, classID = 7, subclassID = 11, quality = 1, vendor = 75, count = 3 }
+            local s = V.Settings({})
+            s.professions = { { skillLine = FIRST_AID, rank = 210 } }
+            assert.is_nil(V.NeededBy(fang, s.professions), "First Aid doesn't use it")
+            s.professions[2] = { skillLine = BS, rank = 150 }
+            local r = V.Evaluate(fang, nil, s)
+            assert.equal("your Blacksmithing needs it", r.reason)
+            assert.equal("your Blacksmithing needs it (until skill 210, you're at 150)", ns.MailWindow.WhyKept(r))
+            s.professions[2].rank = 210
+            r = V.Evaluate(fang, nil, s)
+            assert.is_nil(r.neededBy, "Blacksmithing 210 is done with it")
+            assert.same({ name = "Blacksmithing", skill = 210 }, r.outgrown)
         end)
 
         it("another profession that still needs it keeps it", function()
@@ -201,7 +227,7 @@ describe("material tiers", function()
             assert.truthy(find(result.keep, WOOL))
             local report = ns.Bags.Report(result)
             assert.truthy(report:find("your First Aid (85) is past it", 1, true), report)
-            assert.truthy(report:find("kept until skill 150", 1, true), report)
+            assert.truthy(report:find("kept until skill 150 (now 85)", 1, true), report)
             assert.truthy(report:find("kept for First Aid 85; First Aid 85 is past Linen Cloth (mailed)", 1, true), report)
             ns.SettingsUI.Show()
             -- the professions are in the button's explanation now (UX review U8: short labels)

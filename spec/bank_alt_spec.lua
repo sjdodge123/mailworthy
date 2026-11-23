@@ -304,11 +304,11 @@ describe("bank alt view", function()
         assert.equal("BH", tagOf(combined.Items[6]))
         local text = hover(WowStub.link(5635, "Sharp Claw"), 5635)
         assert.truthy(text:find("Mailworthy  |cffffffff[BH: Bank here]|r", 1, true), text)
-        assert.truthy(text:find("Bank it here: your Blacksmithing needs it (until skill 200). It waits in your bank, "
+        assert.truthy(text:find("Bank it here: your Blacksmithing needs it (until skill 200, you're at 60). It waits in your bank, "
             .. "not your bags, until you craft.", 1, true), text)
         assert.is_nil(text:find("Stays in your bags", 1, true), text)
         text = hover(WowStub.link(1529, "Jade"), 1529)
-        assert.truthy(text:find("Bank it here: your Blacksmithing needs it (until skill 290).", 1, true), text)
+        assert.truthy(text:find("Bank it here: your Blacksmithing needs it (until skill 290, you're at 60).", 1, true), text)
         assert.equal("", hover(WowStub.link(6948, "Hearthstone"), 6948), "soulbound: the game already says so")
         local s = ns.BankAlt.Summary(ns.BankAlt.Refresh())
         assert.same({ stacks = 0, items = 0, gain = 0 }, s.b, "the summary is what to sell: not these")

@@ -150,7 +150,8 @@ end
 --- the conversion ({ into, count, name }) when it's past its own recipes but converting it pays
 --- (Tiers.WorthConverting with `priceOf`, an itemID -> unit auction price function); fifth: the
 --- non-grey recipe ({ recipe, difficulty, via }) the profession window last showed still using a
---- material the table calls done (the entry's `stillUsed`, TierCheck.Annotate): it stays.
+--- material the table calls done (the entry's `stillUsed`, TierCheck.Annotate): it stays; sixth: the
+--- needing profession's skill now (with the third), so the reason can say how far it is from done.
 function Valuation.NeededBy(item, professions, tiers, priceOf)
     local outgrown
     for _, p in ipairs(type(professions) == "table" and professions or {}) do
@@ -168,7 +169,8 @@ function Valuation.NeededBy(item, professions, tiers, priceOf)
             elseif outgrownHere then
                 outgrown = outgrown or { name = known.name, skill = rank }
             else
-                return known.name, nil, tiers ~= false and ns.Tiers.Threshold(id, item.itemID) or nil
+                local at = tiers ~= false and ns.Tiers.Threshold(id, item.itemID) or nil
+                return known.name, nil, at, nil, nil, at and rank or nil
             end
         end
     end
@@ -577,11 +579,11 @@ Valuation.PIN_VENDOR = "vendor"
 --- below), or nil; with the rest of Valuation.NeededBy's returns.
 local function professionKeep(item, settings)
     if not settings.keepProfessionMats then return nil end
-    local profession, outgrown, untilSkill, convert, window = Valuation.NeededBy(item, settings.professions,
+    local profession, outgrown, untilSkill, convert, window, skillNow = Valuation.NeededBy(item, settings.professions,
         settings.tiers, settings.priceOf)
     -- "Sell what I gather": what a gathering profession brought in is valued like anything else.
     if profession and settings.sellGathered and Valuation.GatheredBy(item, settings.professions) then profession = nil end
-    return profession, outgrown, untilSkill, convert, window
+    return profession, outgrown, untilSkill, convert, window, skillNow
 end
 Valuation.ProfessionKeep = professionKeep
 
@@ -661,7 +663,7 @@ function Valuation.Evaluate(item, price, settings)
                 or (settings.keepProfessionMats and item.ownSkill) or nil,
             vendor = (item.vendor or 0) * (item.count or 1), postage = (settings.postage or 0) * (item.stacks or 1) }
     end
-    local profession, _, untilSkill, convert, window = professionKeep(item, settings)
+    local profession, _, untilSkill, convert, window, skillNow = professionKeep(item, settings)
     if profession then
         -- "On my bank alt" (shindo107's feat/craft-mats-to-alt): mailed there and banked (BA), not kept
         -- here. Never one to convert (that is crafted now, here), never before the item's data or with a
@@ -671,11 +673,11 @@ function Valuation.Evaluate(item, price, settings)
             and not (type(price) == "table" and price.failed)
             and (price ~= nil or item.quality == 1 or ((item.quality or 0) >= 1 and Valuation.IsStaple(item))) then
             return { action = "mail", route = "bank", listRoute = "common", craftBank = true,
-                reason = "bank: your " .. profession .. " needs it", untilSkill = untilSkill, window = window,
-                neededBy = profession, vendor = item.vendor * (item.count or 1),
+                reason = "bank: your " .. profession .. " needs it", untilSkill = untilSkill, skillNow = skillNow,
+                window = window, neededBy = profession, vendor = item.vendor * (item.count or 1),
                 postage = (settings.postage or 0) * (item.stacks or 1) }
         end
-        return keep(K.profession, { untilSkill = untilSkill, convert = convert,
+        return keep(K.profession, { untilSkill = untilSkill, skillNow = skillNow, convert = convert,
             window = window, neededBy = profession }, profession)
     end
     -- This character's class has a skill of its own that levels on the item (item.ownSkill, set by
