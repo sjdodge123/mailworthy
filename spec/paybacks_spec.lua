@@ -147,8 +147,10 @@ describe("payback ideas", function()
             assert.equal("Bob's smallest bag holds 6; this one holds 8", list[1].why)
             assert.same({ { name = "Crafted Heavy Shot", why = "Bob has no bow or gun equipped" },
                 { name = "Linen Bag", why = "6 slots: no bigger than Bob's" } }, notes)
-            assert.equal("Bob has an empty bag slot; this one holds 6",
-                (ideas({ name = BOB, level = 24, bags = { 6, 6, 6, 0 } }))[2].why)
+            -- The best of a kind only (2026-11-22, the rest of the table): the bigger bag, not both.
+            local withEmpty = ideas({ name = BOB, level = 24, bags = { 6, 6, 6, 0 } })
+            assert.equal(1, #withEmpty)
+            assert.equal("Bob has an empty bag slot; this one holds 8", withEmpty[1].why)
         end)
 
         it("the ammo their ranged weapon fires, for their level (no more than 10 under)", function()
@@ -172,6 +174,171 @@ describe("payback ideas", function()
             assert.equal(8, ns.Paybacks.SlotsFromLine("8 Slot Bag", "%d Slot %s"))
             assert.equal(14, ns.Paybacks.SlotsFromLine("14 Slot Bag"))
             assert.is_nil(ns.Paybacks.SlotsFromLine("Binds when equipped", "%d Slot %s"))
+        end)
+    end)
+
+    describe("the rest of the table (2026-11-22)", function()
+        -- Made-up item facts, by kind (the pure check reads only these).
+        local F = {
+            [2300] = { name = "Embossed Leather Vest", classID = 4, subclassID = 2, equipLoc = "INVTYPE_CHEST", minLevel = 20,
+                itemLevel = 25 },
+            [6238] = { name = "Brown Linen Robe", classID = 4, subclassID = 1, equipLoc = "INVTYPE_ROBE", minLevel = 20, itemLevel = 25 },
+            [2580] = { name = "Reinforced Linen Cape", classID = 4, subclassID = 1, equipLoc = "INVTYPE_CLOAK", minLevel = 18,
+                itemLevel = 23 },
+            [7278] = { name = "Light Leather Quiver", classID = 11, subclassID = 2, minLevel = 0, itemLevel = 15, slots = 10 },
+            [7279] = { name = "Small Leather Ammo Pouch", classID = 11, subclassID = 3, minLevel = 0, itemLevel = 15, slots = 10 },
+            [2863] = { name = "Coarse Sharpening Stone", classID = 7, subclassID = 0, minLevel = 0, itemLevel = 20 },
+            [3240] = { name = "Coarse Weightstone", classID = 7, subclassID = 0, minLevel = 0, itemLevel = 20 },
+            [4406] = { name = "Standard Scope", classID = 0, subclassID = 8, minLevel = 0, itemLevel = 22 },
+            [929] = { name = "Healing Potion", classID = 0, subclassID = 1, minLevel = 22, itemLevel = 22 },
+            [3827] = { name = "Mana Potion", classID = 0, subclassID = 1, minLevel = 22, itemLevel = 22 },
+            [5527] = { name = "Goblin Deviled Clams", classID = 0, subclassID = 5, minLevel = 20, itemLevel = 25 },
+            [118] = { name = "Minor Healing Potion", classID = 0, subclassID = 1, minLevel = 1, itemLevel = 5 },
+            [3531] = { name = "Heavy Wool Bandage", classID = 0, subclassID = 7, minLevel = 0, itemLevel = 20 },
+            [11287] = { name = "Lesser Magic Wand", classID = 2, subclassID = 19, minLevel = 18, itemLevel = 23 },
+        }
+        local function all()
+            local c = {}
+            for id in pairs(F) do c[id] = { recipe = F[id].name, reagents = { [THREAD] = 1 } } end
+            return c
+        end
+        local function kinds(n)
+            local list, notes = ns.Paybacks.Ideas(n, all(), function(id) return F[id] end, function() return 9 end)
+            local out = {}
+            for _, idea in ipairs(list) do out[#out + 1] = idea.kind .. ":" .. idea.name end
+            return out, notes
+        end
+        local function hunter(o)
+            local n = { name = BOB, level = 24, class = "HUNTER", bags = { 16, 16, 16, 16 }, ranged = "bow", quiver = 0,
+                main = "blade", empty = { 5, 15 } }
+            for k, v in pairs(o or {}) do n[k] = v end
+            return n
+        end
+
+        it("a hunter: a quiver, a vest of the leather they wear, a cloak; best first, three at most", function()
+            local list, notes = kinds(hunter())
+            assert.same({ "quiver:Light Leather Quiver", "armor:Embossed Leather Vest", "armor:Reinforced Linen Cape" }, list)
+            local robe
+            for _, note in ipairs(notes) do if note.name == "Brown Linen Robe" then robe = note.why end end
+            assert.equal("Bob wears leather", robe)
+        end)
+
+        it("a gun takes an ammo pouch; a quiver as big as the one they have is left out", function()
+            assert.equal("quiver:Small Leather Ammo Pouch", (kinds(hunter({ ranged = "gun" })))[1])
+            assert.equal("armor:Embossed Leather Vest", (kinds(hunter({ quiver = 12 })))[1])
+        end)
+
+        it("stones for the main hand, a scope for a bow, potions, food and bandages for the level", function()
+            local n = hunter({ quiver = 20, empty = {} })
+            assert.same({ "scope:Standard Scope", "stone:Coarse Sharpening Stone", "potion:Healing Potion" }, (kinds(n)),
+                "one potion idea: healing first, anyone drinks it")
+            local mages = ns.Paybacks.Ideas({ name = BOB, level = 24, class = "MAGE", bags = { 16, 16, 16, 16 }, ranged = "wand" },
+                { [3827] = { reagents = {} } }, function(id) return F[id] end, function() return 0 end)
+            assert.equal("Mana Potion", mages[1].name, "a mana potion for a class with mana")
+            local warriors = ns.Paybacks.Ideas({ name = BOB, level = 24, class = "WARRIOR", bags = { 16, 16, 16, 16 } },
+                { [3827] = { reagents = {} } }, function(id) return F[id] end, function() return 0 end)
+            assert.equal(0, #warriors, "never for a warrior")
+            n.main = "blunt"
+            assert.equal("stone:Coarse Weightstone", (kinds(n))[2])
+            local warrior = { name = BOB, level = 24, class = "WARRIOR", bags = { 16, 16, 16, 16 }, empty = {} }
+            assert.same({ "potion:Healing Potion", "food:Goblin Deviled Clams", "bandage:Heavy Wool Bandage" }, (kinds(warrior)),
+                "a warrior has no mana; too low a level (Minor Healing Potion) is left out")
+        end)
+
+        it("a wand for a wand user with an empty ranged slot; never for one with a ranged weapon", function()
+            local mage = { name = BOB, level = 24, class = "MAGE", bags = { 16, 16, 16, 16 }, empty = {} }
+            assert.equal("wand:Lesser Magic Wand", (kinds(mage))[1])
+            mage.ranged = "wand"
+            assert.are_not.equal("wand:Lesser Magic Wand", (kinds(mage))[1])
+        end)
+
+        it("the armor a class wears best, by level", function()
+            assert.equal(3, ns.Paybacks.ArmorFor("WARRIOR", 39))
+            assert.equal(4, ns.Paybacks.ArmorFor("PALADIN", 40))
+            assert.equal(2, ns.Paybacks.ArmorFor("SHAMAN", 20))
+            assert.equal(3, ns.Paybacks.ArmorFor("HUNTER", 40))
+            assert.equal(1, ns.Paybacks.ArmorFor("PRIEST", 60))
+            assert.is_nil(ns.Paybacks.ArmorFor(nil, 60))
+        end)
+
+        it("the gear note: read from what's worn, sent with the needs note, kept with it", function()
+            WowStub.state.equipped[16] = WowStub.item(2488, "Gladius", { class = 2, subclass = 7 })
+            WowStub.state.equipped[18] = WowStub.item(2508, "Old Blunderbuss", { class = 2, subclass = 3 })
+            WowStub.state.equipped[5] = WowStub.item(2300, "Vest", { class = 4, subclass = 2 })
+            local gear = ns.Paybacks.MyGear()
+            assert.equal("blade", gear.main)
+            assert.equal("gun", gear.ranged)
+            assert.same({ 1, 3, 4, 6, 7, 8, 9, 10, 15 }, gear.empty)
+            ns.Ledger.RecordSent({ to = BOB, subject = "for you", items = { { itemID = 2589, link = "[x]", count = 20 } } }, "mail")
+            local found = {}
+            for _, item in ipairs(ns.Ledger.Store().outbox["bob surname"] or {}) do
+                for _, m in ipairs(item.messages) do found[m:sub(1, 2)] = true end
+            end
+            assert.is_true(found.N2 and found.E2, "both notes wait for Bob")
+            needs()
+            ns.Comms.Hear(BOB, ns.Paybacks.EncodeGear(BOB, ME, WowStub.state.serverTime, { main = "blunt", empty = { 15 } }), "WHISPER")
+            assert.is_nil(ns.Comms.Hear(MALLORY, ns.Paybacks.EncodeGear(BOB, ME, WowStub.state.serverTime, { main = "blade" }), "WHISPER"))
+            local kept = ns.Paybacks.Needs()["bob surname"]
+            assert.equal(24, kept.level, "the needs note stays")
+            assert.equal("blunt", kept.main)
+            assert.same({ 15 }, kept.empty)
+        end)
+
+        describe("Codex review (2026-11-22)", function()
+            local NOW = function() return WowStub.state.serverTime end
+            local function gear(at, g)
+                return ns.Comms.Hear(BOB, ns.Paybacks.EncodeGear(BOB, ME, at, g or { main = "blade", empty = { 15 } }), "WHISPER")
+            end
+
+            it("a quiver for their level: never one they can't wear yet", function()
+                F[7280] = { name = "Quickdraw Quiver", classID = 11, subclassID = 2, minLevel = 40, itemLevel = 45, slots = 18 }
+                local list = kinds(hunter())
+                F[7280] = nil
+                assert.equal("quiver:Light Leather Quiver", list[1], "the level-40 one is left out, the small one stays")
+            end)
+
+            it("a gear note redraws the open mailbox, as the needs note does", function()
+                local refresh, calls = ns.MailWindow.RefreshIfShown, 0
+                ns.MailWindow.RefreshIfShown = function() calls = calls + 1 end
+                needs()
+                gear(NOW())
+                ns.MailWindow.RefreshIfShown = refresh
+                assert.equal(2, calls)
+            end)
+
+            it("a gear note heard first never blocks an earlier needs note", function()
+                gear(NOW())
+                assert.truthy(needs({ at = NOW() - 1 }))
+                local kept = ns.Paybacks.Needs()["bob surname"]
+                assert.equal(24, kept.level)
+                assert.equal("blade", kept.main)
+            end)
+
+            it("each note expires on its own: a fresh needs note doesn't keep an old gear note's facts", function()
+                gear(NOW() - 20 * 86400)
+                needs()
+                local store = ns.Ledger.Store().needs["bob surname"]
+                store.gearAt = NOW() - 31 * 86400 -- the gear note is past 30 days now
+                local kept = ns.Paybacks.Needs()["bob surname"]
+                assert.equal(24, kept.level)
+                assert.is_nil(kept.main)
+                assert.is_nil(kept.empty)
+            end)
+        end)
+
+        it("pay back in kind: a player you owe whose profession uses something here, for this visit", function()
+            owe(5000)
+            ns.Comms.UpdatePeer(BOB, { name = BOB, professions = { 164 } }, true)
+            WowStub.setBag(0, 1, WowStub.item(2770, "Copper Ore", { count = 20, sell = 5, class = 7, subclass = 7 }))
+            prices[WowStub.link(2770, "Copper Ore")] = 174
+            local list = ns.Routes.Suggestions(ns.Bags.Evaluate(), ns.Config.BankAlt())
+            assert.equal(BOB, list[1].name)
+            assert.is_true(list[1].owed)
+            assert.equal("visit", list[1].scope)
+            assert.truthy(ns.MailWindow.OfferText(list[1]):find("you owe. Pay back in kind: send them Copper Ore x20?", 1, true),
+                ns.MailWindow.OfferText(list[1]))
+            ns.Ledger.MarkPaid(BOB)
+            assert.equal(0, #ns.Routes.Suggestions(ns.Bags.Evaluate(), ns.Config.BankAlt()), "nothing owed: not suggested")
         end)
     end)
 

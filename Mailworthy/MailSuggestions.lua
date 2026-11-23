@@ -48,6 +48,12 @@ end
 function UI.OfferText(o)
     local craft = ns.Routes.CRAFTER[o.profession]
     local skill = o.skill and string.format(" (skill %d)", o.skill) or ""
+    if o.owed and not o.party then -- paying back in kind (Routes.Suggestions): a player this account owes
+        local who = craft and ("is a " .. craft .. " you owe") or ("has " .. tostring(ns.Routes.ProfessionName(o.profession))
+            .. " and you owe them")
+        return string.format("|cffffd100%s|r%s %s%s. Pay back in kind: send them %s?", o.name, tagsText(o), who, skill,
+            ns.Suggest.ItemsText(o.items))
+    end
     if o.party then
         local who = craft and ("is a " .. craft .. " in your group")
             or ("has " .. tostring(ns.Routes.ProfessionName(o.profession)) .. " and is in your group")

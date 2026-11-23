@@ -2245,6 +2245,29 @@ describe("critical path: mailing", function()
         assert.is_nil(previewed(ns)[5763])
     end)
 
+    -- Pay back in kind (2026-11-22, the rest of the payback table): a player this account owes whose profession
+    -- uses something in the bags is suggested for this visit. A new This visit recipient (not an own character):
+    -- only once pressed, as previewed, gone when the mailbox closes.
+    it("pay back in kind taken This visit: previewed to the player owed, sent as previewed, over at MAIL_CLOSED", function()
+        ns.Ledger.Store().players["bob surname"] = { name = BOB, received = 50000, sent = 0, inItems = {}, outItems = {}, at = 1 }
+        ns.Comms.UpdatePeer(BOB, { name = BOB, professions = { 164 } }, true)
+        mailbox()
+        _G.MailworthyMailButton:Click()
+        local suggestion = ns.MailWindow.Offer()
+        assert.truthy(suggestion and suggestion.owed, "Bob, a blacksmith you owe")
+        assert.equal("This visit", _G.MailworthyMailOfferVisit.text)
+        assert.equal(0, countTo(previewed(ns), BOB), "suggested, not bound")
+        _G.MailworthyMailOfferVisit:Click()
+        local preview = previewed(ns)
+        assert.equal(BOB, preview[2770], "his Copper Ore, in the list before anything is sent")
+        assert.equal(suggestion.count, countTo(preview, BOB))
+        _G.MailworthyMailSend:Click()
+        deliver(ns)
+        assertSafeAndComplete(ns, preview, { [BANK_ALT] = true, [BOB] = true })
+        ns.Fire("MAIL_CLOSED")
+        assert.equal(0, #ns.Routes.Temp(), "this visit is over")
+    end)
+
     -- A binding's price cap and an Enchanting binding's Gear switch (operator, 2026-11-11). Neither adds
     -- a recipient: they only move an item from the friend back to the normal rule. So: what the
     -- preview shows after the change is exactly what is sent, and nobody else gets mail.

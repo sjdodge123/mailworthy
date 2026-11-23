@@ -1,7 +1,7 @@
 # Suggested bindings and paybacks (proposal, 2026-11-22)
 
-Phases 1 (section 1, with the upgrades in 5b), 2 (the meter and Mark part paid) and 3 (payback ideas for
-bags and ammo, section 2) are built; the rest of section 2's table is next. The operator answered
+Everything is built: phases 1 (section 1, with the upgrades in 5b), 2 (the meter and Mark part paid), 3 and 4
+(payback ideas, all of section 2's table). The operator answered
 every question on 2026-11-22 (sections 5b and 6); the interactive sheet is
 [media/recommendations-prototype.html](../media/recommendations-prototype.html) ->
 [.png](../media/recommendations-prototype.png).
@@ -181,8 +181,12 @@ touched (no hook into the profession window: ideas show at the mailbox and in th
    The needs note as built: `N2|<from>|<to>|<send time>|<level>|<CLASS or ->|<b1>,<b2>,<b3>,<b4>|<fires: 0, 2, 3>`
    (main hand and empty slots come with the checks that need them). A materials value travels in an `M2`
    message of its own with `c` for the scan age, so an older Mailworthy drops only that message.
-4. Next: the rest of the table (armor or a cloak for an empty slot, quivers, stones, potions, food,
-   bandages, wands).
+4. **Built (2026-11-22):** the rest of the table. A second note, `E2|<from>|<to>|<send time>|<main: blade|blunt|->|
+   <ranged: bow|gun|crossbow|wand|thrown|->|<quiver slots>|<empty gear slot IDs, comma-separated, or ->`, goes with
+   `N2` (a kind of its own: `N2` stays as it was). The ideas keep the best of each kind (a piece per empty slot),
+   three at most. Stones, scopes and potions are told by Classic's item IDs; armor types by class and level.
+   Gatherers pay back in kind: a player this account owes is a This visit suggestion (`Routes.Suggestions`,
+   `owed`). Enchants cast in person stay with Mark part paid.
 
 ## 5b. Upgrades (operator, 2026-11-22; the sheet's "Try:" buttons)
 

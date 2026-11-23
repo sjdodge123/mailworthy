@@ -13,8 +13,9 @@ SavedVariables, feature switches, where each Safety rule is enforced) before rea
   bound player, or the character of theirs that has the bound profession as their
   own Mailworthy reported it (never their bank alt for the AH). A binding can be short-lived, from a
   suggestion (`Suggest.lua`, `Routes.AddTemp`; operator, 2026-11-22): **While grouped** (a player in this
-  character's group, until either leaves it) or **This visit** (one of this account's characters, until the
-  mailbox closes), made only when the player presses it, never saved, under the same rules as any binding (a
+  character's group, until either leaves it) or **This visit** (one of this account's characters, or a player this
+  character owes in the mail ledger, paying back in kind: operator, 2026-11-22, "build the rest of the table";
+  until the mailbox closes), made only when the player presses it, never saved, under the same rules as any binding (a
   run already sending when its player leaves the group finishes as previewed; it ends after). A
   guild template rule
   (`Guild.lua`) is a binding only once the player turned the guild rules on, only when its
@@ -33,7 +34,9 @@ SavedVariables, feature switches, where each Safety rule is enforced) before rea
   call or what this character's own professions keep; Return to sender still wins. Its value counts off the
   debt (with no auction price: its materials, never more than what's owed). The **needs note** this
   character whispers with a counted mail's values tells only that player's character its level, class, bag
-  sizes and the ammo its ranged weapon fires (Settings > Tell crafters, on by default). Never attach money. Never send a mail whose postage would leave the character
+  sizes and the ammo its ranged weapon fires, and its **gear note** (2026-11-22) what its main hand and ranged
+  weapon are, its quiver's size and which gear slots are empty; nothing else (Settings > Tell crafters, on by
+  default). Never attach money. Never send a mail whose postage would leave the character
   with less than 5s (`Mailer.RESERVE`; operator, 2026-11-14: "you should always have a reserve
   of 5s before mailworthy will auto send"): Send stays greyed out, and a run stops before the
   mail that would.
@@ -140,7 +143,7 @@ textures / font strings on Blizzard frames kept in our own tables, read-only
 `spec/critical_path_spec.lua` is the shipping gate: a mailbox visit with a realistic
 bag, by mouse and by controller, with and without Auctionator, with a binding, with a suggested binding
 (While grouped, This visit, its player leaving the group), with a payback (picked by mouse and by controller,
-left alone, locked), with a bank pin, with a bank-here row's Alt, with vendor trash, with a hunter's
+left alone, locked), with paying back in kind (This visit to a player owed), with a bank pin, with a bank-here row's Alt, with vendor trash, with a hunter's
 ammo, with a guild
 template (on and off), with Return to sender (on a main and on the bank alt), with the 5s
 money reserve (before Send and mid-run), with no realm name from the game (`Characters.Realm`: the
