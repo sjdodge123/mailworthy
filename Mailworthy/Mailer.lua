@@ -107,7 +107,8 @@ function Mailer.Plan(items, bankAlt)
         local key = r.to and (r.to .. "|" .. tostring(r.what)) or ""
         if not groups[key] then
             groups[key] = { to = r.to or bankAlt, what = r.to and r.what or nil, items = {},
-                returning = r.to ~= nil and r.route == "return" or nil }
+                returning = r.to ~= nil and r.route == "return" or nil,
+                payback = r.to ~= nil and r.route == "payback" or nil } -- Paybacks.lua: valued by its materials
             if key == "" then table.insert(order, 1, key) else order[#order + 1] = key end
         end
         table.insert(groups[key].items, item)
@@ -118,7 +119,8 @@ function Mailer.Plan(items, bankAlt)
         for _, item in ipairs(group.items) do
             for _, s in ipairs(item.slots) do
                 if not currentMail or #currentMail.stacks >= Mailer.PER_MAIL then
-                    currentMail = { to = group.to, what = group.what, returning = group.returning, stacks = {} }
+                    currentMail = { to = group.to, what = group.what, returning = group.returning, payback = group.payback,
+                        stacks = {} }
                     mails[#mails + 1] = currentMail
                 end
                 currentMail.stacks[#currentMail.stacks + 1] = { bag = s.bag, slot = s.slot, count = s.count,
@@ -522,7 +524,7 @@ local function credit(mail)
             items[#items + 1] = { itemID = stack.itemID, link = stack.link, count = stack.count }
         end
         local okLog, err = pcall(ns.Ledger.RecordSent, { to = mail.to, subject = mail.subject, items = items,
-            guild = guild }, "Mailworthy")
+            guild = guild, payback = mail.payback }, "Mailworthy")
         if not okLog then ns.Log.Add("mailer", "ledger error: %s", tostring(err)) end
     end
     if guild then -- the guild contributions count it (not mail to this account's own characters)

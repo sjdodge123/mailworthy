@@ -169,14 +169,24 @@ local function modernRecipes()
         if type(info) == "table" and info.learned and tonumber(info.relativeDifficulty) and not info.isRecraft
             and not info.isDummyRecipe and not info.isSalvageRecipe and not info.isGatheringRecipe then
             local schematic = call(T.GetRecipeSchematic, id, false)
-            local reagents = {}
+            local reagents, counts = {}, {}
             for _, slot in ipairs(type(schematic) == "table" and schematic.reagentSlotSchematics or {}) do
-                for _, reagent in ipairs(type(slot) == "table" and slot.reagents or {}) do
-                    if tonumber(reagent.itemID) then reagents[#reagents + 1] = tonumber(reagent.itemID) end
+                -- quantityRequired: how many of the slot's reagent one craft takes (Forever's ProfessionsUtil.lua
+                -- reads it so: GetQuantityRequired; the payback ideas count materials with it, 2026-11-22).
+                local need = type(slot) == "table" and tonumber(slot.quantityRequired) or nil
+                for i, reagent in ipairs(type(slot) == "table" and slot.reagents or {}) do
+                    local reagentID = tonumber(reagent.itemID)
+                    if reagentID then
+                        reagents[#reagents + 1] = reagentID
+                        if i == 1 then counts[reagentID] = (counts[reagentID] or 0) + (need or 1) end
+                    end
                 end
             end
+            -- How many one craft makes (CraftingRecipeSchematic quantityMin / quantityMax: 200 rounds of ammo, one bag).
+            local yield = type(schematic) == "table" and (tonumber(schematic.quantityMax) or tonumber(schematic.quantityMin)) or nil
             recipes[#recipes + 1] = { name = info.name, difficulty = tonumber(info.relativeDifficulty),
-                reagents = reagents, output = type(schematic) == "table" and tonumber(schematic.outputItemID) or nil }
+                reagents = reagents, counts = counts, yield = yield,
+                output = type(schematic) == "table" and tonumber(schematic.outputItemID) or nil }
         end
     end
     local rank = tonumber(own.rank) or tonumber(child.skillLevel) or tonumber(base.skillLevel)
@@ -203,13 +213,20 @@ local function classicRecipes(craft)
         end
         local difficulty = CLASSIC_DIFFICULTY[kind or ""]
         if recipeName and difficulty then
-            local reagents = {}
+            local reagents, counts = {}, {}
             local n = tonumber(call(craft and G.GetCraftNumReagents or G.GetTradeSkillNumReagents, i)) or 0
             for j = 1, n do
                 local id = itemIDFromLink(call(craft and G.GetCraftReagentItemLink or G.GetTradeSkillReagentItemLink, i, j))
-                if id then reagents[#reagents + 1] = id end
+                if id then
+                    reagents[#reagents + 1] = id
+                    -- Classic's reagent info: name, texture, count, the player's count (not in Forever's source).
+                    local _, _, need = call(craft and G.GetCraftReagentInfo or G.GetTradeSkillReagentInfo, i, j)
+                    counts[id] = (counts[id] or 0) + (tonumber(need) or 1)
+                end
             end
-            recipes[#recipes + 1] = { name = recipeName, difficulty = difficulty, reagents = reagents,
+            local _, made = call(not craft and G.GetTradeSkillNumMade or nil, i) -- Classic: min, max made (not for crafts)
+            recipes[#recipes + 1] = { name = recipeName, difficulty = difficulty, reagents = reagents, counts = counts,
+                yield = tonumber(made),
                 output = itemIDFromLink(call(craft and G.GetCraftItemLink or G.GetTradeSkillItemLink, i)) }
         end
     end
@@ -224,7 +241,43 @@ end
 
 local function charKey() return ns.Characters.Key(ns.Characters.Current()) end
 
---- The saved reads: MailworthyDB.tierCheck[character key][skill line] = { rank, at, recipes, source, reagents,
+--- Pure: what the recipes make: { [output itemID] = { recipe = name, reagents = { [itemID] = count } } }, every
+--- learned recipe (grey ones too: they can still be made). The payback ideas read it (Paybacks.lua).
+function TierCheck.Crafts(recipes)
+    local out = {}
+    for _, r in ipairs(recipes or {}) do
+        local id = tonumber(r.output)
+        if id and not out[id] then
+            local reagents = {}
+            for rid, n in pairs(type(r.counts) == "table" and r.counts or {}) do reagents[rid] = n end
+            if next(reagents) == nil then
+                for _, rid in ipairs(r.reagents or {}) do reagents[rid] = (reagents[rid] or 0) + 1 end
+            end
+            out[id] = { recipe = r.name, reagents = reagents, yield = math.max(1, math.floor(tonumber(r.yield) or 1)) }
+        end
+    end
+    return out
+end
+
+--- What this character makes: { [output itemID] = { recipe, reagents, yield, skillLine } }, from the reads of
+--- the professions it has now (Codex review, 2026-11-22: a profession dropped since kept its recipes).
+function TierCheck.MyCrafts()
+    local out, have = {}, {}
+    for _, p in ipairs(ns.Characters.Professions() or {}) do have[tonumber(p.skillLine) or -1] = true end
+    local mine = TierCheck.Records()[charKey()]
+    for skillLine, record in pairs(type(mine) == "table" and mine or {}) do
+        if have[tonumber(skillLine) or -1] then
+            for id, c in pairs(type(record) == "table" and type(record.crafts) == "table" and record.crafts or {}) do
+                if not out[id] then
+                    out[id] = { recipe = c.recipe, reagents = c.reagents, yield = tonumber(c.yield) or 1, skillLine = tonumber(skillLine) }
+                end
+            end
+        end
+    end
+    return out
+end
+
+--- The saved reads: MailworthyDB.tierCheck[character key][skill line] = { rank, at, recipes, source, reagents, crafts,
 --- profession, skillLine, version, findings = { { itemID, name, doneAt, recipe, difficulty, color, via, text }, ... } }
 --- (findings: what the table, as of `version`, calls done that a non-grey recipe still uses; /mw report's lines).
 function TierCheck.Records()
@@ -252,7 +305,7 @@ function TierCheck.Scan(craft)
     if not read then return nil, why end
     if not read.rank or #read.recipes == 0 then return nil, "no learned recipes read" end
     local record = { rank = read.rank, at = Util.Now(), recipes = #read.recipes, source = read.source,
-        reagents = TierCheck.Summarize(read.recipes, read.skillLine, classOf) }
+        reagents = TierCheck.Summarize(read.recipes, read.skillLine, classOf), crafts = TierCheck.Crafts(read.recipes) }
     Util.Store(TierCheck.Records(), charKey())[read.skillLine] = record
     local findings = TierCheck.Findings(read.skillLine, record)
     -- The comparison is saved with the read, so the SavedVariables file holds the answer for a reader

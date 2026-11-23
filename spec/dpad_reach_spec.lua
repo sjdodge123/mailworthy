@@ -368,6 +368,28 @@ describe("D-pad reach in every view", function()
         assertNavigable("mailbox window, something to pay back", 7)
     end)
 
+    -- Payback ideas (2026-11-22): under the owed notice, a heading with Fold and a row each with Not for <name>.
+    it("the mailbox window with payback ideas: open and folded", function()
+        ns.Ledger.Store().players["bob surname"] = { name = BOB, received = 10000, sent = 0, inItems = {}, outItems = {}, at = 1 }
+        MailworthyDB.tierCheck = { [ns.Characters.Key(ns.Characters.Current())] = { [186] = { rank = 100,
+            crafts = { [5763] = { recipe = "Woolen Bag", reagents = { [2589] = 3 } } } } } }
+        ns.Comms.Hear(BOB, ns.Paybacks.EncodeNeeds(BOB, ns.PlayerName(), WowStub.state.serverTime,
+            { level = 24, bags = { 6, 6, 6, 6 } }), "WHISPER")
+        WowStub.setBag(0, 8, WowStub.item(5763, "Woolen Bag", { class = 1, subclass = 0, sell = 50 }))
+        WowStub.state.tooltipLines[5763] = { "8 Slot Bag" }
+        MailFrame:Show()
+        SendMailFrame:Show()
+        WowStub.state.activeFrame = MailFrame
+        ns.MailWindow.Show("send")
+        tick()
+        assert.is_true(_G.MailworthyMailIdeaNot1:IsVisible())
+        assertNavigable("mailbox window, payback ideas", 8)
+        _G.MailworthyMailIdeasFold:Click()
+        tick()
+        assert.is_false(_G.MailworthyMailIdeaNot1:IsVisible())
+        assertNavigable("mailbox window, payback ideas folded", 7)
+    end)
+
     it("the ledger and the bank alt summary", function()
         local store = ns.Ledger.Store()
         store.players["bob surname"] = { name = BOB, received = 1000, sent = 0, inItems = {}, outItems = {}, at = 1 }

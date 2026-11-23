@@ -14,16 +14,48 @@ local clean, money, remember = I.clean, I.money, I.remember
 
 -- Sending -----------------------------------------------------------------------------------
 
-local function valued(items)
+--- `owed` (a payback mail, Paybacks.lua): what this account owes the recipient, in copper. A crafted item with
+--- no auction price then counts its materials at this character's prices (source "craft"), never more than
+--- what's still owed (operator, 2026-11-22: "count the materials, capped": a payback clears a debt, never
+--- makes one).
+local function valued(items, owed)
     local out = {}
     for _, it in ipairs(items or {}) do
         local link = it.link or (it.itemID and ("item:" .. it.itemID)) or nil
         local unit, age = Ledger.UnitValue(link)
-        out[#out + 1] = { itemID = tonumber(it.itemID), name = it.name or Ledger.NameOf(it.link) or ("item " .. tostring(it.itemID)),
-            count = tonumber(it.count) or 1, value = unit and unit * (tonumber(it.count) or 1) or nil,
-            source = unit and "mine" or nil, age = unit and age or nil }
+        local count = tonumber(it.count) or 1
+        local v = { itemID = tonumber(it.itemID), name = it.name or Ledger.NameOf(it.link) or ("item " .. tostring(it.itemID)),
+            count = count, value = unit and unit * count or nil, source = unit and "mine" or nil, age = unit and age or nil }
+        if not unit and owed and ns.Paybacks then
+            local each = ns.Paybacks.MaterialsValue(it.itemID)
+            if each then
+                -- Once the cap is used up the rest still travels as a craft value, of 0 (Codex review, 2026-11-22:
+                -- without it the receiver priced them its own way and the payback made a debt).
+                v.value, v.source, v.craft = math.min(each * count, math.max(0, owed)), "craft", true
+                owed = owed - v.value
+            end
+        end
+        out[#out + 1] = v
     end
     return out
+end
+
+--- The value a payback's stack of `count` `itemID` counted when it went to `other` (its materials value, or the
+--- value agreed for it), the newest not yet returned; marks it returned. nil when there is none.
+function Ledger.PaybackSent(other, itemID, count)
+    local log = store().log
+    for i = #log, 1, -1 do
+        local e = log[i]
+        if e.dir == "sent" and e.payback and e.counted and tostring(e.other):lower() == tostring(clean(other)):lower() then
+            for _, x in ipairs(e.items or {}) do
+                if x.craft and not x.back and x.itemID == tonumber(itemID) and x.count == tonumber(count) and x.value then
+                    x.back = true
+                    return x.value
+                end
+            end
+        end
+    end
+    return nil
 end
 
 --- A mail that went (MAIL_SEND_SUCCESS): { to, subject, items = { { itemID, link, name, count } },
@@ -37,10 +69,14 @@ function Ledger.RecordSent(mail, via)
     -- skill line and the template's revision. Blizzard's Send button never carries one.
     local guild = via == "Mailworthy" and type(mail.guild) == "table" and tonumber(mail.guild.profession) and {
         key = mail.guild.key, profession = tonumber(mail.guild.profession), rev = tonumber(mail.guild.rev) } or nil
+    local owed = mail.payback and math.max(0, (Ledger.Net(other))) or nil
     local entry = Ledger.Add({ id = s.nextId, dir = "sent", other = other, subject = mail.subject,
-        items = valued(mail.items), money = tonumber(mail.money) or 0, cod = tonumber(mail.cod) or 0, via = via,
-        scope = guild and "guild" or nil, guild = guild })
-    if entry.counted then I.queueValues(entry) end
+        items = valued(mail.items, owed), money = tonumber(mail.money) or 0, cod = tonumber(mail.cod) or 0, via = via,
+        scope = guild and "guild" or nil, guild = guild, payback = mail.payback or nil })
+    if entry.counted then
+        I.queueValues(entry)
+        if ns.Paybacks then pcall(ns.Paybacks.AfterSend, entry) end -- the needs note goes with the values
+    end
     return entry
 end
 
@@ -126,7 +162,9 @@ local function chatLine(sender)
             or (c.unpriced > 0 and " (no price yet)" or "")
     end
     local owner = Ledger.Owner(sender)
-    local text = string.format("Received %s%s from %s.", what, value, sender)
+    -- A payback (Paybacks.lua: the subject "Mailworthy: made for you (...)"): "Grace Thorn made you 1 Woolen Bag".
+    local text = c.made and string.format("%s made you %s%s.", sender, what, value)
+        or string.format("Received %s%s from %s.", what, value, sender)
     local debt = Ledger.DebtText(owner, (Ledger.Net(owner)))
     ns.Print(debt and (text .. " " .. debt) or text)
 end
@@ -138,11 +176,23 @@ local function commit(take)
         local link, count = take.item.link or ("item:" .. take.item.itemID), take.item.count
         local unit, age = Ledger.UnitValue(link)
         local value, source = unit and unit * count or nil, unit and "mine" or nil
+        -- A payback coming back as returned mail undoes what its send counted, materials value and all
+        -- (Codex review, 2026-11-22: an unpriced one undid nothing).
+        if h.returned and not unit then
+            local back = Ledger.PaybackSent(h.sender, take.item.itemID, count)
+            if back then value, source = back, "returned payback" end
+        end
         local claim = not h.returned and Ledger.Claim(h.sender, take.item.itemID, count, ns.PlayerName()) or nil
         if claim then -- their value and ours, each as it stood when the mail went
             local daysAgo = Ledger.ScanDay(now()) - Ledger.ScanDay(claim.at or now())
             local mine, mineAge = Ledger.PriceThen(unit and ns.Prices.Lookup(link), unit, daysAgo)
             value, source, age = Ledger.Pick(claim.value, claim.age, mine and mine * count or nil, mineAge)
+            -- A payback valued by its materials (the sender's "craft" value): at most what the sender still owed
+            -- this account, so it can clear their side and never make a debt here (Paybacks.lua).
+            if claim.craft and value then
+                local owedHere = math.max(0, -(Ledger.Net(h.sender)))
+                if value > owedHere then value, source = owedHere, "capped" end
+            end
             if value and value ~= claim.value and claim.id then -- tell the sender, so both logs match
                 I.queueFor(h.sender, now(), Ledger.EncodeAnswers(claim.to, h.sender, claim.id,
                     { { itemID = take.item.itemID, count = count, value = value, k = claim.k } }))
@@ -168,6 +218,7 @@ local function commit(take)
             if it.value then c.total = c.total + it.value else c.unpriced = c.unpriced + 1 end
         end
         c.gold = c.gold + (take.money or 0)
+        if tostring(h.subject or ""):find(": made for you", 1, true) then c.made = true end
     end
 end
 

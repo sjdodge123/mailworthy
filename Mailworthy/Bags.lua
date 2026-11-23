@@ -426,6 +426,13 @@ local function decide(item, ctx)
     -- The row's button (Routes.Pick, this mailbox visit): where the player sent it instead. A bank-here
     -- row's own rule is "Here", and Alt mails it to the bank alt (Routes.AltOffered).
     local choices = ns.Routes.Choices(item, own, price, settings, routes)
+    -- A payback (Paybacks.lua): something this character made that a player it owes could use, offered after
+    -- the bindings; off until picked (operator, 2026-11-22). The targets are read once a scan.
+    if ns.Paybacks and ns.Paybacks.On() then
+        ctx.paybacks = ctx.paybacks or ns.Paybacks.Targets()
+        local payback = ns.Paybacks.ChoiceFor(item, own, price, ctx.paybacks)
+        if payback then choices[#choices + 1] = payback end
+    end
     local bankHere = ns.Routes.BankHere(own)
     local alt = ns.Routes.AltOffered(item, own, price, settings, routes)
     local pickState = result.key or ns.Routes.MINE
@@ -441,7 +448,11 @@ local function decide(item, ctx)
     elseif pick and pick ~= ns.Routes.MINE and pick ~= result.key then
         for _, r in ipairs(choices) do
             if r.key == pick then
-                result = ns.Routes.Force(item, r, (ns.Routes.Units(item, price, settings)), settings)
+                if r.payback then
+                    result = ns.Paybacks.Result(item, r, settings)
+                else
+                    result = ns.Routes.Force(item, r, (ns.Routes.Units(item, price, settings)), settings)
+                end
                 result.picked, pickState = true, pick
             end
         end

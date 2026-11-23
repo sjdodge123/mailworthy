@@ -45,6 +45,7 @@ LedgerHooks.lua
 LedgerExport.lua
 Contributions.lua
 Returns.lua
+Paybacks.lua
 Trip.lua
 Suggest.lua
 Widgets.lua
@@ -64,6 +65,7 @@ MailRows.lua
 MailRecipients.lua
 MailBanners.lua
 MailSuggestions.lua
+MailIdeas.lua
 MailBindings.lua
 MailTotals.lua
 MailSend.lua

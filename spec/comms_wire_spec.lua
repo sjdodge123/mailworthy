@@ -27,6 +27,10 @@ describe("addon message wire", function()
         M = "M2|Bob Surname|Rettana Quilwrit|1791900000|42|2589:20:1000:3:1;2770:20:1200::1;2589:20:1000::2",
         R = "R2|Rettana Quilwrit|Bob Surname|42|2589:20:900:2",
         V = "V2|Bob Surname|Rettana Quilwrit|1791900000|2589:20:1000:3;2770:20:1200",
+        -- Payback ideas (2026-11-22): the needs note, and a payback valued by its materials ("c" for the age),
+        -- in a message of its own so an older Mailworthy drops only that one.
+        N = "N2|Bob Surname|Rettana Quilwrit|1791900000|24|HUNTER|6,6,6,0|3",
+        MC = "M2|Bob Surname|Rettana Quilwrit|1791900000|43|5763:1:3500:c:1",
     }
 
     before_each(function()
@@ -47,12 +51,13 @@ describe("addon message wire", function()
     it("every kind is registered by the module that owns it", function()
         local kinds, order = ns.Comms.Kinds()
         local owners = { H = false, A = false, S = false, T = "Guild", Q = "Guild", F = "Stale", U = "Version",
-            M = "Ledger", V = "Ledger", R = "Ledger", G = "Contributions" }
+            M = "Ledger", V = "Ledger", R = "Ledger", G = "Contributions", N = "Paybacks" }
         for letter, module in pairs(owners) do
             assert.is_table(kinds[letter], letter)
             assert.equal(module or nil, kinds[letter].module, letter)
         end
-        assert.same({ "H", "A", "S", "T", "Q", "F", "U", "M", "V", "R", "G" }, order, "the .toc order")
+        assert.same({ "H", "A", "S", "T", "Q", "F", "U", "M", "V", "R", "G", "N" }, order, "the .toc order")
+        assert.same({ WHISPER = true }, kinds.N.channels)
         assert.same({ GUILD = true }, kinds.G.channels)
         for _, letter in ipairs({ "M", "V", "R" }) do assert.same({ WHISPER = true }, kinds[letter].channels, letter) end
     end)
@@ -110,6 +115,24 @@ describe("addon message wire", function()
         assert.same({ kind = "values", version = 2, values = { from = BOB, to = ME, at = NOW, items = {
             { itemID = 2589, count = 20, value = 1000, age = 3 }, { itemID = 2770, count = 20, value = 1200 } } } },
             ns.Comms.Decode(WIRE.V))
+    end)
+
+    it("the needs note and a payback's materials value: byte-identical and decoded back", function()
+        assert.equal(WIRE.N, ns.Paybacks.EncodeNeeds(BOB, ME, NOW, { level = 24, class = "HUNTER", bags = { 6, 6, 6, 0 }, fires = 3 }))
+        assert.same({ kind = "needs", version = 2, needs = { from = BOB, to = ME, at = NOW, level = 24, class = "HUNTER",
+            bags = { 6, 6, 6, 0 }, fires = 3 } }, ns.Comms.Decode(WIRE.N))
+        assert.equal("N2|Bob Surname|Rettana Quilwrit|1791900000|5|-|0,0,0,0|0",
+            ns.Paybacks.EncodeNeeds(BOB, ME, NOW, { level = 5, bags = {} }), "no class, no bags, no ranged weapon")
+        assert.is_nil(ns.Comms.Decode("N2|Bob Surname|Rettana Quilwrit|1791900000|24|HUNTER|6,6,6|3"), "four bags")
+        assert.is_nil(ns.Comms.Decode("N2|Bob Surname|Rettana Quilwrit|1791900000|24|HUNTER|6,6,6,99|3"), "no such bag")
+        assert.is_nil(ns.Comms.Decode("N2|Bob Surname|Rettana Quilwrit|1791900000|24|HUNTER|6,6,6,6|5"), "no such ammo")
+        -- The materials value goes after the mail's other values, in a message of its own.
+        assert.same({ "M2|Bob Surname|Rettana Quilwrit|1791900000|43|2589:20:1000:3:1", WIRE.MC },
+            ns.Ledger.EncodeValues(BOB, ME, NOW, 43, { { itemID = 5763, count = 1, value = 3500, source = "craft" },
+                { itemID = 2589, count = 20, value = 1000, age = 3, source = "mine" } }))
+        assert.same({ kind = "values", version = 2, values = { from = BOB, to = ME, at = NOW, id = 43, items = {
+            { itemID = 5763, count = 1, value = 3500, k = 1, craft = true } } } }, ns.Comms.Decode(WIRE.MC))
+        assert.is_nil(ns.Comms.Decode("M2|Bob Surname|Rettana Quilwrit|1791900000|43|5763:1:3500:c3:1"), "c alone")
     end)
 
     it("each kind reaches the module that owns it", function()

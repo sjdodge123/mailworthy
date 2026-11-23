@@ -182,8 +182,13 @@ function UI.PickLines(item, pad, busy)
         line(ns.Routes.ALT, "Alt: to " .. S.firstName(ns.Config.BankAlt()) .. " (your bank alt)")
     end
     for _, r in ipairs(choices) do
-        line(r.key, string.format("%s: to %s (%s)", ns.Routes.PickLabel(r.key, choices), S.firstName(ns.Routes.Recipient(r)),
-            ns.Routes.Describe(r)))
+        if r.payback then -- Paybacks.lua: something this character made for a player it owes
+            line(r.key, string.format("%s: back to %s, a payback (made for them; it counts off what you owe)",
+                ns.Routes.PickLabel(r.key, choices), S.firstName(r.to)))
+        else
+            line(r.key, string.format("%s: to %s (%s)", ns.Routes.PickLabel(r.key, choices), S.firstName(ns.Routes.Recipient(r)),
+                ns.Routes.Describe(r)))
+        end
     end
     lines[#lines + 1] = busy and UI.BUSY_LINE or string.format("%s: %s. Cleared when the mailbox closes.",
         pad and "Press" or "Click", nextPickText(item))

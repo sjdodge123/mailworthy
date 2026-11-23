@@ -342,6 +342,15 @@ a "new" one first, the rows it takes lit, no price shown; a chat line away from 
 in the group could use something. Design, answers and what's next (payback ideas):
 [RECOMMENDATIONS.md](RECOMMENDATIONS.md).
 
+### Payback ideas (operator, 2026-11-22)
+
+A sender's Mailworthy whispers a short needs note with a counted mail's values (level, class, bag sizes,
+the ammo the ranged weapon fires; Settings > Tell crafters). The crafter's Mailworthy matches it against its
+own recipes (a bigger bag, the ammo for their level) for each player it owes and shows the ideas under the
+owed notice and in chat at the profession window. A made item's row then offers that player after Me (a
+payback for this visit, off until picked), mailed as "Mailworthy: made for you (...)", counted off the debt
+(no auction price: its materials, never more than what's owed). Design: [RECOMMENDATIONS.md](RECOMMENDATIONS.md).
+
 ## Guild template (operator, 2026-11-07)
 
 "The guild master (if using Mailworthy) can set up a template for the rest of the guild members

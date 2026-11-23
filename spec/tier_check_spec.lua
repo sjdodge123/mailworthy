@@ -60,8 +60,11 @@ describe("tier check (the profession window against the tier table)", function()
             GetRecipeSchematic = function(id)
                 local r = find(id)
                 local slots = {}
-                for i, item in ipairs(r.reagents) do slots[i] = { reagents = { { itemID = item } }, quantityRequired = 1 } end
-                return { recipeID = id, outputItemID = r.output, reagentSlotSchematics = slots }
+                for i, item in ipairs(r.reagents) do
+                    slots[i] = { reagents = { { itemID = item } }, quantityRequired = r.quantities and r.quantities[i] or 1 }
+                end
+                return { recipeID = id, outputItemID = r.output, reagentSlotSchematics = slots,
+                    quantityMin = r.yield or 1, quantityMax = r.yield or 1 }
             end,
         }
     end
@@ -166,6 +169,23 @@ describe("tier check (the profession window against the tier table)", function()
     end)
 
     describe("reading the window (C_TradeSkillUI)", function()
+        it("saves what each learned recipe makes and how many of each reagent (payback ideas, 2026-11-22)", function()
+            window.recipes[1].quantities = { 2 }  -- Bolt of Linen Cloth: 2 Linen Cloth
+            window.recipes[1].yield = 1
+            window.recipes[5].yield = 5 -- as if a shirt recipe made five
+            window.recipes[2].quantities = { 1, 3 }
+            open()
+            local crafts = ns.TierCheck.MyCrafts()
+            assert.same({ [LINEN] = 2 }, crafts[BOLT_LINEN].reagents)
+            assert.same({ [BOLT_LINEN] = 1, [LIGHT_LEATHER] = 3 }, crafts[BOOTS].reagents)
+            assert.equal(TAILORING, crafts[BOOTS].skillLine)
+            assert.truthy(crafts[4238], "a grey recipe can still be made")
+            assert.is_nil(crafts[6238], "not learned")
+            assert.equal(1, crafts[BOOTS].yield)
+            assert.equal(5, crafts[2587].yield, "how many one craft makes (quantityMax)")
+        end)
+
+
         it("opening Tailoring records the rank and every reagent's use for this character, creating no frames", function()
             open()
             local record = MailworthyDB.tierCheck[ME][TAILORING]

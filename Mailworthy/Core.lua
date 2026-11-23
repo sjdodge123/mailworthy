@@ -43,6 +43,7 @@ ns.Features = { DEFAULTS = {
     baganatorTags = true, bagnonTags = true, arkInventoryTags = true, betterBagsTags = true, auctionatorTags = true,
     priceWatch = true, -- Prices.WatchWrites: a post-hook on Auctionator's price writes (tags follow the Selling tab)
     tsmAge = true, -- Prices.TSMDataTime: TSM's realm data age, read from its AppHelper (fresher source per item)
+    paybacks = true, -- Paybacks.lua: the needs note, payback ideas and the payback pick
 } }
 
 function ns.Features.Describe()
@@ -154,7 +155,7 @@ local HELP = {
     "/mw feature <mailButton|padTriangle|padNav|padLock|padPin|padPick|altClickLock|pinClick|slotBorder|vendorButton|padVendor"
         .. "|minimapButton|bankAltTags"
         .. "|tooltipLines|comms|staleNudge|tiers|tierCheck|guildTemplate|ledger|questNeeds|autoOpen|returnToSender|bankAltMail"
-        .. "|peerMark|versionNotice|tripNudge|crafterOffer"
+        .. "|peerMark|versionNotice|tripNudge|crafterOffer|paybacks"
         .. "|baganatorTags|bagnonTags|arkInventoryTags|betterBagsTags|auctionatorTags|priceWatch|tsmAge> on|off"
         .. " - isolate a problem (then /reload)",
     "/mw report - a copyable report for bug reports",
