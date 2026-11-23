@@ -56,7 +56,16 @@ SavedVariables, feature switches, where each Safety rule is enforced) before rea
 - Me first, then friends, then the guild (operator, 2026-11-14: "Make me a profit/level my professions
   first, then the same to my friend rules, then the same to my guild rules"): what this character's own
   professions still use stays with it before any binding takes it; then the player's own bindings, then
-  guild rules. The row's pick button (`Routes.Pick`, one mailbox visit, cleared at MAIL_CLOSED) sends an
+  guild rules. "Still use" is per profession and per material, for every crafting profession (First Aid,
+  Alchemy, Blacksmithing, Cooking, Enchanting, Engineering, Leatherworking, Tailoring; `Tiers.lua`,
+  `TierData.lua`; operator, 2026-11-06 and 2026-11-23: "confirm this type of check for all professions"):
+  a profession that uses the material keeps it until its own skill reaches the skill at which it is done
+  with it (First Aid cloth: where the next bandage is learnable; the rest: where its last recipe using it
+  turns grey), or while its profession window still shows a non-grey recipe using it (`TierCheck.lua`),
+  or while converting it up pays (leathers); a profession that doesn't use it never keeps it, and with
+  two that do, it stays until both are done with it. The keep names that profession, the skill it is
+  done at and this character's skill now ("your Blacksmithing needs it (until skill 210, you're at
+  150)"). The row's pick button (`Routes.Pick`, one mailbox visit, cleared at MAIL_CLOSED) sends an
   item to any binding whose profession or class takes it, past the profession keep, the cap, the Gear
   switch and the tier table ("my click wins"), and the row shows where it goes; never past a hard keep,
   a pin, a failed price call, a class binding's price rule, Return to sender or a binding naming this

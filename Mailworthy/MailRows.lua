@@ -95,7 +95,11 @@ function UI.WhyKept(r)
     if V.Is(r, K.junk) then return "junk: sell it at a vendor" end
     if V.Is(r, K.trash) then return "vendor trash: sell it at a vendor" end
     if V.Is(r, K.uncommon) then return "uncommon: needs auction prices" end
-    if r.untilSkill then return r.reason .. " (until skill " .. r.untilSkill .. ")" end
+    -- With the skill now (2026-11-23: a First Aid at 210 read Blacksmithing's "until skill 210" as its own).
+    if r.untilSkill then
+        return r.reason .. " (until skill " .. r.untilSkill
+            .. (r.skillNow and (", you're at " .. r.skillNow) or "") .. ")"
+    end
     if r.window then
         return string.format("%s (%s still %s)", r.reason, tostring(r.window.recipe),
             ns.TierCheck.COLORS[r.window.difficulty] or "in use")

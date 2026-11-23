@@ -434,8 +434,9 @@ them) then I just keep going to the AH. Same methodology for all crafting materi
 - **Own professions:** `Valuation.NeededBy(item, professions, tiers)` skips a profession whose
   `rank` is at or past the item's threshold, so the item is valued like anything else (or a
   binding that still needs it takes it); another of this character's professions that still
-  needs it keeps it. Kept items say "until skill N"; the workings say "your First Aid (80) is
-  past it".
+  needs it keeps it. Kept items say "until skill N, you're at M" (the keeping profession's skill
+  now, 2026-11-23: a First Aid at 210 read Blacksmithing's "until skill 210" as its own); the
+  workings say "your First Aid (80) is past it" and "kept until skill N (now M)".
 - **Bindings take primary materials only** (operator, 2026-11-07: "only focus on the primary
   materials rather than every possible material the professions can use. they can ask or
   acquire some minor pieces"): `Routes.Matches` takes a trade good of the profession's own

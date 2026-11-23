@@ -708,7 +708,9 @@ local function workings(item, settings)
     if r.outgrown then
         parts[#parts + 1] = string.format("your %s (%s) is past it", r.outgrown.name, tostring(r.outgrown.skill))
     end
-    if r.untilSkill then parts[#parts + 1] = "kept until skill " .. r.untilSkill end
+    if r.untilSkill then
+        parts[#parts + 1] = "kept until skill " .. r.untilSkill .. (r.skillNow and (" (now " .. r.skillNow .. ")") or "")
+    end
     if r.window then
         parts[#parts + 1] = string.format("past the table, but your profession window still shows %s (%s)%s",
             tostring(r.window.recipe), ns.TierCheck.COLORS[r.window.difficulty] or "?",
